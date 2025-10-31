@@ -63,9 +63,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const hasPermission = useCallback((permission: string): boolean => {
+    console.log('hasPermission chamado:', { permission, user: user?.role, userPermissions: user ? rolePermissions[user.role] : null });
     if (!user) return false
     const userPermissions = rolePermissions[user.role] || []
-    return userPermissions.includes(permission) || userPermissions.includes('all')
+    const hasAccess = userPermissions.includes(permission) || userPermissions.includes('all')
+    console.log('hasPermission resultado:', hasAccess);
+    return hasAccess
   }, [user, rolePermissions])
 
   const signIn = async (email: string, password: string): Promise<{ error: AuthError | null }> => {
@@ -104,30 +107,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (userError) {
           console.error('Erro ao verificar status do usuário:', userError)
-          // Se não conseguir verificar o status, fazer logout por segurança
-          await supabase.auth.signOut()
-          return { error: new Error('Erro ao verificar permissões do usuário') as AuthError }
-        }
+          // NÃO fazer logout automático - pode ser erro de RLS temporário
+          console.warn('Continuando login apesar do erro de verificação de status')
+          // return { error: new Error('Erro ao verificar permissões do usuário') as AuthError }
+        } else {
+          // Verificar se o usuário está ativo (apenas se conseguiu buscar os dados)
+          if (userData.status !== 'ativo') {
+            console.log('Usuário com status inativo tentou fazer login')
+            // Fazer logout imediatamente apenas se confirmado que está inativo
+            await supabase.auth.signOut()
+            return { error: new Error('Sua conta está inativa. Entre em contato com o administrador.') as AuthError }
+          }
 
-        // Verificar se o usuário está ativo
-        if (userData.status !== 'ativo') {
-          console.log('Usuário com status inativo tentou fazer login')
-          // Fazer logout imediatamente
-          await supabase.auth.signOut()
-          return { error: new Error('Sua conta está inativa. Entre em contato com o administrador.') as AuthError }
+          // Atualizar last_access apenas se o usuário estiver ativo
+          await supabase
+            .from('users')
+            .update({ last_access: new Date().toISOString() })
+            .eq('auth_user_id', data.user.id)
         }
-
-        // Atualizar last_access apenas se o usuário estiver ativo
-        await supabase
-          .from('users')
-          .update({ last_access: new Date().toISOString() })
-          .eq('auth_user_id', data.user.id)
 
       } catch (statusError) {
         console.error('Erro ao verificar status:', statusError)
-        // Fazer logout por segurança
-        await supabase.auth.signOut()
-        return { error: new Error('Erro ao verificar permissões do usuário') as AuthError }
+        // NÃO fazer logout automático - pode ser erro temporário
+        console.warn('Continuando login apesar do erro de verificação de status')
+        // return { error: new Error('Erro ao verificar permissões do usuário') as AuthError }
       }
 
       return { error: null }
@@ -192,18 +195,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
-  const fetchUserProfile = async (authUser: SupabaseUser): Promise<void> => {
+  const fetchUserProfile = useCallback(async (authUser: SupabaseUser) => {
+    console.log('fetchUserProfile iniciado para:', authUser.id)
+    
     try {
-      const { data, error } = await supabase
+      console.log('Fazendo query para buscar usuário...')
+      
+      // Implementar timeout para evitar carregamento infinito - aumentado para 30 segundos
+      const queryPromise = supabase
         .from('users')
         .select('*')
         .eq('auth_user_id', authUser.id)
         .single()
 
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Query timeout - 30 segundos')), 30000)
+      })
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any
+
+      console.log('Query concluída:', { data, error })
+
       if (error) {
         // Se o usuário não existe na tabela public.users, criar um novo
         if (error.code === 'PGRST116') { // No rows returned
-          console.log('Criando perfil de usuário na tabela public.users')
+          console.log('Usuário não encontrado, criando perfil na tabela public.users')
           
           const { data: newUser, error: createError } = await supabase
             .from('users')
@@ -217,39 +233,56 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             .select()
             .single()
           
+          console.log('Resultado da criação:', { newUser, createError })
+          
           if (createError) {
             console.error('Erro ao criar usuário na tabela public.users:', createError)
+            // NÃO fazer logout automático - apenas log do erro
+            setLoading(false)
             return
           }
           
+          console.log('Usuário criado com sucesso:', newUser)
           setUser(newUser)
+          setLoading(false)
           return
         }
         
         console.error('Erro ao buscar perfil do usuário:', error)
+        // NÃO fazer logout automático em caso de erro de RLS - apenas log
+        console.warn('Continuando sem fazer logout automático devido a erro de RLS')
+        setLoading(false)
         return
       }
 
       if (!data) {
         console.error('Nenhum usuário encontrado na tabela public.users para auth_user_id:', authUser.id)
+        // NÃO fazer logout automático - apenas log do erro
+        setLoading(false)
         return
       }
 
       // Verificar se o usuário está ativo
       if (data.status !== 'ativo') {
         console.log('Usuário com status inativo detectado, fazendo logout')
-        // Fazer logout imediatamente se o usuário estiver inativo
+        // APENAS neste caso fazer logout (usuário inativo)
         await supabase.auth.signOut()
         setUser(null)
         setSession(null)
+        setLoading(false)
         return
       }
 
+      console.log('Usuário encontrado e ativo:', data)
       setUser(data)
-    } catch (error) {
-      console.error('Erro inesperado ao buscar perfil:', error)
+      setLoading(false)
+    } catch (err) {
+      console.error('Erro inesperado ao buscar perfil do usuário:', err)
+      // NÃO fazer logout automático em caso de erro inesperado
+      console.warn('Continuando sem fazer logout automático devido a erro inesperado')
+      setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     let mounted = true

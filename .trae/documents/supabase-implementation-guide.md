@@ -11,7 +11,8 @@ npm install @supabase/auth-ui-react @supabase/auth-ui-shared
 
 ### 1.2 Configuração do Cliente Supabase
 
-**Arquivo: `src/lib/supabase.ts`**
+**Arquivo:** **`src/lib/supabase.ts`**
+
 ```typescript
 import { createClient } from '@supabase/supabase-js'
 
@@ -121,7 +122,8 @@ export type Database = {
 
 ### 1.3 Variáveis de Ambiente
 
-**Arquivo: `.env.local`**
+**Arquivo:** **`.env.local`**
+
 ```env
 VITE_SUPABASE_URL=https://huswezdozhadkegnptsa.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1c3dlemRvemhhZGtlZ25wdHNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE0ODA0OTIsImV4cCI6MjA3NzA1NjQ5Mn0.zXnmBnHrEXj63kygqaJ14XtMeFh4D8CeWm4KBFEuH1w
@@ -131,7 +133,8 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 
 ### 2.1 Context de Autenticação
 
-**Arquivo: `src/contexts/AuthContext.tsx`**
+**Arquivo:** **`src/contexts/AuthContext.tsx`**
+
 ```typescript
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session } from '@supabase/supabase-js'
@@ -248,7 +251,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 ### 2.2 Componente de Login
 
-**Arquivo: `src/pages/Login.tsx`**
+**Arquivo:** **`src/pages/Login.tsx`**
+
 ```typescript
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -338,7 +342,8 @@ export default Login
 
 ### 3.1 Componente de Rota Protegida
 
-**Arquivo: `src/components/ProtectedRoute.tsx`**
+**Arquivo:** **`src/components/ProtectedRoute.tsx`**
+
 ```typescript
 import React from 'react'
 import { Navigate } from 'react-router-dom'
@@ -389,7 +394,8 @@ export default ProtectedRoute
 
 ### 3.2 Hook de Permissões
 
-**Arquivo: `src/hooks/usePermissions.ts`**
+**Arquivo:** **`src/hooks/usePermissions.ts`**
+
 ```typescript
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -430,7 +436,8 @@ export const usePermissions = () => {
 
 ### 4.1 App.tsx Atualizado
 
-**Arquivo: `src/App.tsx`**
+**Arquivo:** **`src/App.tsx`**
+
 ```typescript
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -511,7 +518,8 @@ export default App;
 
 ### 5.1 Serviço de Usuários
 
-**Arquivo: `src/services/userService.ts`**
+**Arquivo:** **`src/services/userService.ts`**
+
 ```typescript
 import { supabase, Database } from '@/lib/supabase'
 
@@ -577,7 +585,8 @@ export const userService = {
 
 ### 5.2 Serviço de Empresas
 
-**Arquivo: `src/services/companyService.ts`**
+**Arquivo:** **`src/services/companyService.ts`**
+
 ```typescript
 import { supabase, Database } from '@/lib/supabase'
 
@@ -645,7 +654,8 @@ export const companyService = {
 
 ### 6.1 Componente Header Atualizado
 
-**Arquivo: `src/components/layout/Header.tsx`**
+**Arquivo:** **`src/components/layout/Header.tsx`**
+
 ```typescript
 import React from 'react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -736,31 +746,54 @@ export default Header
 ## 7. Checklist de Implementação
 
 ### 7.1 Configuração do Supabase
-- [ ] Criar projeto no Supabase
-- [ ] Configurar variáveis de ambiente
-- [ ] Executar scripts SQL para criar tabelas
-- [ ] Configurar políticas RLS
-- [ ] Inserir dados iniciais
+
+* [ ] Criar projeto no Supabase
+
+* [ ] Configurar variáveis de ambiente
+
+* [ ] Executar scripts SQL para criar tabelas
+
+* [ ] Configurar políticas RLS
+
+* [ ] Inserir dados iniciais
 
 ### 7.2 Frontend
-- [ ] Instalar dependências do Supabase
-- [ ] Criar cliente Supabase
-- [ ] Implementar AuthContext
-- [ ] Criar página de Login
-- [ ] Implementar ProtectedRoute
-- [ ] Atualizar App.tsx com rotas protegidas
-- [ ] Criar serviços de dados
-- [ ] Atualizar Header com logout
+
+* [ ] Instalar dependências do Supabase
+
+* [ ] Criar cliente Supabase
+
+* [ ] Implementar AuthContext
+
+* [ ] Criar página de Login
+
+* [ ] Implementar ProtectedRoute
+
+* [ ] Atualizar App.tsx com rotas protegidas
+
+* [ ] Criar serviços de dados
+
+* [ ] Atualizar Header com logout
 
 ### 7.3 Testes
-- [ ] Testar login/logout
-- [ ] Testar proteção de rotas
-- [ ] Testar permissões por role
-- [ ] Testar CRUD de usuários
-- [ ] Testar CRUD de empresas
-- [ ] Verificar políticas RLS
+
+* [ ] Testar login/logout
+
+* [ ] Testar proteção de rotas
+
+* [ ] Testar permissões por role
+
+* [ ] Testar CRUD de usuários
+
+* [ ] Testar CRUD de empresas
+
+* [ ] Verificar políticas RLS
 
 ### 7.4 Deploy
-- [ ] Configurar variáveis de ambiente em produção
-- [ ] Testar em ambiente de produção
-- [ ] Documentar processo de deploy
+
+* [ ] Configurar variáveis de ambiente em produção
+
+* [ ] Testar em ambiente de produção
+
+* [ ] Documentar processo de deploy
+

@@ -16,6 +16,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { user, loading, hasPermission } = useAuth()
   const location = useLocation()
+  
+  console.log('ProtectedRoute renderizado:', { 
+    path: location.pathname, 
+    requiredPermission, 
+    user: user?.email, 
+    userRole: user?.role, 
+    loading 
+  });
 
   // Show loading spinner while checking authentication
   if (loading) {
@@ -41,6 +49,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Check if user has required permission
   if (requiredPermission && !hasPermission(requiredPermission)) {
+    console.log('Acesso negado - usuário sem permissão:', { requiredPermission, userRole: user?.role });
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
