@@ -1,174 +1,262 @@
-import { supabase, Company } from '../lib/supabase'
-
-export interface CreateCompanyData {
-  name: string
-  cnpj: string
-  payslips_count?: number
-  status?: 'active' | 'inactive'
-}
-
-export interface UpdateCompanyData {
-  name?: string
-  cnpj?: string
-  payslips_count?: number
-  status?: 'active' | 'inactive'
-}
+import { supabase } from '../lib/supabase';
+import type { Company, CreateCompanyData, UpdateCompanyData, CompanyWithStats } from '../../shared/types/company';
 
 export class CompanyService {
-  static async getCompanies(): Promise<{ data: Company[] | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .order('created_at', { ascending: false })
+  /**
+   * Busca todas as empresas
+   */
+  static async getAll(): Promise<Company[]> {
+    const { data, error } = await supabase
+      .from('companies')
+      .select('*')
+      .order('name');
 
-      return { data, error }
-    } catch (error) {
-      return { data: null, error }
+    if (error) {
+      throw new Error(`Erro ao buscar empresas: ${error.message}`);
     }
+
+    return data || [];
   }
 
-  static async getCompanyById(id: string): Promise<{ data: Company | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('id', id)
-        .single()
+  /**
+   * Busca uma empresa por ID
+   */
+  static async getById(id: string): Promise<Company | null> {
+    const { data, error } = await supabase
+      .from('companies')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-      return { data, error }
-    } catch (error) {
-      return { data: null, error }
-    }
-  }
-
-  static async createCompany(companyData: CreateCompanyData): Promise<{ data: Company | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from('companies')
-        .insert({
-          name: companyData.name,
-          cnpj: companyData.cnpj,
-          payslips_count: companyData.payslips_count || 0,
-          status: companyData.status || 'active'
-        })
-        .select()
-        .single()
-
-      return { data, error }
-    } catch (error) {
-      return { data: null, error }
-    }
-  }
-
-  static async updateCompany(id: string, companyData: UpdateCompanyData): Promise<{ data: Company | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from('companies')
-        .update({
-          ...companyData,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-        .select()
-        .single()
-
-      return { data, error }
-    } catch (error) {
-      return { data: null, error }
-    }
-  }
-
-  static async deleteCompany(id: string): Promise<{ error: any }> {
-    try {
-      const { error } = await supabase
-        .from('companies')
-        .delete()
-        .eq('id', id)
-
-      return { error }
-    } catch (error) {
-      return { error }
-    }
-  }
-
-  static async searchCompanies(query: string): Promise<{ data: Company[] | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .or(`name.ilike.%${query}%,cnpj.ilike.%${query}%`)
-        .order('created_at', { ascending: false })
-
-      return { data, error }
-    } catch (error) {
-      return { data: null, error }
-    }
-  }
-
-  static async getCompaniesByStatus(status: 'active' | 'inactive'): Promise<{ data: Company[] | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .eq('status', status)
-        .order('created_at', { ascending: false })
-
-      return { data, error }
-    } catch (error) {
-      return { data: null, error }
-    }
-  }
-
-  static async updatePayslipsCount(id: string, count: number): Promise<{ data: Company | null; error: any }> {
-    try {
-      const { data, error } = await supabase
-        .from('companies')
-        .update({
-          payslips_count: count,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-        .select()
-        .single()
-
-      return { data, error }
-    } catch (error) {
-      return { data: null, error }
-    }
-  }
-
-  static async incrementPayslipsCount(id: string): Promise<{ data: Company | null; error: any }> {
-    try {
-      // First get current count
-      const { data: company, error: fetchError } = await this.getCompanyById(id)
-      
-      if (fetchError || !company) {
-        return { data: null, error: fetchError }
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null; // Empresa não encontrada
       }
+      throw new Error(`Erro ao buscar empresa: ${error.message}`);
+    }
 
-      // Then increment
-      const newCount = company.payslips_count + 1
-      return await this.updatePayslipsCount(id, newCount)
-    } catch (error) {
-      return { data: null, error }
+    return data;
+  }
+
+  /**
+   * Busca uma empresa por CNPJ
+   */
+  static async getByCnpj(cnpj: string): Promise<Company | null> {
+    const { data, error } = await supabase
+      .from('companies')
+      .select('*')
+      .eq('cnpj', cnpj)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null; // Empresa não encontrada
+      }
+      throw new Error(`Erro ao buscar empresa por CNPJ: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Cria uma nova empresa
+   */
+  static async create(companyData: CreateCompanyData): Promise<Company> {
+    // Validar CNPJ antes de criar
+    if (!this.validateCnpj(companyData.cnpj)) {
+      throw new Error('CNPJ inválido');
+    }
+
+    // Verificar se já existe empresa com este CNPJ
+    const existingCompany = await this.getByCnpj(companyData.cnpj);
+    if (existingCompany) {
+      throw new Error('Já existe uma empresa cadastrada com este CNPJ');
+    }
+
+    // Obter usuário atual
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Usuário não autenticado');
+    }
+
+    const { data, error } = await supabase
+      .from('companies')
+      .insert({
+        ...companyData,
+        created_by: user.id,
+        status: 'ativo'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Erro ao criar empresa: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Atualiza uma empresa
+   */
+  static async update(id: string, companyData: UpdateCompanyData): Promise<Company> {
+    // Validar CNPJ se fornecido
+    if (companyData.cnpj && !this.validateCnpj(companyData.cnpj)) {
+      throw new Error('CNPJ inválido');
+    }
+
+    // Verificar se já existe outra empresa com este CNPJ
+    if (companyData.cnpj) {
+      const existingCompany = await this.getByCnpj(companyData.cnpj);
+      if (existingCompany && existingCompany.id !== id) {
+        throw new Error('Já existe uma empresa cadastrada com este CNPJ');
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('companies')
+      .update(companyData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Erro ao atualizar empresa: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Deleta uma empresa
+   */
+  static async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('companies')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(`Erro ao deletar empresa: ${error.message}`);
     }
   }
 
-  static async decrementPayslipsCount(id: string): Promise<{ data: Company | null; error: any }> {
-    try {
-      // First get current count
-      const { data: company, error: fetchError } = await this.getCompanyById(id)
-      
-      if (fetchError || !company) {
-        return { data: null, error: fetchError }
-      }
+  /**
+   * Busca empresas com estatísticas de holerites
+   */
+  static async getAllWithStats(): Promise<CompanyWithStats[]> {
+    const companies = await this.getAll();
+    
+    const companiesWithStats = await Promise.all(
+      companies.map(async (company) => {
+        const stats = await this.getPayrollStats(company.id);
+        return {
+          ...company,
+          ...stats
+        };
+      })
+    );
 
-      // Then decrement (but not below 0)
-      const newCount = Math.max(0, company.payslips_count - 1)
-      return await this.updatePayslipsCount(id, newCount)
-    } catch (error) {
-      return { data: null, error }
+    return companiesWithStats;
+  }
+
+  /**
+   * Obtém estatísticas de holerites de uma empresa
+   */
+  static async getPayrollStats(companyId: string): Promise<{
+    total_payroll_files: number;
+    files_this_week: number;
+    files_this_month: number;
+  }> {
+    const { data, error } = await supabase
+      .rpc('get_payroll_stats', { company_uuid: companyId });
+
+    if (error) {
+      console.error('Erro ao buscar estatísticas:', error);
+      return {
+        total_payroll_files: 0,
+        files_this_week: 0,
+        files_this_month: 0
+      };
     }
+
+    const stats = data?.[0] || {
+      total_files: 0,
+      files_this_week: 0,
+      files_this_month: 0
+    };
+
+    return {
+      total_payroll_files: stats.total_files,
+      files_this_week: stats.files_this_week,
+      files_this_month: stats.files_this_month
+    };
+  }
+
+  /**
+   * Valida formato de CNPJ
+   */
+  static validateCnpj(cnpj: string): boolean {
+    // Remove caracteres não numéricos
+    const cleanCnpj = cnpj.replace(/[^\d]/g, '');
+    
+    // Verifica se tem 14 dígitos
+    if (cleanCnpj.length !== 14) {
+      return false;
+    }
+    
+    // Verifica se não são todos os dígitos iguais
+    if (/^(\d)\1{13}$/.test(cleanCnpj)) {
+      return false;
+    }
+    
+    // Validação dos dígitos verificadores
+    let tamanho = cleanCnpj.length - 2;
+    let numeros = cleanCnpj.substring(0, tamanho);
+    const digitos = cleanCnpj.substring(tamanho);
+    let soma = 0;
+    let pos = tamanho - 7;
+    
+    for (let i = tamanho; i >= 1; i--) {
+      soma += parseInt(numeros.charAt(tamanho - i)) * pos--;
+      if (pos < 2) pos = 9;
+    }
+    
+    let resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+    if (resultado !== parseInt(digitos.charAt(0))) {
+      return false;
+    }
+    
+    tamanho = tamanho + 1;
+    numeros = cleanCnpj.substring(0, tamanho);
+    soma = 0;
+    pos = tamanho - 7;
+    
+    for (let i = tamanho; i >= 1; i--) {
+      soma += parseInt(numeros.charAt(tamanho - i)) * pos--;
+      if (pos < 2) pos = 9;
+    }
+    
+    resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+    if (resultado !== parseInt(digitos.charAt(1))) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  /**
+   * Formata CNPJ para exibição
+   */
+  static formatCnpj(cnpj: string): string {
+    const cleanCnpj = cnpj.replace(/[^\d]/g, '');
+    return cleanCnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  }
+
+  /**
+   * Remove formatação do CNPJ
+   */
+  static cleanCnpj(cnpj: string): string {
+    return cnpj.replace(/[^\d]/g, '');
   }
 }

@@ -19,7 +19,8 @@ import PowerBI from "./pages/integrations/PowerBI";
 import Trello from "./pages/integrations/Trello";
 import CalendarIntegration from "./pages/integrations/CalendarIntegration";
 import Users from "./pages/admin/Users";
-import Companies from "./pages/admin/Companies";
+import { Companies as CompaniesManagement } from "./pages/Companies";
+import { PayrollManagement } from "./pages/PayrollManagement";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import { TestPage } from "./pages/TestPage";
@@ -62,15 +63,18 @@ const App = () => (
               <Route path="/integrations/trello" element={<Trello />} />
               <Route path="/integrations/calendar" element={<CalendarIntegration />} />
               
+              {/* Company Management - require companies permission */}
+              <Route path="/companies" element={
+                <ProtectedRoute requiredPermission="companies">
+                  <CompaniesManagement />
+                </ProtectedRoute>
+              } />
+              <Route path="/companies/:companyId/payrolls" element={<PayrollManagement />} />
+              
               {/* Admin routes - require admin permission */}
               <Route path="/admin/users" element={
                 <ProtectedRoute requiredPermission="admin">
                   <Users />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/companies" element={
-                <ProtectedRoute requiredPermission="companies">
-                  <Companies />
                 </ProtectedRoute>
               } />
               

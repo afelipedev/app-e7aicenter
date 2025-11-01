@@ -39,6 +39,12 @@ const menuItems = [
     color: "text-ai-blue",
   },
   {
+    title: "Gestão de Empresas",
+    icon: Building2,
+    url: "/companies",
+    color: "text-ai-cyan",
+  },
+  {
     title: "Assistentes de IA",
     icon: MessageSquare,
     color: "text-ai-purple",
@@ -76,7 +82,6 @@ const menuItems = [
     color: "text-ai-pink",
     items: [
       { title: "Usuários", url: "/admin/users", icon: Users },
-      { title: "Empresas", url: "/admin/companies", icon: Building },
     ],
   },
 ];
