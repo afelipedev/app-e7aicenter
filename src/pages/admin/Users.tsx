@@ -1,30 +1,41 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Search, Edit, Loader2, UserCheck, UserX, Clock } from "lucide-react";
-import { UserService } from "@/services/userService";
+import { UserService, PaginationParams, PaginatedResponse } from "@/services/userService";
 import { User } from "@/lib/supabase";
 import { UserEditModal } from "@/components/UserEditModal";
 import { UserCreateModal } from "@/components/UserCreateModal";
+import { UsersPagination } from "@/components/UsersPagination";
 import { toast } from "@/hooks/use-toast";
 
 export default function Users() {
   console.log('Users component renderizado');
   
-  const [users, setUsers] = useState<User[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [paginatedData, setPaginatedData] = useState<PaginatedResponse<User> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
+  // Estados para filtros e paginação
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page') || '1'));
+  const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>((searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc');
+
+  // Constantes
+  const ITEMS_PER_PAGE = 10;
+
   // Estatísticas calculadas
-  const totalUsers = users.length;
+  const users = paginatedData?.data || [];
+  const totalUsers = paginatedData?.pagination.total || 0;
   const activeUsers = users.filter(user => user.status === 'ativo').length;
   const inactiveUsers = users.filter(user => user.status === 'inativo').length;
   const recentLogins = users.filter(user => {
@@ -38,24 +49,43 @@ export default function Users() {
   useEffect(() => {
     console.log('useEffect executado - iniciando loadUsers');
     loadUsers();
-  }, []);
+  }, [currentPage, searchTerm, sortBy, sortOrder]);
+
+  // Atualizar URL quando parâmetros mudarem
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (currentPage > 1) params.set('page', currentPage.toString());
+    if (searchTerm) params.set('search', searchTerm);
+    if (sortBy !== 'created_at') params.set('sortBy', sortBy);
+    if (sortOrder !== 'desc') params.set('sortOrder', sortOrder);
+    
+    setSearchParams(params);
+  }, [currentPage, searchTerm, sortBy, sortOrder, setSearchParams]);
 
   const loadUsers = async (showSuccessToast = false) => {
     try {
       setIsLoading(true);
       setError(null);
-      console.log('Carregando usuários...');
+      console.log('Carregando usuários paginados...');
       
-      const data = await UserService.getUsers();
+      const params: PaginationParams = {
+        page: currentPage,
+        limit: ITEMS_PER_PAGE,
+        search: searchTerm || undefined,
+        sortBy,
+        sortOrder
+      };
+
+      const data = await UserService.getUsersPaginated(params);
       
-      console.log('Usuários carregados com sucesso:', data.length);
-      setUsers(data);
+      console.log('Usuários carregados com sucesso:', data.data.length, 'de', data.pagination.total);
+      setPaginatedData(data);
       
       // Só mostra toast de sucesso quando explicitamente solicitado (ex: botão "Tentar novamente")
       if (showSuccessToast) {
         toast({
           title: "Sucesso",
-          description: `${data.length} usuários carregados`,
+          description: `${data.data.length} usuários carregados`,
         });
       }
     } catch (error) {
@@ -72,65 +102,70 @@ export default function Users() {
     }
   };
 
-  useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setFilteredUsers(users);
-    } else {
-      const filtered = users.filter(
-        (user) =>
-          user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.role.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredUsers(filtered);
-    }
-  }, [searchTerm, users]);
+  // Função para lidar com mudança de página
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // Função para lidar com mudança de busca
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1); // Reset para primeira página ao buscar
+  };
 
   const handleEditUser = (user: User) => {
+    console.log('Editando usuário:', user.id);
     setEditingUser(user);
     setIsEditModalOpen(true);
   };
 
   const handleUserUpdated = () => {
+    console.log('Usuário atualizado - recarregando lista');
+    setIsEditModalOpen(false);
+    setEditingUser(null);
     loadUsers();
   };
 
   const handleUserCreated = () => {
+    console.log('Usuário criado - recarregando lista');
+    setIsCreateModalOpen(false);
     loadUsers();
   };
 
-  const getRoleLabel = (role: string) => {
-    const roleLabels: Record<string, string> = {
-      administrator: "Administrador",
-      it: "TI",
-      advogado_adm: "Advogado Administrativo",
-      advogado: "Advogado",
-      contabil: "Contábil",
-      financeiro: "Financeiro",
-    };
-    return roleLabels[role] || role;
-  };
-
-  const getStatusBadge = (status: string) => {
-    return status === "ativo" ? (
-      <Badge variant="default" className="bg-green-100 text-green-800">
-        Ativo
-      </Badge>
-    ) : (
-      <Badge variant="secondary" className="bg-red-100 text-red-800">
-        Inativo
-      </Badge>
-    );
-  };
-
-  const formatLastAccess = (lastAccess: string | null) => {
-    if (!lastAccess) return "Nunca";
-    return new Date(lastAccess).toLocaleDateString("pt-BR", {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "Nunca";
+    return new Date(dateString).toLocaleDateString("pt-BR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "ativo":
+        return <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">Ativo</Badge>;
+      case "inativo":
+        return <Badge variant="secondary" className="bg-red-100 text-red-800 hover:bg-red-200">Inativo</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case "admin":
+        return <Badge variant="destructive">Admin</Badge>;
+      case "user":
+        return <Badge variant="default">Usuário</Badge>;
+      default:
+        return <Badge variant="outline">{role}</Badge>;
+    }
+  };
+
+  // Funções auxiliares já definidas anteriormente
 
   // Removido o return early para debug - vamos mostrar a interface completa
 
@@ -197,17 +232,32 @@ export default function Users() {
           <Input
             placeholder="Buscar por nome, e-mail ou função..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-10"
           />
         </div>
       </Card>
 
+      {/* Loading State */}
+      {isLoading && (
+        <Card className="p-8">
+          <div className="flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-ai-blue mr-3" />
+            <span className="text-muted-foreground">Carregando usuários...</span>
+          </div>
+        </Card>
+      )}
+
       {/* Desktop Table */}
-      {!isLoading && !error && (
+      {!isLoading && !error && paginatedData && (
         <Card className="hidden md:block">
           <div className="p-6 border-b border-border">
-            <h2 className="text-lg font-semibold text-foreground">Lista de Usuários</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">Lista de Usuários</h2>
+              <p className="text-sm text-muted-foreground">
+                Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, totalUsers)} de {totalUsers} usuários
+              </p>
+            </div>
           </div>
           <Table>
             <TableHeader>
@@ -221,14 +271,14 @@ export default function Users() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => (
+              {users.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>
-                  <TableCell>{getRoleLabel(user.role)}</TableCell>
+                  <TableCell>{getRoleBadge(user.role)}</TableCell>
                   <TableCell>{getStatusBadge(user.status)}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {formatLastAccess(user.last_access)}
+                    {formatDate(user.last_access)}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
@@ -244,16 +294,34 @@ export default function Users() {
               ))}
             </TableBody>
           </Table>
+          
+          {/* Pagination for Desktop */}
+          {paginatedData.pagination.totalPages > 1 && (
+            <div className="p-6 border-t border-border">
+              <UsersPagination
+                currentPage={currentPage}
+                totalPages={paginatedData.pagination.totalPages}
+                onPageChange={handlePageChange}
+                totalItems={totalUsers}
+                itemsPerPage={ITEMS_PER_PAGE}
+              />
+            </div>
+          )}
         </Card>
       )}
 
       {/* Mobile Cards */}
-      {!isLoading && !error && (
+      {!isLoading && !error && paginatedData && (
         <div className="md:hidden space-y-4">
           <div className="px-4">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Lista de Usuários</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">Lista de Usuários</h2>
+              <p className="text-sm text-muted-foreground">
+                {((currentPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, totalUsers)} de {totalUsers}
+              </p>
+            </div>
           </div>
-          {filteredUsers.map((user) => (
+          {users.map((user) => (
             <Card key={user.id} className="p-4">
               <div className="space-y-3">
                 <div className="flex items-start justify-between">
@@ -272,32 +340,55 @@ export default function Users() {
                   </Button>
                 </div>
               
-              <div className="flex flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Função:</span>
-                  <span className="text-xs">{getRoleLabel(user.role)}</span>
+                <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Função:</span>
+                    {getRoleBadge(user.role)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Status:</span>
+                    {getStatusBadge(user.status)}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Status:</span>
-                  {getStatusBadge(user.status)}
-                </div>
-              </div>
               
-              <div className="text-xs text-muted-foreground">
-                <span>Último acesso: {formatLastAccess(user.last_access)}</span>
+                <div className="text-xs text-muted-foreground">
+                  <span>Último acesso: {formatDate(user.last_access)}</span>
+                </div>
               </div>
+            </Card>
+          ))}
+          
+          {/* Pagination for Mobile */}
+          {paginatedData.pagination.totalPages > 1 && (
+            <div className="px-4">
+              <UsersPagination
+                currentPage={currentPage}
+                totalPages={paginatedData.pagination.totalPages}
+                onPageChange={handlePageChange}
+                totalItems={totalUsers}
+                itemsPerPage={ITEMS_PER_PAGE}
+              />
             </div>
-          </Card>
-        ))}
+          )}
         </div>
       )}
 
-      {filteredUsers.length === 0 && !isLoading && (
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">
-            {searchTerm ? "Nenhum usuário encontrado" : "Nenhum usuário cadastrado"}
-          </p>
-        </div>
+      {/* Empty State */}
+      {!isLoading && !error && paginatedData && users.length === 0 && (
+        <Card className="p-8">
+          <div className="text-center">
+            <UserX className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Nenhum usuário encontrado</h3>
+            <p className="text-muted-foreground mb-4">
+              {searchTerm ? "Tente ajustar os filtros de busca" : "Nenhum usuário cadastrado no sistema"}
+            </p>
+            {searchTerm && (
+              <Button onClick={() => handleSearchChange("")} variant="outline">
+                Limpar busca
+              </Button>
+            )}
+          </div>
+        </Card>
       )}
 
       {/* Error State */}

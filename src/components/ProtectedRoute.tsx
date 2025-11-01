@@ -1,6 +1,7 @@
 import React from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { FirstAccessGuard } from './FirstAccessGuard'
 import { Loader2 } from 'lucide-react'
 
 interface ProtectedRouteProps {
@@ -85,7 +86,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     )
   }
 
-  return <>{children}</>
+  // Wrap children with FirstAccessGuard to handle first access flow
+  return (
+    <FirstAccessGuard>
+      {children}
+    </FirstAccessGuard>
+  )
 }
 
 export default ProtectedRoute

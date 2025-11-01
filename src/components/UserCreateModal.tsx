@@ -83,8 +83,20 @@ export function UserCreateModal({ isOpen, onClose, onUserCreated }: UserCreateMo
     if (!validateForm()) return;
 
     setIsLoading(true);
+    
+    // Log detalhado temporário para debug
+    console.log('🔍 UserCreateModal: Iniciando criação de usuário com dados:', {
+      name: formData.name,
+      email: formData.email,
+      role: formData.role,
+      status: "ativo",
+      passwordLength: formData.password.length
+    });
+    
     try {
-      const { error } = await UserService.createUser({
+      console.log('🔍 UserCreateModal: Chamando UserService.createUser...');
+      
+      const result = await UserService.createUser({
         name: formData.name,
         email: formData.email,
         password: formData.password,
@@ -92,18 +104,47 @@ export function UserCreateModal({ isOpen, onClose, onUserCreated }: UserCreateMo
         status: "ativo",
       });
 
+      console.log('🔍 UserCreateModal: Resultado completo do UserService.createUser:', result);
+      
+      const { error, data } = result;
+
       if (error) {
-        if (error.message?.includes("already registered")) {
+        console.error('🔍 UserCreateModal: Erro detectado:', {
+          error,
+          errorCode: error.code,
+          errorMessage: error.message,
+          errorDetails: error.details,
+          errorHint: error.hint
+        });
+        
+        // Handle specific error types
+        if (error.code === 'EMAIL_ALREADY_EXISTS' || error.message?.includes("Este email já está cadastrado")) {
+          setErrors({ email: "Este e-mail já está cadastrado no sistema" });
+        } else if (error.message?.includes("already registered") || error.message?.includes("User already registered")) {
           setErrors({ email: "Este e-mail já está cadastrado" });
-        } else {
+        } else if (error.message?.includes("Invalid email")) {
+          setErrors({ email: "Formato de e-mail inválido" });
+        } else if (error.message?.includes("Password")) {
+          setErrors({ password: "Senha inválida. Deve ter pelo menos 6 caracteres" });
+        } else if (error.message?.includes("role")) {
           toast({
             title: "Erro",
-            description: "Erro ao criar usuário",
+            description: "Perfil de usuário inválido",
+            variant: "destructive",
+          });
+        } else {
+          // Generic error message
+          const errorMessage = error.message || "Erro desconhecido ao criar usuário";
+          toast({
+            title: "Erro ao criar usuário",
+            description: errorMessage,
             variant: "destructive",
           });
         }
         return;
       }
+
+      console.log('🔍 UserCreateModal: Usuário criado com sucesso! Data:', data);
 
       toast({
         title: "Sucesso",

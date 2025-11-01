@@ -22,6 +22,7 @@ import Users from "./pages/admin/Users";
 import Companies from "./pages/admin/Companies";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import { TestPage } from "./pages/TestPage";
 
 const queryClient = new QueryClient();
 
@@ -72,6 +73,9 @@ const App = () => (
                   <Companies />
                 </ProtectedRoute>
               } />
+              
+              {/* Test page - accessible to all authenticated users */}
+              <Route path="/test" element={<TestPage />} />
             </Route>
             
             <Route path="*" element={<NotFound />} />
