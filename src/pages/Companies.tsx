@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Building2, 
   Plus, 
@@ -8,22 +8,28 @@ import {
   Trash2, 
   Search,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CompanyService } from '../services/companyService';
 import { CompanyCreateModal } from '../components/CompanyCreateModal';
 import { CompanyEditModal } from '../components/CompanyEditModal';
 import type { CompanyWithStats } from '../../shared/types/company';
+import { toast } from "@/hooks/use-toast";
 
 export const Companies: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [companies, setCompanies] = useState<CompanyWithStats[]>([]);
-  const [filteredCompanies, setFilteredCompanies] = useState<CompanyWithStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [error, setError] = useState<string | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -34,18 +40,46 @@ export const Companies: React.FC = () => {
   const [companyToDelete, setCompanyToDelete] = useState<CompanyWithStats | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Handle search change with real-time filtering
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
+  // Estatísticas calculadas
+  const totalCompanies = companies.length;
+  const activeCompanies = companies.filter(company => company.status === 'ativo').length;
+  const inactiveCompanies = companies.filter(company => company.status === 'inativo').length;
+  const totalPayrollFiles = companies.reduce((sum, company) => sum + company.total_payroll_files, 0);
+
+  // Handle search change with server-side search
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    
+    // Debounce a busca para evitar muitas requisições
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      loadCompanies(value);
+    }, 300); // 300ms de delay
   };
 
-  const loadCompanies = async () => {
+  const loadCompanies = async (searchQuery?: string) => {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await CompanyService.getAllWithStats();
+      
+      let data: CompanyWithStats[];
+      
+      if (searchQuery && searchQuery.trim()) {
+        // Usar busca server-side quando há termo de busca
+        const searchResult = await CompanyService.searchCompanies(searchQuery.trim());
+        if (searchResult.error) {
+          throw new Error(searchResult.error.message || 'Erro na busca');
+        }
+        data = searchResult.data || [];
+      } else {
+        // Carregar todas as empresas quando não há busca
+        data = await CompanyService.getAllWithStats();
+      }
+      
       setCompanies(data);
-      setFilteredCompanies(data);
     } catch (error) {
       console.error('Erro ao carregar empresas:', error);
       setError(error instanceof Error ? error.message : 'Erro ao carregar empresas');
@@ -55,21 +89,25 @@ export const Companies: React.FC = () => {
   };
 
   useEffect(() => {
-    loadCompanies();
+    loadCompanies(searchTerm);
   }, []);
 
-  // Filtrar empresas baseado no termo de busca
+  // Atualizar URL quando searchTerm mudar
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredCompanies(companies);
-    } else {
-      const filtered = companies.filter(company =>
-        company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        company.cnpj.includes(searchTerm.replace(/[^\d]/g, ''))
-      );
-      setFilteredCompanies(filtered);
-    }
-  }, [searchTerm, companies]);
+    const params = new URLSearchParams();
+    if (searchTerm) params.set('search', searchTerm);
+    
+    setSearchParams(params);
+  }, [searchTerm, setSearchParams]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleCreateSuccess = () => {
     loadCompanies();
@@ -113,185 +151,275 @@ export const Companies: React.FC = () => {
     setCompanyToDelete(null);
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex items-center gap-3 text-gray-600">
-          <RefreshCw className="w-6 h-6 animate-spin" />
-          <span>Carregando empresas...</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="px-4 sm:px-6 lg:px-8 py-6">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3">
-                <Building2 className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600" />
-                Gestão de Empresas
-              </h1>
-              <p className="mt-1 text-sm sm:text-base text-gray-600">
-                Gerencie suas empresas e acompanhe o processamento de holerites
-              </p>
-            </div>
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap"
-            >
-              <Plus className="w-5 h-5" />
-              Nova Empresa
-            </button>
-          </div>
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Empresas</h1>
+          <p className="text-muted-foreground">
+            Gerencie suas empresas e acompanhe o processamento de holerites
+          </p>
         </div>
+        <Button onClick={() => setIsCreateModalOpen(true)} className="gap-2 w-full sm:w-auto">
+          <Plus className="w-4 h-4" />
+          Nova Empresa
+        </Button>
+      </div>
 
-        {/* Search */}
-        <Card className="p-4 mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome ou CNPJ..."
-              value={searchTerm}
-              onChange={handleSearchChange}
-              className="pl-10"
-            />
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <Card className="p-3 sm:p-4">
+          <div className="text-center">
+            <div className="flex items-center justify-center mb-2">
+              <Building2 className="w-5 h-5 text-ai-blue" />
+            </div>
+            <p className="text-2xl sm:text-3xl font-bold text-foreground mb-1">{totalCompanies}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Total de Empresas</p>
           </div>
         </Card>
+        <Card className="p-3 sm:p-4">
+          <div className="text-center">
+            <div className="flex items-center justify-center mb-2">
+              <Building2 className="w-5 h-5 text-ai-green" />
+            </div>
+            <p className="text-2xl sm:text-3xl font-bold text-ai-green mb-1">{activeCompanies}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Ativas</p>
+          </div>
+        </Card>
+        <Card className="p-3 sm:p-4">
+          <div className="text-center">
+            <div className="flex items-center justify-center mb-2">
+              <Building2 className="w-5 h-5 text-ai-orange" />
+            </div>
+            <p className="text-2xl sm:text-3xl font-bold text-ai-orange mb-1">{inactiveCompanies}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Inativas</p>
+          </div>
+        </Card>
+        <Card className="p-3 sm:p-4">
+          <div className="text-center">
+            <div className="flex items-center justify-center mb-2">
+              <FileText className="w-5 h-5 text-ai-blue" />
+            </div>
+            <p className="text-2xl sm:text-3xl font-bold text-ai-blue mb-1">{totalPayrollFiles}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Holerites Processados</p>
+          </div>
+        </Card>
+      </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+      {/* Search */}
+      <Card className="p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome ou CNPJ..."
+            value={searchTerm}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </Card>
+
+      {/* Loading State */}
+      {isLoading && (
+        <Card className="p-8">
+          <div className="flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-ai-blue mr-3" />
+            <span className="text-muted-foreground">Carregando empresas...</span>
+          </div>
+        </Card>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <Card className="p-4 border-red-200 bg-red-50">
+          <div className="flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
             <span className="text-red-700">{error}</span>
           </div>
-        )}
+        </Card>
+      )}
 
-        {/* Companies Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          {filteredCompanies.length === 0 ? (
-            <div className="p-8 sm:p-12 text-center">
-              <Building2 className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
+      {/* Desktop Table */}
+      {!isLoading && !error && (
+        <Card className="hidden md:block">
+          <div className="p-6 border-b border-border">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">Lista de Empresas</h2>
+              <p className="text-sm text-muted-foreground">
+                {companies.length} empresa{companies.length !== 1 ? 's' : ''} encontrada{companies.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Empresa</TableHead>
+                <TableHead className="hidden sm:table-cell">CNPJ</TableHead>
+                <TableHead className="hidden lg:table-cell">Holerites Processados</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {companies.map((company) => (
+                <TableRow key={company.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center">
+                      <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg mr-2 sm:mr-3 flex-shrink-0">
+                        <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium truncate">
+                          {company.name}
+                        </div>
+                        <div className="text-xs sm:text-sm text-muted-foreground truncate sm:hidden">
+                          {CompanyService.formatCnpj(company.cnpj)}
+                        </div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell font-mono">
+                    {CompanyService.formatCnpj(company.cnpj)}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    <div>
+                      <div className="font-medium">{company.total_payroll_files} total</div>
+                      <div className="text-muted-foreground text-sm">
+                        {company.files_this_month} este mês
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={company.status === 'ativo' ? 'default' : 'secondary'} 
+                           className={company.status === 'ativo' ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-red-100 text-red-800 hover:bg-red-200'}>
+                      {company.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1 sm:gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEditClick(company)}
+                        aria-label={`Editar empresa ${company.name}`}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleManagePayrolls(company)}
+                        aria-label={`Gerenciar holerites de ${company.name}`}
+                      >
+                        <FileText className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteClick(company)}
+                        aria-label={`Deletar empresa ${company.name}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+
+      {/* Mobile Cards */}
+      {!isLoading && !error && (
+        <div className="md:hidden space-y-4">
+          <div className="px-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">Lista de Empresas</h2>
+              <p className="text-sm text-muted-foreground">
+                {companies.length} empresa{companies.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+          {companies.length === 0 ? (
+            <Card className="p-8 text-center">
+              <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">
                 {searchTerm ? 'Nenhuma empresa encontrada' : 'Nenhuma empresa cadastrada'}
               </h3>
-              <p className="text-sm sm:text-base text-gray-500 mb-6">
+              <p className="text-muted-foreground mb-6">
                 {searchTerm 
                   ? 'Tente ajustar os termos de busca'
                   : 'Comece cadastrando sua primeira empresa'
                 }
               </p>
               {!searchTerm && (
-                <button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 mx-auto transition-colors"
-                >
-                  <Plus className="w-5 h-5" />
+                <Button onClick={() => setIsCreateModalOpen(true)} className="gap-2">
+                  <Plus className="w-4 h-4" />
                   Cadastrar Primeira Empresa
-                </button>
+                </Button>
               )}
-            </div>
+            </Card>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Empresa
-                    </th>
-                    <th className="hidden sm:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      CNPJ
-                    </th>
-                    <th className="hidden lg:table-cell px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Holerites Processados
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Ações
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredCompanies.map((company) => (
-                    <tr key={company.id} className="hover:bg-gray-50">
-                      <td className="px-3 sm:px-6 py-4">
-                        <div className="flex items-center">
-                          <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg mr-2 sm:mr-3 flex-shrink-0">
-                            <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-medium text-gray-900 truncate">
-                              {company.name}
-                            </div>
-                            <div className="text-xs sm:text-sm text-gray-500 truncate">
-                              <span className="sm:hidden">{CompanyService.formatCnpj(company.cnpj)}</span>
-                              <span className="hidden sm:inline">
-                                Criada em {new Date(company.created_at || '').toLocaleDateString('pt-BR')}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-900 font-mono">
-                          {CompanyService.formatCnpj(company.cnpj)}
-                        </span>
-                      </td>
-                      <td className="hidden lg:table-cell px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          <div className="font-medium">{company.total_payroll_files} total</div>
-                          <div className="text-gray-500">
-                            {company.files_this_month} este mês
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          company.status === 'ativo'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {company.status === 'ativo' ? 'Ativo' : 'Inativo'}
-                        </span>
-                      </td>
-                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end gap-1 sm:gap-2">
-                          <button
-                            onClick={() => handleEditClick(company)}
-                            className="p-1.5 sm:p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Editar empresa"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleManagePayrolls(company)}
-                            className="p-1.5 sm:p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                            title="Gerenciar holerites"
-                          >
-                            <FileText className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteClick(company)}
-                            className="p-1.5 sm:p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Deletar empresa"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            companies.map((company) => (
+              <Card key={company.id} className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Building2 className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">{company.name}</h3>
+                      <p className="text-sm text-muted-foreground font-mono">
+                        {CompanyService.formatCnpj(company.cnpj)}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={company.status === 'ativo' ? 'default' : 'secondary'} 
+                         className={company.status === 'ativo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                    {company.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                  </Badge>
+                </div>
+                <div className="mb-4">
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-medium">{company.total_payroll_files}</span> holerites processados
+                    {' • '}
+                    <span className="font-medium">{company.files_this_month}</span> este mês
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEditClick(company)}
+                    className="flex-1"
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Editar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleManagePayrolls(company)}
+                    className="flex-1"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Holerites
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDeleteClick(company)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </Card>
+            ))
           )}
         </div>
-      </div>
+      )}
 
       {/* Modals */}
       <CompanyCreateModal
@@ -313,50 +441,52 @@ export const Companies: React.FC = () => {
       {/* Delete Confirmation Modal */}
       {companyToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+          <Card className="w-full max-w-md">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-red-100 rounded-lg">
                   <AlertCircle className="w-5 h-5 text-red-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold">
                   Confirmar Exclusão
                 </h3>
               </div>
               
-              <p className="text-gray-600 mb-6">
+              <p className="text-muted-foreground mb-6">
                 Tem certeza que deseja excluir a empresa <strong>{companyToDelete.name}</strong>?
                 Esta ação não pode ser desfeita e todos os holerites associados também serão removidos.
               </p>
 
               <div className="flex gap-3">
-                <button
+                <Button
+                  variant="outline"
                   onClick={handleDeleteCancel}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  className="flex-1"
                   disabled={isDeleting}
                 >
                   Cancelar
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="destructive"
                   onClick={handleDeleteConfirm}
-                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1"
                   disabled={isDeleting}
                 >
                   {isDeleting ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Excluindo...
                     </>
                   ) : (
                     <>
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4 mr-2" />
                       Excluir
                     </>
                   )}
-                </button>
+                </Button>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       )}
     </div>

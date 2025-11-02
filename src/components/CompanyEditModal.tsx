@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Building2, Save } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CompanyService } from '../services/companyService';
 import type { Company, UpdateCompanyData } from '../../shared/types/company';
 
@@ -161,14 +163,12 @@ export const CompanyEditModal: React.FC<CompanyEditModalProps> = ({
             <label htmlFor="edit-company-name" className="block text-sm font-medium text-gray-700 mb-2">
               Nome da Empresa *
             </label>
-            <input
+            <Input
               id="edit-company-name"
               type="text"
               value={formData.name || ''}
               onChange={(e) => handleInputChange('name', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                errors.name ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={errors.name ? 'border-red-500' : ''}
               placeholder="Digite o nome da empresa"
               disabled={isLoading}
               maxLength={255}
@@ -183,14 +183,12 @@ export const CompanyEditModal: React.FC<CompanyEditModalProps> = ({
             <label htmlFor="edit-company-cnpj" className="block text-sm font-medium text-gray-700 mb-2">
               CNPJ *
             </label>
-            <input
+            <Input
               id="edit-company-cnpj"
               type="text"
               value={formData.cnpj || ''}
               onChange={(e) => handleCnpjChange(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                errors.cnpj ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={errors.cnpj ? 'border-red-500' : ''}
               placeholder="00.000.000/0000-00"
               disabled={isLoading}
               maxLength={18}
@@ -205,16 +203,19 @@ export const CompanyEditModal: React.FC<CompanyEditModalProps> = ({
             <label htmlFor="edit-company-status" className="block text-sm font-medium text-gray-700 mb-2">
               Status
             </label>
-            <select
-              id="edit-company-status"
+            <Select
               value={formData.status || 'ativo'}
-              onChange={(e) => handleInputChange('status', e.target.value as 'ativo' | 'inativo')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              onValueChange={(value) => handleInputChange('status', value as 'ativo' | 'inativo')}
               disabled={isLoading}
             >
-              <option value="ativo">Ativo</option>
-              <option value="inativo">Inativo</option>
-            </select>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ativo">Ativo</SelectItem>
+                <SelectItem value="inativo">Inativo</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Buttons */}

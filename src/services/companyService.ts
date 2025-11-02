@@ -259,4 +259,41 @@ export class CompanyService {
   static cleanCnpj(cnpj: string): string {
     return cnpj.replace(/[^\d]/g, '');
   }
+
+  /**
+   * Busca empresas por nome ou CNPJ
+   */
+  static async searchCompanies(query: string): Promise<{ data: CompanyWithStats[] | null; error: any }> {
+    try {
+      // Primeiro buscar empresas que correspondem à query
+      const { data: companies, error } = await supabase
+        .from('companies')
+        .select('*')
+        .or(`name.ilike.%${query}%,cnpj.ilike.%${query}%`)
+        .order('name');
+
+      if (error) {
+        return { data: null, error };
+      }
+
+      if (!companies || companies.length === 0) {
+        return { data: [], error: null };
+      }
+
+      // Adicionar estatísticas para cada empresa encontrada
+      const companiesWithStats = await Promise.all(
+        companies.map(async (company) => {
+          const stats = await this.getPayrollStats(company.id);
+          return {
+            ...company,
+            ...stats
+          };
+        })
+      );
+
+      return { data: companiesWithStats, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  }
 }

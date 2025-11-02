@@ -14,6 +14,7 @@ import {
   Plus,
   File
 } from 'lucide-react';
+import { Card } from "@/components/ui/card";
 import { CompanyService } from '../services/companyService';
 import { PayrollService } from '../services/payrollService';
 import type { Company } from '../../shared/types/company';
@@ -33,6 +34,8 @@ export const PayrollManagement: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [competencia, setCompetencia] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   // Delete confirmation
   const [fileToDelete, setFileToDelete] = useState<PayrollFile | null>(null);
@@ -66,8 +69,8 @@ export const PayrollManagement: React.FC = () => {
     loadData();
   }, [companyId]);
 
-  const handleFileUpload = async (files: FileList | null) => {
-    if (!files || files.length === 0 || !companyId) return;
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
 
     const file = files[0];
     
@@ -83,12 +86,38 @@ export const PayrollManagement: React.FC = () => {
       return;
     }
 
+    setSelectedFile(file);
+    setUploadError(null);
+  };
+
+  const handleFileUpload = async () => {
+    if (!selectedFile || !companyId || !competencia) {
+      setUploadError('Selecione um arquivo e informe a competência');
+      return;
+    }
+
+    // Validar formato de competência
+    if (!PayrollService.validateCompetencia(competencia)) {
+      setUploadError('Competência deve estar no formato MM/AAAA (ex: 12/2024)');
+      return;
+    }
+
     setIsUploading(true);
     setUploadError(null);
 
     try {
-      await PayrollService.uploadPdf(companyId, file);
-      await loadData(); // Recarregar dados após upload
+      await PayrollService.uploadPdf({
+        file: selectedFile,
+        competencia: competencia,
+        company_id: companyId
+      });
+      
+      // Limpar formulário
+      setSelectedFile(null);
+      setCompetencia('');
+      
+      // Recarregar dados após upload
+      await loadData();
     } catch (error) {
       console.error('Erro no upload:', error);
       setUploadError(error instanceof Error ? error.message : 'Erro no upload do arquivo');
@@ -113,7 +142,7 @@ export const PayrollManagement: React.FC = () => {
     setDragActive(false);
     
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileUpload(e.dataTransfer.files);
+      handleFileSelect(e.dataTransfer.files);
     }
   };
 
@@ -214,42 +243,36 @@ export const PayrollManagement: React.FC = () => {
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Esta Semana</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.files_this_week}</p>
+                  <p className="text-sm text-muted-foreground">Esta Semana</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.files_this_week}</p>
                 </div>
-                <div className="p-3 bg-blue-100 rounded-lg">
-                  <Calendar className="w-6 h-6 text-blue-600" />
-                </div>
+                <Calendar className="w-8 h-8 text-ai-blue" />
               </div>
-            </div>
+            </Card>
 
-            <div className="bg-white rounded-lg shadow p-6">
+            <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Este Mês</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.files_this_month}</p>
+                  <p className="text-sm text-muted-foreground">Este Mês</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.files_this_month}</p>
                 </div>
-                <div className="p-3 bg-green-100 rounded-lg">
-                  <TrendingUp className="w-6 h-6 text-green-600" />
-                </div>
+                <TrendingUp className="w-8 h-8 text-ai-green" />
               </div>
-            </div>
+            </Card>
 
-            <div className="bg-white rounded-lg shadow p-6">
+            <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.total_files}</p>
+                  <p className="text-sm text-muted-foreground">Total</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.total_files}</p>
                 </div>
-                <div className="p-3 bg-purple-100 rounded-lg">
-                  <FileText className="w-6 h-6 text-purple-600" />
-                </div>
+                <FileText className="w-8 h-8 text-ai-orange" />
               </div>
-            </div>
+            </Card>
           </div>
         )}
 
@@ -288,21 +311,63 @@ export const PayrollManagement: React.FC = () => {
                   <p className="text-gray-600 mb-4">
                     ou clique para selecionar um arquivo
                   </p>
+                  
+                  {/* Campo de competência */}
+                  <div className="mb-4 w-full max-w-xs">
+                    <label htmlFor="competencia" className="block text-sm font-medium text-gray-700 mb-2">
+                      Competência (MM/AAAA)
+                    </label>
+                    <input
+                      type="text"
+                      id="competencia"
+                      value={competencia}
+                      onChange={(e) => setCompetencia(e.target.value)}
+                      placeholder="12/2024"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isUploading}
+                    />
+                  </div>
+
+                  {/* Arquivo selecionado */}
+                  {selectedFile && (
+                    <div className="mb-4 p-3 bg-gray-50 rounded-lg border">
+                      <div className="flex items-center gap-2">
+                        <File className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm text-gray-700">{selectedFile.name}</span>
+                      </div>
+                    </div>
+                  )}
+                  
                   <input
                     type="file"
                     accept=".pdf"
-                    onChange={(e) => handleFileUpload(e.target.files)}
+                    onChange={(e) => handleFileSelect(e.target.files)}
                     className="hidden"
                     id="file-upload"
                     disabled={isUploading}
                   />
-                  <label
-                    htmlFor="file-upload"
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg cursor-pointer transition-colors inline-flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Selecionar Arquivo
-                  </label>
+                  
+                  <div className="flex gap-2">
+                    <label
+                      htmlFor="file-upload"
+                      className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg cursor-pointer transition-colors inline-flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Selecionar Arquivo
+                    </label>
+                    
+                    {selectedFile && competencia && (
+                      <button
+                        onClick={handleFileUpload}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-2"
+                        disabled={isUploading}
+                      >
+                        <Upload className="w-4 h-4" />
+                        Enviar
+                      </button>
+                    )}
+                  </div>
+                  
                   <p className="text-xs text-gray-500 mt-2">
                     Máximo 10MB • Apenas arquivos PDF
                   </p>

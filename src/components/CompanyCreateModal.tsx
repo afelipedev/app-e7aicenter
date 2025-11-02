@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Building2, FileText } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { CompanyService } from '../services/companyService';
 import type { CreateCompanyData } from '../../shared/types/company';
 
@@ -144,14 +145,12 @@ export const CompanyCreateModal: React.FC<CompanyCreateModalProps> = ({
             <label htmlFor="company-name" className="block text-sm font-medium text-gray-700 mb-2">
               Nome da Empresa *
             </label>
-            <input
+            <Input
               id="company-name"
               type="text"
               value={formData.name}
               onChange={(e) => handleInputChange('name', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                errors.name ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={errors.name ? 'border-red-500' : ''}
               placeholder="Digite o nome da empresa"
               disabled={isLoading}
               maxLength={255}
@@ -166,14 +165,12 @@ export const CompanyCreateModal: React.FC<CompanyCreateModalProps> = ({
             <label htmlFor="company-cnpj" className="block text-sm font-medium text-gray-700 mb-2">
               CNPJ *
             </label>
-            <input
+            <Input
               id="company-cnpj"
               type="text"
               value={formData.cnpj}
               onChange={(e) => handleCnpjChange(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-                errors.cnpj ? 'border-red-500' : 'border-gray-300'
-              }`}
+              className={errors.cnpj ? 'border-red-500' : ''}
               placeholder="00.000.000/0000-00"
               disabled={isLoading}
               maxLength={18}
