@@ -21,9 +21,11 @@ import CalendarIntegration from "./pages/integrations/CalendarIntegration";
 import Users from "./pages/admin/Users";
 import { Companies as CompaniesManagement } from "./pages/Companies";
 import { PayrollManagement } from "./pages/PayrollManagement";
+import { PayrollProcessingDetails } from "./components/payroll/PayrollProcessingDetails";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import { TestPage } from "./pages/TestPage";
+import { TestPayrollWorkflow } from "./pages/TestPayrollWorkflow";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +60,9 @@ const App = () => (
               <Route path="/documents/cases" element={<Cases />} />
               <Route path="/documents/reports" element={<Reports />} />
               
+              {/* Payroll Processing Details */}
+              <Route path="/payroll/processing/:processingId" element={<PayrollProcessingDetails />} />
+              
               {/* Integrations - accessible to all authenticated users */}
               <Route path="/integrations/powerbi" element={<PowerBI />} />
               <Route path="/integrations/trello" element={<Trello />} />
@@ -78,8 +83,9 @@ const App = () => (
                 </ProtectedRoute>
               } />
               
-              {/* Test page - accessible to all authenticated users */}
+              {/* Test pages - accessible to all authenticated users */}
               <Route path="/test" element={<TestPage />} />
+              <Route path="/test/payroll-workflow" element={<TestPayrollWorkflow />} />
             </Route>
             
             <Route path="*" element={<NotFound />} />

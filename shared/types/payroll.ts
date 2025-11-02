@@ -156,19 +156,65 @@ export interface FileValidationResult {
 }
 
 // =====================================================
-// PROCESSING STATUS TYPES
+// BATCH UPLOAD TYPES (Updated)
+// =====================================================
+
+export interface PayrollUploadData {
+  files: File[];
+  competency: string;
+  company_id: string;
+}
+
+export interface BatchUploadResult {
+  success: boolean;
+  partial_success: boolean;
+  processing_id?: string;
+  total_files: number;
+  successful_files: number;
+  failed_files: number;
+  uploaded_files?: PayrollFile[];
+  failed_uploads?: {
+    filename: string;
+    error: string;
+  }[];
+  error?: string;
+}
+
+// =====================================================
+// PROCESSING STATUS TYPES (Enhanced)
 // =====================================================
 
 export interface ProcessingStatus {
-  processing_id: string;
-  status: 'pending' | 'processing' | 'completed' | 'error';
-  progress: number;
+  id: string;
+  company_id: string;
+  company_name?: string;
+  competency: string;
+  status: 'pending' | 'processing' | 'completed' | 'error' | 'partial';
+  progress?: number;
+  files_count: number;
   current_step?: string;
-  estimated_time_remaining?: number; // em minutos
-  files_processed: number;
-  total_files: number;
+  estimated_completion_time?: string;
+  result_url?: string;
   error_message?: string;
-  last_updated: string;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  statistics?: {
+    successful_files?: number;
+    failed_files?: number;
+    total_records?: number;
+    processing_time?: string;
+  };
+}
+
+export interface ProcessingLog {
+  id: string;
+  processing_id: string;
+  level: 'info' | 'warning' | 'error' | 'success';
+  message: string;
+  details?: string;
+  file_name?: string;
+  timestamp: string;
 }
 
 export interface ProcessingStep {

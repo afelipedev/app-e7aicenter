@@ -1,10 +1,15 @@
+# UTILIZE ESSE DOCUMENTO PARA IDENTIFICAR A ESTRUTURA DO WEBHOOK CRIADO NO N8N PARA PROCESSAR OS PDFs
+
+# nome do fluxo: e7-extrator-pdf
+
+# webhook: https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-holerite
+
 {
-  "name": "VERSÃO FINAL A SER AJUSTADA copy",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "processar-folha-pagamento",
+        "path": "processar-holerite",
         "responseMode": "responseNode",
         "options": {
           "binaryPropertyName": "pdf",
@@ -14,145 +19,146 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        -1248,
-        -128
+        -1040,
+        112
       ],
-      "id": "516a2fe7-dd96-40e8-88aa-cb01b9e5d575",
+      "id": "862b9ad4-abfa-4d0d-b565-250fc0eee85c",
       "name": "Webhook - Receber PDF",
-      "webhookId": "a8322e03-bfdc-4d30-a2bd-c6d7467def40"
+      "webhookId": "4efbea7f-fdcc-4352-8af7-7130ea1d9144"
     },
     {
       "parameters": {
-        "jsCode": "// Validar dados recebidos\nconst body = $input.all()[0].json;\nconst binary = $input.all()[0].binary;\n\n// Validar campos obrigatórios\nif (!body.dataExtracao) {\n  throw new Error('Campo \"dataExtracao\" é obrigatório');\n}\n\nif (!body.sistema || !['Dominio', 'Totvs', 'Senior HCM', 'Alterdata'].includes(body.sistema)) {\n  throw new Error('Campo \"sistema\" é obrigatório e deve ser: Dominio, Totvs, Senior HCM ou Alterdata');\n}\n\n// Verificar se foi enviado um PDF\nif (!binary || !binary.pdf) {\n  throw new Error('Arquivo PDF não encontrado. Envie o PDF no campo \"pdf\"');\n}\n\n// Preparar dados para o próximo node\nreturn {\n  json: {\n    'Data da extração': body.dataExtracao,\n    'Sistema': body.sistema,\n    'nomeArquivo': body.nomeArquivo || 'folha_pagamento.pdf'\n  },\n  binary: {\n    data: binary.pdf\n  }\n};"
+        "jsCode": "// Validar dados recebidos\nconst body = $input.all()[0].json;\nconst binary = $input.all()[0].binary;\n\n// Validar campos obrigatórios\nif (!body.competencia || !body.competencia.match(/^\\d{2}\\/\\d{4}$/)) {\n  throw new Error('Campo \"competencia\" é obrigatório no formato MM/AAAA');\n}\n\n// Verificar se foi enviado um PDF\nif (!binary || !binary.pdf) {\n  throw new Error('Arquivo PDF não encontrado. Envie o PDF no campo \"pdf\"');\n}\n\n// Extrair mês e ano da competência\nconst [mes, ano] = body.competencia.split('/');\n\n// Preparar dados para o próximo node\nreturn {\n  json: {\n    competencia: body.competencia,\n    mes: mes,\n    ano: ano,\n    nomeArquivo: body.nomeArquivo || `holerite_${mes}_${ano}.pdf`,\n    timestamp: new Date().toISOString()\n  },\n  binary: {\n    pdf: binary.pdf\n  }\n};"
       },
       "name": "Validar e Preparar Dados",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1024,
-        -128
+        -800,
+        112
       ],
-      "id": "0c67217e-0e7c-40ea-a737-9539e7aa8c5c"
+      "id": "499d2768-1a6a-48d7-9c03-43b27316aeb8"
     },
     {
       "parameters": {
-        "operation": "upload",
-        "bucketName": "e7pdf-holerite",
-        "fileName": "={{ 'e7-holerite/' + $json['Data da extração'].split('-')[0] + '/' + $json['Data da extração'].split('-')[1] + '/' + new Date().toISOString().slice(0,10) + '_' + new Date().toISOString().slice(11,19).replace(/:/g, '') + '.pdf' }}",
-        "additionalFields": {}
+        "operation": "extractText"
       },
-      "type": "n8n-nodes-base.awsS3",
-      "typeVersion": 2,
-      "position": [
-        -688,
-        -128
-      ],
-      "id": "0f2dbba0-b42e-4d75-b719-1477896178c8",
-      "name": "Upload a file",
-      "credentials": {
-        "aws": {
-          "id": "xtXoYdILeaEmVmMk",
-          "name": "AWS S3 - E7"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "text",
-        "options": {}
-      },
+      "name": "OCR - Extrair Texto",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
       "position": [
-        -688,
-        96
+        -432,
+        112
       ],
-      "id": "1f87a748-500d-424d-af48-523f87a9dfda",
-      "name": "Extrair Texto do PDF"
+      "id": "72efc7a6-a424-41dd-8b41-a47b803eef2b"
     },
     {
       "parameters": {
         "promptType": "define",
-        "text": "=Extract ONLY PROVENTOS (earnings) data from the payroll text below and return it as JSON. IGNORE all DESCONTOS and INFORMATIVA sections completely.\n\nTEXT CONTENT:\n{{ $json.text }}\n\nTASK: Parse the text and extract company data and ONLY the rubrica items from the PROVENTOS section.\n\nSTRUCTURE:\n- Header contains: Company name (after \"Empresa:\"), CNPJ (after \"CNPJ:\"), Period (after \"Competência:\")\n- Extract ONLY items under \"PROVENTOS\" section - stop when you reach \"DESCONTOS\"\n- Each rubrica line has: Code | Name | Employees | Value1 | Value2\n\nEXTRACTION RULES:\n\nFor company object:\n- name = company name from \"Empresa:\" line\n- cnpj = CNPJ from \"CNPJ:\" line  \n- competence = period from \"Competência:\" line (format MM/YYYY)\n\nFor each rubrica in items array (ONLY FROM PROVENTOS):\n- code = rubrica code (first column - IMPORTANT: keep the exact code like \"16\", \"29\", \"807\", etc.)\n- rubrica = full rubrica name (second column)\n- valor = last column value (Valor Calculado) - convert R$ 3.915,95 to 3915.95\n- reference = employee count (Nº Empregados column)\n- tipo = \"Provento\" (always for all items since we only extract PROVENTOS)\n- periodo = period in YYYY-MM format (convert 03/2025 to 2025-03)\n- cnpj = company CNPJ numbers only (no formatting)\n- contribuicao = 0.00\n- rat = 0.00\n- vl_rat_ajustado = 0.00\n- terceiros = 5.80\n- vl_cont_terceiros_total = 0.00\n- selic = 0.00\n- vl_selic = 0.00\n- credito = \"\"\n- normalized = category based on rubrica name:\n  * INSALUBRIDADE/PERICULOSIDADE = ADICIONAL_INSALUBRIDADE\n  * SALARIO/DIA/PRO-LABORE/DIAS NORMAIS = SALARIO_BASE\n  * HORA EXTRA/50% = HORA_EXTRA_50\n  * 100% = HORA_EXTRA_100\n  * FERIAS (not 1/3) = FERIAS\n  * 1/3/TERCO/ADC 1/3 = TERCO_FERIAS\n  * 13/DECIMO = SALARIO_13\n  * AVISO PREVIO = AVISO_PREVIO\n  * Others = OUTROS\n\nCRITICAL: \n- ONLY extract items between \"PROVENTOS\" and \"Total:\" of the PROVENTOS section\n- DO NOT include any items from DESCONTOS or INFORMATIVA sections\n- KEEP the exact rubrica codes as they appear (e.g., \"16\", \"29\", \"807\", \"8781\")\n\nReturn ONLY this JSON structure with actual data:\n{\n  \"company\": {\n    \"name\": \"extracted company name\",\n    \"cnpj\": \"extracted cnpj\",\n    \"competence\": \"MM/YYYY\"\n  },\n  \"items\": [\n    {\n      \"code\": \"16\",\n      \"rubrica\": \"INSALUBRIDADE 20%\",\n      \"valor\": 4473.04,\n      \"contribuicao\": 0.00,\n      \"rat\": 0.00,\n      \"vl_rat_ajustado\": 0.00,\n      \"terceiros\": 5.80,\n      \"vl_cont_terceiros_total\": 0.00,\n      \"selic\": 0.00,\n      \"vl_selic\": 0.00,\n      \"credito\": \"\",\n      \"periodo\": \"2025-03\",\n      \"cnpj\": \"08281777000183\",\n      \"tipo\": \"Provento\",\n      \"normalized\": \"ADICIONAL_INSALUBRIDADE\",\n      \"reference\": \"17\"\n    }\n  ]\n}\n\nExtract ALL rubricas from PROVENTOS section ONLY. Return valid JSON only, no explanations.",
+        "text": "={{ $json.text }}",
         "options": {}
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2.1,
       "position": [
-        -368,
-        -128
+        -224,
+        112
       ],
-      "id": "28d3d343-357e-42c0-9bcf-082fff27c779",
-      "name": "AI Agent"
+      "id": "5fdf7dd0-d9db-4e63-9f24-684a024be88b",
+      "name": "AI Agent - Extrator"
     },
     {
       "parameters": {
         "model": {
           "__rl": true,
-          "value": "gpt-4o-mini",
+          "value": "gpt-4o",
           "mode": "list"
         },
         "options": {
-          "maxTokens": 8000,
+          "maxTokens": 16000,
+          "responseFormat": {
+            "type": "json_object"
+          },
           "temperature": 0
         }
       },
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        -368,
-        96
+        -384,
+        384
       ],
-      "id": "c1734ab4-7a89-4bfc-9bfa-d7339d9daffa",
-      "name": "OpenAI Chat Model",
+      "id": "06897e98-6fac-4abc-8374-298340f4a1ef",
+      "name": "OpenAI Model GPT-4",
       "credentials": {
         "openAiApi": {
           "id": "J5OoPQPVAwRuX0rf",
-          "name": "OpenAi account"
+          "name": "OpenAI-E7"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const agentOutput = $input.first().json.output;\n\n// Validar se existe output\nif (!agentOutput) {\n  throw new Error('AI Agent retornou vazio. Verifique o prompt e o modelo.');\n}\n\n// Se for string, tentar parsear\nlet parsed;\nif (typeof agentOutput === 'string') {\n  // Remover markdown se existir\n  const cleanOutput = agentOutput.replace(/```json|```/g, '').trim();\n  \n  // Tentar parsear\n  try {\n    parsed = JSON.parse(cleanOutput);\n  } catch (e) {\n    throw new Error(`AI Agent não retornou JSON válido. Output: ${agentOutput.substring(0, 200)}...`);\n  }\n} else {\n  parsed = agentOutput;\n}\n\n// Validar estrutura\nif (!parsed.company || !parsed.items) {\n  throw new Error('JSON sem estrutura esperada (company/items). Verifique o prompt.');\n}\n\nconst company = parsed.company;\nconst items = parsed.items;\n\nconst formData = $('Validar e Preparar Dados').first().json;\n\n// Log para debug\nconsole.log(`Processando ${items.length} rubricas de PROVENTOS`);\n\n// Retornar itens mapeados\nreturn items.map(item => ({\n  json: {\n    cod: item.code || '',  // Mantém o código exato\n    rubrica: item.rubrica || '',\n    valor: parseFloat(item.valor) || 0,\n    contribuicao: parseFloat(item.contribuicao) || 0,\n    rat: parseFloat(item.rat) || 0,\n    vl_rat_ajustado: parseFloat(item.vl_rat_ajustado) || 0,\n    terceiros: parseFloat(item.terceiros) || 5.80,\n    vl_cont_terceiros_total: parseFloat(item.vl_cont_terceiros_total) || 0,\n    selic: parseFloat(item.selic) || 0,\n    vl_selic: parseFloat(item.vl_selic) || 0,\n    credito: item.credito || '',\n    periodo: item.periodo || '',\n    cnpj: item.cnpj || company.cnpj || '',\n    tipo: 'Provento',  // Sempre será Provento\n    sistema: formData['Sistema'] || '',\n    normalized: item.normalized || 'OUTROS',\n    reference: item.reference || ''\n  }\n}));"
+        "jsCode": "// Processar resposta do AI Agent\nconst agentOutput = $input.first().json.output;\n\nif (!agentOutput) {\n  throw new Error('AI Agent retornou vazio');\n}\n\n// Parse do JSON\nlet parsed;\ntry {\n  if (typeof agentOutput === 'string') {\n    const cleanOutput = agentOutput.replace(/```json|```/g, '').trim();\n    parsed = JSON.parse(cleanOutput);\n  } else {\n    parsed = agentOutput;\n  }\n} catch (e) {\n  throw new Error(`Erro ao parsear JSON: ${e.message}`);\n}\n\n// Validar estrutura\nif (!parsed.empresa || !parsed.proventos) {\n  throw new Error('JSON sem estrutura esperada (empresa/proventos)');\n}\n\nconst empresa = parsed.empresa;\nconst proventos = parsed.proventos;\nconst dadosIniciais = $('Validar e Preparar Dados').first().json;\n\n// Taxa SELIC atual (atualizar conforme necessário)\nconst TAXA_SELIC = 1.03; // 1.03% ao mês\n\n// Processar cada item de provento\nreturn proventos.map(item => {\n  // Valores base\n  const valor = parseFloat(item.valor) || 0;\n  const rat = 2.00; // 2%\n  const terceiros = 5.80; // 5.8%\n  \n  // Cálculos\n  const contribuicao = valor * (rat / 100);\n  const vl_rat_ajustado = contribuicao * (rat / 100);\n  const vl_cont_terceiros = valor * (terceiros / 100);\n  const total = contribuicao + vl_rat_ajustado + vl_cont_terceiros;\n  const vl_selic = total * (TAXA_SELIC / 100);\n  const credito = total + vl_selic;\n  \n  return {\n    json: {\n      // Dados da rubrica\n      cod: item.cod || '',\n      nome_rubrica: item.nome_rubrica || '',\n      valor: valor,\n      \n      // Cálculos tributários\n      contribuicao: parseFloat(contribuicao.toFixed(2)),\n      rat: rat,\n      vl_rat_ajustado: parseFloat(vl_rat_ajustado.toFixed(2)),\n      terceiros: terceiros,\n      vl_cont_terceiros: parseFloat(vl_cont_terceiros.toFixed(2)),\n      total: parseFloat(total.toFixed(2)),\n      selic: TAXA_SELIC,\n      vl_selic: parseFloat(vl_selic.toFixed(2)),\n      credito: parseFloat(credito.toFixed(2)),\n      \n      // Dados complementares\n      periodo: `01/${dadosIniciais.competencia}`,\n      cnpj: empresa.cnpj || '',\n      empresa_nome: empresa.nome || '',\n      competencia: dadosIniciais.competencia,\n      tipo_mapeado: item.tipo_mapeado || 'OUTROS'\n    }\n  };\n});"
       },
-      "name": "Processar Resposta",
+      "name": "Processar e Calcular",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -32,
-        80
+        208,
+        112
       ],
-      "id": "53a5a983-2145-49d9-927e-8b902c5c6048"
+      "id": "04604e70-771d-46b7-9961-998546f2fc83"
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\n\nif (!items || items.length === 0) {\n  throw new Error('Nenhum dado para processar');\n}\n\n// Mapear dados para o formato CSV - conforme planilha modelo\nconst excelData = items.map(item => ({\n  'COD': item.json.cod || '',  // Mantém o código da rubrica\n  'RUBRICA': item.json.rubrica || '',\n  'VALOR': item.json.valor || 0,\n  'CONTRIBUIÇÃO': item.json.contribuicao || 0,\n  'RAT': item.json.rat || 0,\n  'VL RAT AJUSTADO': item.json.vl_rat_ajustado || 0,\n  'TERCEIROS (5,8)': item.json.terceiros || 5.80,\n  'VL CONT TERCEIROS': item.json.vl_cont_terceiros_total || 0,\n  'TOTAL': ((item.json.valor || 0) + (item.json.contribuicao || 0) + (item.json.vl_rat_ajustado || 0) + (item.json.vl_cont_terceiros_total || 0)).toFixed(2),\n  'SELIC': item.json.selic || 0,\n  'VL.SELIC': item.json.vl_selic || 0,\n  'CRÉDITO': item.json.credito || '',\n  'Período': item.json.periodo || ''\n}));\n\n// Criar CSV com encoding correto\nconst headers = Object.keys(excelData[0]);\nconst csvRows = [];\n\n// Adicionar cabeçalho\ncsvRows.push(headers.join(';'));\n\n// Adicionar linhas de dados\nfor (const row of excelData) {\n  const values = headers.map(header => {\n    let val = row[header];\n    // Converter números para formato brasileiro (vírgula)\n    if (typeof val === 'number' || !isNaN(parseFloat(val))) {\n      val = parseFloat(val).toFixed(2).replace('.', ',');\n    }\n    // Escapar valores com ponto e vírgula\n    if (typeof val === 'string' && (val.includes(';') || val.includes(',') || val.includes('\\n'))) {\n      val = `\"${val}\"`;\n    }\n    return val;\n  });\n  csvRows.push(values.join(';'));\n}\n\nconst csvContent = csvRows.join('\\r\\n');\n\n// Nome do arquivo\nconst sistema = items[0].json.sistema || 'Sistema';\nconst dataExtracao = $('Validar e Preparar Dados').first().json['Data da extração'] || new Date().toISOString().split('T')[0];\nconst fileName = `proventos_folha_${sistema}_${dataExtracao.replace(/-/g, '')}_${Date.now()}.csv`;\n\n// Log informativo\nconsole.log(`CSV gerado com ${excelData.length} proventos`);\n\n// Retornar com encoding UTF-8 com BOM (para Excel abrir corretamente)\nconst BOM = '\\uFEFF';\nconst csvWithBom = BOM + csvContent;\n\nreturn {\n  json: { \n    fileName, \n    rowCount: excelData.length,\n    totalProventos: items.length,\n    sistema: sistema,\n    dataExtracao: dataExtracao\n  },\n  binary: {\n    data: {\n      data: Buffer.from(csvWithBom, 'utf-8').toString('base64'),\n      mimeType: 'text/csv; charset=utf-8',\n      fileName: fileName,\n      fileExtension: 'csv'\n    }\n  }\n};"
+        "operation": "toFile",
+        "fileFormat": "xlsx",
+        "options": {
+          "fileName": "={{ 'holerite_' + $('Validar e Preparar Dados').first().json.competencia.replace('/', '_') + '_' + Date.now() + '.xlsx' }}",
+          "headerRow": true
+        }
       },
-      "name": "Converter para CSV",
+      "name": "Converter para XLSX",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -112
+      ],
+      "id": "e5d8e6ad-d2e9-4980-a25b-a620007e4927"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Preparar dados para o formato XLSX correto\nconst items = $input.all();\n\nif (!items || items.length === 0) {\n  throw new Error('Nenhum dado para processar');\n}\n\n// Mapear dados para estrutura correta de colunas\nconst excelData = items.map(item => {\n  const data = item.json;\n  \n  return {\n    'COD': data.cod,\n    'Nome Rubrica': data.nome_rubrica,\n    'Valor': data.valor,\n    'Contribuição': data.contribuicao,\n    'RAT': data.rat + '%',\n    'VL RAT AJUSTADO': data.vl_rat_ajustado,\n    'TERCEIROS 5,8': data.terceiros + '%',\n    'VL CONT TERCEIROS': data.vl_cont_terceiros,\n    'TOTAL': data.total,\n    'SELIC': data.selic + '%',\n    'VL SELIC': data.vl_selic,\n    'Crédito': data.credito,\n    'Período': data.periodo,\n    'CNPJ': data.cnpj\n  };\n});\n\n// Adicionar linha de totais\nconst totais = {\n  'COD': 'TOTAIS',\n  'Nome Rubrica': '',\n  'Valor': excelData.reduce((sum, row) => sum + (parseFloat(row['Valor']) || 0), 0),\n  'Contribuição': excelData.reduce((sum, row) => sum + (parseFloat(row['Contribuição']) || 0), 0),\n  'RAT': '',\n  'VL RAT AJUSTADO': excelData.reduce((sum, row) => sum + (parseFloat(row['VL RAT AJUSTADO']) || 0), 0),\n  'TERCEIROS 5,8': '',\n  'VL CONT TERCEIROS': excelData.reduce((sum, row) => sum + (parseFloat(row['VL CONT TERCEIROS']) || 0), 0),\n  'TOTAL': excelData.reduce((sum, row) => sum + (parseFloat(row['TOTAL']) || 0), 0),\n  'SELIC': '',\n  'VL SELIC': excelData.reduce((sum, row) => sum + (parseFloat(row['VL SELIC']) || 0), 0),\n  'Crédito': excelData.reduce((sum, row) => sum + (parseFloat(row['Crédito']) || 0), 0),\n  'Período': '',\n  'CNPJ': ''\n};\n\n// Adicionar linha de totais\nexcelData.push(totais);\n\n// Informações adicionais\nconst dadosIniciais = $('Validar e Preparar Dados').first().json;\nconst empresaNome = items[0]?.json?.empresa_nome || 'Empresa';\n\nreturn excelData.map((row, index) => ({\n  json: row,\n  pairedItem: index\n}));"
+      },
+      "name": "Formatar Dados XLSX",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        112,
-        -128
+        448,
+        -112
       ],
-      "id": "a1b88a42-17b9-4826-b74d-faef1a1a710b"
+      "id": "c0b61e52-5af7-4c4a-8fb4-fe881b942b29"
     },
     {
       "parameters": {
         "operation": "upload",
-        "bucketName": "e7pdf-holerite",
-        "fileName": "={{ 'e7-holerite/processados/' + $('Validar e Preparar Dados').first().json['Data da extração'].split('-')[0] + '/' + $('Validar e Preparar Dados').first().json['Data da extração'].split('-')[1] + '/' + $json.fileName }}",
-        "additionalFields": {}
+        "bucketName": "e7-holerite",
+        "fileName": "={{ $('Processar e Calcular').first().json.empresa_nome.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase() + '/' + $('Validar e Preparar Dados').first().json.ano + '/' + $('Validar e Preparar Dados').first().json.competencia.replace('/', '_') + '/holerite_' + Date.now() + '.pdf' }}",
+        "additionalFields": {
+          "acl": "private",
+          "storageClass": "STANDARD"
+        }
       },
       "type": "n8n-nodes-base.awsS3",
       "typeVersion": 2,
       "position": [
-        336,
-        -128
+        -592,
+        -32
       ],
-      "id": "315fc37b-6bea-4b38-99e7-eaac84a345df",
-      "name": "Upload Excel para S3",
+      "id": "331ae95d-266b-41b4-8c49-ad24ae3589bb",
+      "name": "Upload PDF para S3",
       "credentials": {
         "aws": {
           "id": "xtXoYdILeaEmVmMk",
@@ -162,21 +168,137 @@
     },
     {
       "parameters": {
+        "operation": "upload",
+        "bucketName": "e7-holerite",
+        "fileName": "={{ $('Processar e Calcular').first().json.empresa_nome.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase() + '/' + $('Validar e Preparar Dados').first().json.ano + '/' + $('Validar e Preparar Dados').first().json.competencia.replace('/', '_') + '/extracao_excel/holerite_processado_' + Date.now() + '.xlsx' }}",
+        "additionalFields": {
+          "acl": "public-read",
+          "storageClass": "STANDARD"
+        }
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        512,
+        112
+      ],
+      "id": "9818226f-a1e5-4878-916d-4a6e54d96a6f",
+      "name": "Upload XLSX para S3",
+      "credentials": {
+        "aws": {
+          "id": "xtXoYdILeaEmVmMk",
+          "name": "AWS S3 - E7"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gerar URL pré-assinada para download\nconst s3Data = $('Upload XLSX para S3').first().json;\nconst dadosIniciais = $('Validar e Preparar Dados').first().json;\nconst totaisProcessados = $('Formatar Dados XLSX').all().length - 1; // -1 para excluir linha de totais\n\n// Preparar resposta para a aplicação React\nconst response = {\n  success: true,\n  message: 'Processamento concluído com sucesso',\n  data: {\n    // Informações do processamento\n    competencia: dadosIniciais.competencia,\n    totalProventos: totaisProcessados,\n    processadoEm: new Date().toISOString(),\n    \n    // URLs dos arquivos\n    arquivos: {\n      excel: {\n        url: s3Data.Location,\n        nome: s3Data.Key.split('/').pop(),\n        tamanho: s3Data.ContentLength || null,\n        tipo: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'\n      },\n      pdf: {\n        url: $('Upload PDF para S3').first().json.Location,\n        nome: dadosIniciais.nomeArquivo\n      }\n    },\n    \n    // Resumo financeiro\n    resumo: {\n      valorTotal: $('Formatar Dados XLSX').all()\n        .slice(0, -1)\n        .reduce((sum, item) => sum + (item.json['Valor'] || 0), 0),\n      creditoTotal: $('Formatar Dados XLSX').all()\n        .slice(0, -1)\n        .reduce((sum, item) => sum + (item.json['Crédito'] || 0), 0)\n    },\n    \n    // Headers para CORS\n    headers: {\n      'Access-Control-Allow-Origin': '*',\n      'Access-Control-Allow-Methods': 'POST, OPTIONS',\n      'Content-Type': 'application/json'\n    }\n  }\n};\n\nreturn {\n  json: response\n};"
+      },
+      "name": "Preparar Resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        112
+      ],
+      "id": "02cd2830-f887-462b-a4f5-8aff57195d62"
+    },
+    {
+      "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({\n  success: true,\n  message: 'Processamento concluído com sucesso',\n  data: {\n    totalProventos: $('Converter para CSV').first().json.totalProventos,\n    arquivoCSV: {\n      nome: $('Converter para CSV').first().json.fileName,\n      url: $('Upload Excel para S3').first().json.Location\n    },\n    arquivoPDF: {\n      url: $('Upload a file').first().json.Location\n    },\n    sistema: $('Converter para CSV').first().json.sistema,\n    dataExtracao: $('Converter para CSV').first().json.dataExtracao,\n    processadoEm: new Date().toISOString()\n  }\n}) }}",
-        "options": {}
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              }
+            ]
+          }
+        }
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        624,
-        -128
+        864,
+        112
       ],
-      "id": "1ae6f0a4-45af-452b-8cd8-a95fa8d6fb7a",
-      "name": "Responder ao Webhook"
+      "id": "36f09bd1-8729-4fb1-9017-75f26b083cd2",
+      "name": "Responder Webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $node['AI Agent - Extrator'].error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        208,
+        288
+      ],
+      "id": "1959e7a2-f7f3-4fc2-9178-99b77ec10731",
+      "name": "Verificar Erro"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: false,\n  error: 'Erro ao processar o PDF',\n  message: $node['AI Agent - Extrator'].error?.message || 'Erro desconhecido',\n  timestamp: new Date().toISOString()\n}) }}",
+        "options": {
+          "responseCode": 500,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        464,
+        336
+      ],
+      "id": "ad997267-18f5-40db-bd42-40173e2d02cd",
+      "name": "Responder Erro"
     }
   ],
-  "pinData": {},
   "connections": {
     "Webhook - Receber PDF": {
       "main": [
@@ -193,89 +315,118 @@
       "main": [
         [
           {
-            "node": "Upload a file",
+            "node": "OCR - Extrair Texto",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Extrair Texto do PDF",
+            "node": "Upload PDF para S3",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Upload a file": {
+    "OCR - Extrair Texto": {
       "main": [
         [
           {
-            "node": "AI Agent",
+            "node": "AI Agent - Extrator",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Extrair Texto do PDF": {
+    "AI Agent - Extrator": {
       "main": [
         [
           {
-            "node": "AI Agent",
+            "node": "Processar e Calcular",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "AI Agent": {
-      "main": [
-        [
-          {
-            "node": "Processar Resposta",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenAI Chat Model": {
+    "OpenAI Model GPT-4": {
       "ai_languageModel": [
         [
           {
-            "node": "AI Agent",
+            "node": "AI Agent - Extrator",
             "type": "ai_languageModel",
             "index": 0
           }
         ]
       ]
     },
-    "Processar Resposta": {
+    "Processar e Calcular": {
       "main": [
         [
           {
-            "node": "Converter para CSV",
+            "node": "Formatar Dados XLSX",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Converter para CSV": {
+    "Converter para XLSX": {
       "main": [
         [
           {
-            "node": "Upload Excel para S3",
+            "node": "Upload XLSX para S3",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Upload Excel para S3": {
+    "Formatar Dados XLSX": {
       "main": [
         [
           {
-            "node": "Responder ao Webhook",
+            "node": "Converter para XLSX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload XLSX para S3": {
+      "main": [
+        [
+          {
+            "node": "Preparar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Resposta": {
+      "main": [
+        [
+          {
+            "node": "Responder Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Erro": {
+      "main": [
+        [
+          {
+            "node": "Responder Erro",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Processar e Calcular",
             "type": "main",
             "index": 0
           }
@@ -283,17 +434,8 @@
       ]
     }
   },
-  "active": true,
-  "settings": {
-    "executionOrder": "v1",
-    "timezone": "America/Sao_Paulo",
-    "callerPolicy": "workflowsFromSameOwner"
-  },
-  "versionId": "367e29d1-3eae-405f-946e-f499a0f930f7",
+  "pinData": {},
   "meta": {
-    "templateCredsSetupCompleted": true,
     "instanceId": "9474c6a00514abf32e506ac1e8a3630f4ad5062151d13e4e269bbbc8b5e3f423"
-  },
-  "id": "sCMwRLpmkJoHyrAx",
-  "tags": []
+  }
 }

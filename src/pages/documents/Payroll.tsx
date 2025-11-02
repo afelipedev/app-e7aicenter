@@ -1,60 +1,66 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import { useActiveProcessings } from "@/hooks/useProcessingUpdates";
+import { ValidationError, ProcessingError } from "@/utils/errorHandling";
 import { 
   Upload, 
   FileText, 
-  Download, 
-  Filter, 
   X, 
-  CheckCircle, 
-  AlertCircle, 
+  Loader2, 
+  TrendingUp, 
   Clock, 
-  RefreshCw,
+  CheckCircle, 
+  Search, 
+  RefreshCw, 
+  Download, 
   Eye,
-  Trash2,
-  Search,
-  Calendar,
+  AlertCircle,
   Building2,
-  TrendingUp,
-  Activity,
-  Loader2
-} from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { PayrollService } from "@/services/payrollService";
-import { toast } from "@/hooks/use-toast";
-import type {
-  CompanyOption,
-  BatchUploadData,
-  BatchUploadResult,
-  FileValidationResult,
+  Calendar,
+  Zap
+} from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { PayrollService } from '@/services/payrollService';
+import { CompanyService } from '@/services/companyService';
+import type { 
+  Company, 
+  PayrollUploadData, 
+  PayrollStats, 
+  ProcessingHistory, 
   UploadProgress,
   DragDropState,
-  EnhancedPayrollStats,
-  ProcessingHistory,
-  ProcessingFilters,
-  ProcessingSort,
-  PaginatedResult,
-  PayrollProcessing,
+  CompanyOption,
+  BatchUploadResult,
   ProcessingStatus
-} from "../../../shared/types/payroll";
+} from '../../../shared/types/payroll';
 
-const MAX_FILES = 10;
+// Constants
+const MAX_FILES = 50;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['application/pdf'];
 
 export default function Payroll() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
+  // Use real-time processing updates hook
+  const { 
+    activeProcessings, 
+    loading: processingLoading, 
+    error: processingError,
+    refresh: refreshProcessings,
+    cancelProcessing,
+    reprocessBatch
+  } = useActiveProcessings();
+
   // State management
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
@@ -63,327 +69,479 @@ export default function Payroll() {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [dragState, setDragState] = useState<DragDropState>({
     isDragOver: false,
-    isDragActive: false,
-    files: [],
-    errors: []
+    isDragActive: false
   });
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'completed' | 'error'>('idle');
-  const [isUploading, setIsUploading] = useState(false);
-  const [stats, setStats] = useState<EnhancedPayrollStats | null>(null);
-  const [processingHistory, setProcessingHistory] = useState<PaginatedResult<ProcessingHistory> | null>(null);
-  const [currentProcessings, setCurrentProcessings] = useState<ProcessingHistory[]>([]);
-  const [filters, setFilters] = useState<ProcessingFilters>({});
-  const [sort, setSort] = useState<ProcessingSort>({ field: 'started_at', direction: 'desc' });
-  const [currentPage, setCurrentPage] = useState(1);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'completed' | 'error'>('idle');
+  const [stats, setStats] = useState<PayrollStats | null>(null);
+  const [processingHistory, setProcessingHistory] = useState<ProcessingHistory | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [lastUploadResult, setLastUploadResult] = useState<BatchUploadResult | null>(null);
 
   // Initialize data
-  useEffect(() => {
-    const initializeData = async () => {
-      try {
-        setIsLoading(true);
-        await Promise.all([
-          loadCompanies(),
-          loadStats(),
-          loadProcessingHistory(),
-          loadCurrentProcessings()
-        ]);
-      } catch (error) {
-        console.error('Error initializing payroll data:', error);
-        toast({
-          title: "Erro",
-          description: "Erro ao carregar dados iniciais",
-          variant: "destructive"
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (user) {
-      initializeData();
-    }
-  }, [user]);
-
-  // Auto-refresh current processings
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (currentProcessings.some(p => ['pending', 'processing'].includes(p.status))) {
-        loadCurrentProcessings();
-      }
-    }, 5000); // Refresh every 5 seconds
-
-    return () => clearInterval(interval);
-  }, [currentProcessings]);
-
-  // Load companies
-  const loadCompanies = async () => {
+  const initializeData = useCallback(async () => {
     try {
-      const companiesData = await PayrollService.getCompanies();
+      setIsLoading(true);
+      const [companiesData, statsData, historyData] = await Promise.all([
+        PayrollService.getCompanies(),
+        PayrollService.getEnhancedStats(),
+        PayrollService.getProcessingHistory({ page: 1, limit: 10 })
+      ]);
+
       setCompanies(companiesData);
+      setStats(statsData);
+      setProcessingHistory(historyData);
+      setIsLoading(false);
     } catch (error) {
-      console.error('Error loading companies:', error);
+      setIsLoading(false);
+      console.error('Error initializing data:', error);
       toast({
-        title: "Erro",
-        description: "Erro ao carregar empresas",
-        variant: "destructive"
+        title: "Erro ao carregar dados",
+        description: "Não foi possível carregar os dados iniciais",
+        variant: "destructive",
       });
     }
-  };
+  }, [toast]);
 
-  // Load statistics
-  const loadStats = async () => {
-    try {
-      const statsData = await PayrollService.getEnhancedStats();
-      setStats(statsData);
-    } catch (error) {
-      console.error('Error loading stats:', error);
+  // Update upload progress based on active processings
+  useEffect(() => {
+    if (activeProcessings.length > 0) {
+      const progressData = activeProcessings.map(p => ({
+        file_id: p.id,
+        filename: `${p.company?.name || 'Empresa'} - ${p.competency}`,
+        progress: p.progress || 0,
+        status: p.status,
+        estimated_time: p.estimated_completion_time
+      }));
+      setUploadProgress(progressData);
+    } else {
+      // Clear progress when no active processings
+      setUploadProgress([]);
     }
+  }, [activeProcessings]);
+
+  // Initialize component
+  useEffect(() => {
+    initializeData();
+  }, []); // Executar apenas uma vez na montagem do componente
+
+  // Competencia validation
+  const validateCompetencia = (comp: string): boolean => {
+    const regex = /^(0[1-9]|1[0-2])\/\d{4}$/;
+    if (!regex.test(comp)) return false;
+    
+    const [month, year] = comp.split('/').map(Number);
+    const currentYear = new Date().getFullYear();
+    
+    return year >= 2020 && year <= currentYear + 1;
   };
 
-  // Load processing history
-  const loadProcessingHistory = async () => {
-    try {
-      const historyData = await PayrollService.getProcessingHistory(
-        filters,
-        sort,
-        currentPage,
-        10
-      );
-      setProcessingHistory(historyData);
-    } catch (error) {
-      console.error('Error loading processing history:', error);
-    }
-  };
-
-  // Load current processings
-  const loadCurrentProcessings = async () => {
-    try {
-      const processings = await PayrollService.getProcessingHistory(
-        { status: ['pending', 'processing'] },
-        { field: 'started_at', direction: 'desc' },
-        1,
-        5
-      );
-      setCurrentProcessings(processings.data);
-    } catch (error) {
-      console.error('Error loading current processings:', error);
-    }
-  };
-
-  // File validation
-  const validateFile = (file: File): FileValidationResult => {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      errors.push('Apenas arquivos PDF são permitidos');
+  // Local validation functions to avoid dependency issues
+  const validateSingleFile = (file: File) => {
+    if (!file) {
+      throw new ValidationError('Nenhum arquivo selecionado');
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      errors.push(`Arquivo muito grande. Máximo: ${formatFileSize(MAX_FILE_SIZE)}`);
+      throw new ValidationError(
+        `Arquivo muito grande. Tamanho máximo: ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB`
+      );
     }
 
-    if (file.size === 0) {
-      errors.push('Arquivo vazio');
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      throw new ValidationError(
+        'Tipo de arquivo não suportado. Apenas arquivos PDF são aceitos.'
+      );
+    }
+  };
+
+  const validateFileBatch = (files: File[]) => {
+    if (!files || files.length === 0) {
+      throw new ValidationError('Nenhum arquivo selecionado para upload');
     }
 
-    return {
-      isValid: errors.length === 0,
-      errors,
-      warnings,
-      file
-    };
+    if (files.length > MAX_FILES) {
+      throw new ValidationError(
+        `Muitos arquivos selecionados. Máximo: ${MAX_FILES} arquivos`
+      );
+    }
   };
 
-  // Validate competencia format
-  const validateCompetencia = (value: string): boolean => {
-    const regex = /^(0[1-9]|1[0-2])\/\d{4}$/;
-    if (!regex.test(value)) return false;
-    
-    const [month, year] = value.split('/');
-    const currentYear = new Date().getFullYear();
-    return parseInt(year) <= currentYear;
-  };
+  // Handle file selection with enhanced validation
+  const handleFileSelect = (files: FileList) => {
+    try {
+      const fileArray = Array.from(files);
+      
+      // Validate batch upload
+      validateFileBatch([...selectedFiles, ...fileArray]);
+      
+      const validFiles: File[] = [];
+      const errors: string[] = [];
 
-  // Handle file selection
-  const handleFileSelect = (files: FileList | File[]) => {
-    const fileArray = Array.from(files);
-    
-    if (selectedFiles.length + fileArray.length > MAX_FILES) {
-      toast({
-        title: "Limite excedido",
-        description: `Máximo de ${MAX_FILES} arquivos permitidos`,
-        variant: "destructive"
+      // Validate each file
+      fileArray.forEach(file => {
+        try {
+          validateSingleFile(file);
+          
+          // Check for duplicates
+          const isDuplicate = selectedFiles.some(existing => 
+            existing.name === file.name && existing.size === file.size
+          );
+          
+          if (!isDuplicate) {
+            validFiles.push(file);
+          } else {
+            errors.push(`Arquivo duplicado: ${file.name}`);
+          }
+        } catch (error) {
+          if (error instanceof ValidationError) {
+            errors.push(`${file.name}: ${error.message}`);
+          } else {
+            errors.push(`${file.name}: Erro de validação`);
+          }
+        }
       });
-      return;
-    }
 
-    const validationResults = fileArray.map(validateFile);
-    const validFiles = validationResults.filter(r => r.isValid).map(r => r.file);
-    const invalidFiles = validationResults.filter(r => !r.isValid);
-
-    if (invalidFiles.length > 0) {
-      invalidFiles.forEach(result => {
+      // Show errors if any
+      if (errors.length > 0) {
         toast({
-          title: `Erro no arquivo: ${result.file.name}`,
-          description: result.errors.join(', '),
-          variant: "destructive"
+          title: "Alguns arquivos não foram adicionados",
+          description: errors.slice(0, 3).join(', ') + (errors.length > 3 ? '...' : ''),
+          variant: "destructive",
         });
-      });
-    }
+      }
 
-    if (validFiles.length > 0) {
-      setSelectedFiles(prev => [...prev, ...validFiles]);
+      // Add valid files
+      if (validFiles.length > 0) {
+        setSelectedFiles(prev => [...prev, ...validFiles]);
+        toast({
+          title: "Arquivos adicionados",
+          description: `${validFiles.length} arquivo(s) adicionado(s) com sucesso`,
+        });
+      }
+    } catch (error) {
+      console.error('Error in file selection:', error);
+      toast({
+        title: "Erro na seleção de arquivos",
+        description: "Não foi possível processar os arquivos selecionados",
+        variant: "destructive",
+      });
     }
   };
 
-  // Handle drag and drop
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
+  // Drag and drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragState(prev => ({ 
-      ...prev,
-      isDragOver: true, 
-      isDragActive: true 
-    }));
-  }, []);
+    setDragState({ isDragOver: true, isDragActive: true });
+  };
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
+  const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragState(prev => ({ 
-      ...prev,
-      isDragOver: false, 
-      isDragActive: false 
-    }));
-  }, []);
+    setDragState({ isDragOver: false, isDragActive: false });
+  };
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragState(prev => ({ 
-      ...prev,
-      isDragOver: false, 
-      isDragActive: false 
-    }));
-  }, []);
+  };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragState(prev => ({ 
-      ...prev,
-      isDragOver: false, 
-      isDragActive: false 
-    }));
-
-    const files = Array.from(e.dataTransfer.files);
-    handleFileSelect(files);
-  }, []);
+    setDragState({ isDragOver: false, isDragActive: false });
+    
+    if (e.dataTransfer.files) {
+      handleFileSelect(e.dataTransfer.files);
+    }
+  };
 
   // Remove file
   const removeFile = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Handle upload
+  // Handle file upload with enhanced error handling and n8n webhook integration
   const handleUpload = async () => {
     if (!selectedCompany || !competencia || selectedFiles.length === 0) {
       toast({
         title: "Campos obrigatórios",
-        description: "Selecione empresa, competência e pelo menos um arquivo",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (!validateCompetencia(competencia)) {
-      toast({
-        title: "Competência inválida",
-        description: "Use o formato MM/AAAA (ex: 01/2025)",
-        variant: "destructive"
+        description: "Selecione uma empresa, competência e pelo menos um arquivo",
+        variant: "destructive",
       });
       return;
     }
 
     try {
-      setIsUploading(true);
+      setUploadStatus('uploading');
       
-      // Initialize progress tracking with correct UploadProgress type
-      const initialProgress: UploadProgress[] = selectedFiles.map((file, index) => ({
-        file_id: `temp-${index}`,
-        filename: file.name,
+      // Validate files before upload using local validation
+      try {
+        if (selectedFiles.length === 0) {
+          throw new Error('Nenhum arquivo selecionado para upload');
+        }
+
+        if (selectedFiles.length > MAX_FILES) {
+          throw new Error(`Muitos arquivos selecionados. Máximo: ${MAX_FILES} arquivos`);
+        }
+
+        selectedFiles.forEach((file, index) => {
+          if (!file) {
+            throw new Error('Arquivo inválido encontrado');
+          }
+
+          if (file.size > MAX_FILE_SIZE) {
+            throw new Error(
+              `Arquivo ${file.name} muito grande. Tamanho máximo: ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB`
+            );
+          }
+
+          if (!ALLOWED_TYPES.includes(file.type)) {
+            throw new Error(
+              `Arquivo ${file.name}: Tipo não suportado. Apenas arquivos PDF são aceitos.`
+            );
+          }
+        });
+      } catch (validationError) {
+        setUploadStatus('error');
+        toast({
+          title: "Erro de Validação",
+          description: validationError instanceof Error ? validationError.message : "Erro na validação dos arquivos",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const uploadData: PayrollUploadData = {
+        company_id: selectedCompany,
+        competencia,
+        files: selectedFiles,
+        user_id: user?.id || ''
+      };
+
+      // Initialize progress tracking
+      const initialProgress = selectedFiles.map((file, index) => ({
+        fileIndex: index,
+        fileName: file.name,
         progress: 0,
-        status: 'uploading'
+        status: 'pending' as const,
+        error: null
       }));
       setUploadProgress(initialProgress);
 
-      const batchData: BatchUploadData = {
-        files: selectedFiles,
-        company_id: selectedCompany,
-        competencia
-      };
+      // Perform upload
+      const result = await PayrollService.batchUpload(uploadData);
 
-      // Start batch upload (without callback since it doesn't support it)
-      const result: BatchUploadResult = await PayrollService.batchUpload(batchData);
-
-      // Check if upload was successful based on failed_uploads
-      if (result.failed_uploads === 0) {
+      if (!result) {
+        setUploadStatus('error');
         toast({
-          title: "Upload concluído",
-          description: `${result.successful_uploads} arquivos enviados com sucesso`,
+          title: "Erro no Upload",
+          description: "Resposta inválida do servidor",
+          variant: "destructive",
         });
-
-        // Reset form
-        setSelectedFiles([]);
-        setUploadProgress([]);
-        setSelectedCompany('');
-        setCompetencia('');
-
-        // Refresh data
-        await Promise.all([
-          loadStats(),
-          loadProcessingHistory(),
-          loadCurrentProcessings()
-        ]);
-      } else {
-        toast({
-          title: "Upload parcialmente concluído",
-          description: `${result.successful_uploads} sucessos, ${result.failed_files.length} erros`,
-          variant: "destructive"
-        });
+        return;
       }
 
+      setLastUploadResult(result);
+
+      if (result.success) {
+        setUploadStatus('completed');
+        
+        // Trigger n8n webhook for workflow execution
+        try {
+          const webhookPayload = {
+            company_id: selectedCompany,
+            competencia,
+            files: selectedFiles.map(file => ({
+              name: file.name,
+              size: file.size,
+              type: file.type
+            })),
+            user_id: user?.id || '',
+            upload_result: result,
+            timestamp: new Date().toISOString()
+          };
+
+          // Make POST request to n8n webhook
+          const webhookResponse = await fetch('/api/webhook/n8n/payroll-processing', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(webhookPayload)
+          });
+
+          if (!webhookResponse.ok) {
+            console.warn('N8N webhook call failed:', webhookResponse.statusText);
+            // Don't fail the upload if webhook fails, just log it
+          } else {
+            console.log('N8N workflow triggered successfully');
+          }
+        } catch (webhookError) {
+          console.warn('Error calling n8n webhook:', webhookError);
+          // Don't fail the upload if webhook fails
+        }
+
+        toast({
+          title: "Upload realizado com sucesso!",
+          description: `${result.successful_files} arquivo(s) enviado(s) para processamento`,
+        });
+
+        // Clear form
+        setSelectedFiles([]);
+        setCompetencia('');
+        setUploadProgress([]);
+        
+        // Refresh data
+        await Promise.all([
+          initializeData(),
+          refreshProcessings()
+        ]);
+        
+      } else if (result.partial_success) {
+        setUploadStatus('completed');
+        toast({
+          title: "Upload parcialmente realizado",
+          description: `${result.successful_files} de ${result.total_files} arquivo(s) processado(s)`,
+          variant: "destructive",
+        });
+      } else {
+        setUploadStatus('error');
+        toast({
+          title: "Erro no Upload",
+          description: result.error || "Erro desconhecido durante o upload",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
-      console.error('Upload error:', error);
-      toast({
-        title: "Erro no upload",
-        description: "Erro ao enviar arquivos. Tente novamente.",
-        variant: "destructive"
+      setUploadStatus('error');
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido durante o upload";
+      
+      console.error('PayrollSystem Error:', {
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString(),
+        context: 'upload'
       });
-    } finally {
-      setIsUploading(false);
+
+      // Verificar se é um erro específico do webhook n8n
+      let userFriendlyMessage = errorMessage;
+      let toastTitle = "Erro no Upload";
+      
+      if (errorMessage.includes('webhook n8n não está ativo')) {
+        toastTitle = "Webhook N8N Inativo";
+        userFriendlyMessage = "O workflow do N8N não está ativo. Verifique a configuração do workflow no N8N e certifique-se de que está ativo.";
+      } else if (errorMessage.includes('Failed to fetch')) {
+        toastTitle = "Erro de Conexão";
+        userFriendlyMessage = "Erro de conexão com o servidor. Verifique sua conexão de internet e tente novamente.";
+      } else if (errorMessage.includes('not registered')) {
+        toastTitle = "Webhook Não Configurado";
+        userFriendlyMessage = "O webhook do N8N não está configurado corretamente. Entre em contato com o administrador do sistema.";
+      }
+
+      toast({
+        title: toastTitle,
+        description: userFriendlyMessage,
+        variant: "destructive",
+      });
     }
   };
 
-  // Get status badge variant
-  const getStatusBadgeVariant = (status: ProcessingStatus) => {
+  // Load processing history with enhanced error handling
+  const loadProcessingHistory = async () => {
+    try {
+      const history = await PayrollService.getProcessingHistory({ 
+        page: 1, 
+        limit: 10,
+        search: searchTerm 
+      });
+      setProcessingHistory(history);
+    } catch (error) {
+      console.error('Error loading processing history:', error);
+      toast({
+        title: "Erro ao carregar histórico",
+        description: "Não foi possível carregar o histórico de processamento",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Test webhook connectivity
+  const testWebhookConnection = async () => {
+    try {
+      const webhookUrl = 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-holerite';
+      
+      toast({
+        title: "Testando Webhook N8N",
+        description: "Verificando conectividade com o webhook...",
+      });
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          test: true,
+          timestamp: new Date().toISOString()
+        }),
+        signal: AbortSignal.timeout(10000) // 10 segundos timeout
+      });
+
+      if (response.ok) {
+        toast({
+          title: "✅ Webhook N8N Ativo",
+          description: "O webhook está funcionando corretamente!",
+        });
+      } else {
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { message: errorText };
+        }
+
+        if (response.status === 404 && errorData.message?.includes('not registered')) {
+          toast({
+            title: "⚠️ Webhook N8N Inativo",
+            description: "O workflow do N8N não está ativo. Ative o workflow no N8N para processar arquivos.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "❌ Erro no Webhook N8N",
+            description: `Status: ${response.status} - ${errorData.message || response.statusText}`,
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast({
+        title: "❌ Erro de Conexão",
+        description: `Não foi possível conectar ao webhook N8N: ${errorMessage}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Status helpers
+  const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'completed': return 'default';
       case 'processing': return 'secondary';
-      case 'error': return 'destructive';
+      case 'failed': return 'destructive';
       default: return 'outline';
     }
   };
 
-  // Get status icon
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed': return 'text-green-600';
-      case 'processing': return 'text-blue-600';
-      case 'error': return 'text-red-600';
+      case 'processing': return 'text-yellow-600';
+      case 'failed': return 'text-red-600';
       default: return 'text-gray-600';
     }
   };
@@ -392,7 +550,7 @@ export default function Payroll() {
     switch (status) {
       case 'completed': return <CheckCircle className="w-4 h-4" />;
       case 'processing': return <Clock className="w-4 h-4" />;
-      case 'error': return <AlertCircle className="w-4 h-4" />;
+      case 'failed': return <AlertCircle className="w-4 h-4" />;
       default: return <Clock className="w-4 h-4" />;
     }
   };
@@ -406,108 +564,117 @@ export default function Payroll() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const isUploading = uploadStatus === 'uploading';
+
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin" />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center gap-3">
+          <Loader2 className="w-6 h-6 animate-spin" />
+          <span>Carregando dados...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Gestão de Holerites</h1>
+          <h1 className="text-3xl font-bold">Gestão de Holerites</h1>
           <p className="text-muted-foreground">
-            Upload e processamento inteligente de folhas de pagamento
+            Faça upload e processe holerites em lote com integração N8N
           </p>
         </div>
-        <Button 
-          onClick={() => fileInputRef.current?.click()} 
-          className="gap-2"
-          disabled={isUploading}
-        >
-          <Upload className="w-4 h-4" />
-          Novo Upload
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={testWebhookConnection}
+            disabled={isUploading}
+          >
+            <Zap className="w-4 h-4 mr-2" />
+            Testar N8N
+          </Button>
+          <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+            <Upload className="w-4 h-4 mr-2" />
+            Novo Upload
+          </Button>
+        </div>
       </div>
 
 
 
-      {/* Upload Section */}
+      {/* Upload Form */}
       <Card>
         <CardHeader>
           <CardTitle>Upload de Holerites</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Configuration Section */}
-          <div className="bg-gray-50 p-4 rounded-lg border">
-            <h3 className="text-sm font-medium text-gray-900 mb-4">Configurações do Upload</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="company">Empresa *</Label>
-                <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a empresa" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {companies.map((company) => (
-                      <SelectItem key={company.id} value={company.id}>
-                        {company.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <span className="text-sm font-medium text-gray-700">Competência (MM/AAAA) *</span>
-                <Input
-                  id="competencia"
-                  type="text"
-                  placeholder="01/2025"
-                  value={competencia}
-                  onChange={(e) => setCompetencia(e.target.value)}
-                  maxLength={7}
-                />
-              </div>
+        <CardContent className="space-y-4">
+          {/* Company Selection */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="company">Empresa</Label>
+              <select
+                id="company"
+                value={selectedCompany}
+                onChange={(e) => setSelectedCompany(e.target.value)}
+                className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                disabled={isUploading}
+              >
+                <option value="">Selecione uma empresa</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="competencia">Competência (MM/AAAA)</Label>
+              <Input
+                id="competencia"
+                type="text"
+                placeholder="12/2024"
+                value={competencia}
+                onChange={(e) => setCompetencia(e.target.value)}
+                disabled={isUploading}
+              />
             </div>
           </div>
 
-          {/* Upload Area */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-gray-900">Selecionar Arquivos</h3>
-            {/* Drag and Drop Area */}
-            <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
-                dragState.isDragOver 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-border hover:border-primary'
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
+          {/* Drag and Drop Area */}
+          <div
+            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+              dragState.isDragOver
+                ? 'border-primary bg-primary/5'
+                : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+            }`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">
+              Arraste arquivos PDF aqui
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              ou clique para selecionar arquivos
+            </p>
+            <Button
+              variant="outline"
               onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
             >
-              <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-sm text-foreground font-medium mb-1">
-                Clique para fazer upload ou arraste os arquivos
-              </p>
-              <p className="text-xs text-muted-foreground mb-2">
-                Formatos aceitos: PDF • Máximo: {MAX_FILES} arquivos de {MAX_FILE_SIZE / 1024 / 1024}MB cada
-              </p>
-              {selectedFiles.length > 0 && (
-                <p className="text-xs text-primary">
-                  {selectedFiles.length} arquivo(s) selecionado(s)
-                </p>
-              )}
-            </div>
+              Selecionar Arquivos
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2">
+              Máximo {MAX_FILES} arquivos • {formatFileSize(MAX_FILE_SIZE)} por arquivo
+            </p>
           </div>
 
-          {/* Hidden File Input */}
           <input
             ref={fileInputRef}
             type="file"
@@ -556,7 +723,14 @@ export default function Payroll() {
                   <div key={progress.file_id} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <span>{progress.filename}</span>
-                      <span>{progress.progress}%</span>
+                      <div className="flex items-center gap-2">
+                        <span>{progress.progress}%</span>
+                        {progress.estimated_time && (
+                          <span className="text-xs text-muted-foreground">
+                            ~{progress.estimated_time}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <Progress value={progress.progress} />
                   </div>

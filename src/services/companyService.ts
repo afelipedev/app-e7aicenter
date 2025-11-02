@@ -22,20 +22,37 @@ export class CompanyService {
    * Busca uma empresa por ID
    */
   static async getById(id: string): Promise<Company | null> {
-    const { data, error } = await supabase
-      .from('companies')
-      .select('*')
-      .eq('id', id)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return null; // Empresa não encontrada
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null; // Empresa não encontrada
+        }
+        console.error('Supabase error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        throw new Error(`Erro ao buscar empresa: ${error.message}`);
       }
-      throw new Error(`Erro ao buscar empresa: ${error.message}`);
-    }
 
-    return data;
+      return data;
+    } catch (err) {
+      // Captura erros de rede ou outros erros não relacionados ao Supabase
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        console.error('Network connectivity error:', err);
+        throw new Error('Erro de conectividade: Verifique sua conexão com a internet e tente novamente.');
+      }
+      
+      console.error('Unexpected error in getById:', err);
+      throw err;
+    }
   }
 
   /**

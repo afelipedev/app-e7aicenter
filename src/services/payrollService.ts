@@ -289,13 +289,26 @@ export class PayrollService {
         callback_url: `${window.location.origin}/api/webhook/payroll-status`
       };
 
-      const webhookUrl = 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-folha-pagamento';
+      const webhookUrl = 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-holerite';
       
-      // Log da requisição
+      // Log da requisição com detalhes do payload
       await this.addProcessingLog(processingId, 'INFO', 'Enviando arquivos para webhook n8n', {
         webhook_url: webhookUrl,
         files_count: processedFiles.length,
-        payload_size: JSON.stringify(webhookPayload).length
+        payload_size: JSON.stringify(webhookPayload).length,
+        competency: webhookPayload.competency,
+        company_id: webhookPayload.company_id,
+        callback_url: webhookPayload.callback_url
+      });
+
+      // Log detalhado dos arquivos sendo enviados
+      await this.addProcessingLog(processingId, 'DEBUG', 'Detalhes dos arquivos no payload', {
+        files: webhookPayload.files.map(file => ({
+          file_id: file.file_id,
+          filename: file.filename,
+          pdf_size_bytes: file.pdf_base64.length,
+          pdf_preview: file.pdf_base64.substring(0, 50) + '...'
+        }))
       });
 
       const response = await fetch(webhookUrl, {
@@ -315,7 +328,22 @@ export class PayrollService {
       });
 
       if (!response.ok) {
-        throw new Error(`Erro na requisição para webhook: ${response.status} ${response.statusText}`);
+        // Tentar obter detalhes do erro da resposta
+        let errorDetails = '';
+        try {
+          const errorResponse = await response.text();
+          const errorData = JSON.parse(errorResponse);
+          
+          if (response.status === 404 && errorData.message?.includes('not registered')) {
+            errorDetails = `Webhook n8n não está ativo ou configurado. ${errorData.hint || 'Verifique se o workflow está ativo no n8n.'}`;
+          } else {
+            errorDetails = errorData.message || `${response.status} ${response.statusText}`;
+          }
+        } catch {
+          errorDetails = `${response.status} ${response.statusText}`;
+        }
+        
+        throw new Error(`Erro na requisição para webhook n8n: ${errorDetails}`);
       }
 
       // Tentar obter o texto da resposta primeiro
@@ -370,7 +398,7 @@ export class PayrollService {
         error_name: error instanceof Error ? error.constructor.name : 'Unknown',
         error_message: error instanceof Error ? error.message : 'Erro desconhecido',
         error_stack: error instanceof Error ? error.stack : undefined,
-        webhook_url: 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-folha-pagamento'
+        webhook_url: 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-holerite'
       });
 
       // Atualizar status para erro
@@ -892,7 +920,7 @@ export class PayrollService {
     try {
       await this.update(payrollFileId, { status: 'processing' });
 
-      const webhookUrl = 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-folha-pagamento';
+      const webhookUrl = 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-holerite';
       
       const response = await fetch(webhookUrl, {
         method: 'POST',
@@ -1010,5 +1038,227 @@ export class PayrollService {
    */
   static canDownload(payrollFile: PayrollFile): boolean {
     return payrollFile.status === 'completed' && !!payrollFile.excel_url;
+  }
+
+  // =====================================================
+  // PROCESSING DETAILS METHODS
+  // =====================================================
+  
+  /**
+   * Obtém processamentos ativos
+   */
+  static async getCurrentProcessings(): Promise<PayrollProcessing[]> {
+    try {
+      const { data, error } = await supabase
+        .from('payroll_processing')
+        .select(`
+          *,
+          company:companies(name, cnpj)
+        `)
+        .in('status', ['pending', 'processing'])
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      return data || [];
+    } catch (error) {
+      console.error('Erro ao buscar processamentos ativos:', error);
+      throw new Error('Erro ao buscar processamentos ativos');
+    }
+  }
+  
+  /**
+   * Obtém detalhes de um processamento específico
+   */
+  static async getProcessingDetails(processingId: string): Promise<PayrollProcessing | null> {
+    try {
+      const { data, error } = await supabase
+        .from('payroll_processing')
+        .select(`
+          *,
+          company:companies(name, cnpj),
+          logs:processing_logs(*)
+        `)
+        .eq('id', processingId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') return null;
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Erro ao buscar detalhes do processamento:', error);
+      throw new Error('Erro ao buscar detalhes do processamento');
+    }
+  }
+  
+  /**
+   * Obtém logs de um processamento
+   */
+  static async getProcessingLogs(processingId: string): Promise<ProcessingLog[]> {
+    try {
+      const { data, error } = await supabase
+        .from('processing_logs')
+        .select('*')
+        .eq('processing_id', processingId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      return data || [];
+    } catch (error) {
+      console.error('Erro ao buscar logs do processamento:', error);
+      throw new Error('Erro ao buscar logs do processamento');
+    }
+  }
+  
+  /**
+   * Cancela um processamento
+   */
+  static async cancelProcessing(processingId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('payroll_processing')
+        .update({
+          status: 'error',
+          error_message: 'Processamento cancelado pelo usuário',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', processingId);
+
+      if (error) throw error;
+
+      // Adicionar log de cancelamento
+      await this.addProcessingLog(processingId, 'INFO', 'Processamento cancelado pelo usuário');
+    } catch (error) {
+      console.error('Erro ao cancelar processamento:', error);
+      throw new Error('Erro ao cancelar processamento');
+    }
+  }
+  
+  /**
+   * Reprocessa um lote
+   */
+  static async reprocessBatch(processingId: string): Promise<void> {
+    try {
+      // Buscar dados do processamento original
+      const processing = await this.getProcessingDetails(processingId);
+      if (!processing) {
+        throw new Error('Processamento não encontrado');
+      }
+
+      // Resetar status para reprocessamento
+      const { error } = await supabase
+        .from('payroll_processing')
+        .update({
+          status: 'pending',
+          progress: 0,
+          error_message: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', processingId);
+
+      if (error) throw error;
+
+      // Adicionar log de reprocessamento
+      await this.addProcessingLog(processingId, 'info', 'Reprocessamento iniciado');
+
+      // Chamar webhook para reprocessar
+      await this.triggerWebhookProcessing(processingId);
+    } catch (error) {
+      console.error('Erro ao reprocessar lote:', error);
+      throw new Error('Erro ao reprocessar lote');
+    }
+  }
+  
+  /**
+   * Dispara processamento via webhook
+   */
+  private static async triggerWebhookProcessing(processingId: string): Promise<void> {
+    try {
+      const webhookUrl = 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-lote-folha';
+      
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          processing_id: processingId
+        }),
+        signal: AbortSignal.timeout(30000)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro na requisição webhook: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Erro ao disparar webhook:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Subscreve a atualizações de processamento em tempo real
+   */
+  static subscribeToProcessingUpdates(
+    processingId: string,
+    callback: (processing: PayrollProcessing) => void
+  ): () => void {
+    const subscription = supabase
+      .channel(`processing_${processingId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'payroll_processing',
+          filter: `id=eq.${processingId}`
+        },
+        async (payload) => {
+          // Buscar dados completos do processamento
+          const processing = await this.getProcessingDetails(processingId);
+          if (processing) {
+            callback(processing);
+          }
+        }
+      )
+      .subscribe();
+
+    // Retornar função para cancelar subscrição
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }
+
+  /**
+   * Subscreve a novos logs de processamento
+   */
+  static subscribeToProcessingLogs(
+    processingId: string,
+    callback: (log: ProcessingLog) => void
+  ): () => void {
+    const subscription = supabase
+      .channel(`logs_${processingId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'processing_logs',
+          filter: `processing_id=eq.${processingId}`
+        },
+        (payload) => {
+          callback(payload.new as ProcessingLog);
+        }
+      )
+      .subscribe();
+
+    // Retornar função para cancelar subscrição
+    return () => {
+      supabase.removeChannel(subscription);
+    };
   }
 }

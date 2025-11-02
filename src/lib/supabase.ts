@@ -4,9 +4,22 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 const supabaseServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
+// Validação mais robusta das variáveis de ambiente
+if (!supabaseUrl) {
+  console.error('VITE_SUPABASE_URL is missing from environment variables')
+  throw new Error('Missing Supabase URL - check your .env file')
 }
+
+if (!supabaseAnonKey) {
+  console.error('VITE_SUPABASE_ANON_KEY is missing from environment variables')
+  throw new Error('Missing Supabase Anonymous Key - check your .env file')
+}
+
+console.log('Supabase configuration loaded:', {
+  url: supabaseUrl,
+  hasAnonKey: !!supabaseAnonKey,
+  hasServiceKey: !!supabaseServiceRoleKey
+})
 
 // Configuração segura do cliente Supabase
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

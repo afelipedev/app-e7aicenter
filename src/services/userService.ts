@@ -3,16 +3,26 @@ import { createClient } from '@supabase/supabase-js'
 import { UserSyncService, AuthEventType } from './userSyncService'
 
 // Cliente admin para operações que requerem service_role
-const supabaseAdmin = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '',
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
+let supabaseAdmin: any = null
+
+try {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+  
+  if (supabaseUrl && serviceRoleKey) {
+    supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+    console.log('Supabase Admin client initialized successfully')
+  } else {
+    console.warn('Service role key not available - some admin operations may not work')
   }
-)
+} catch (error) {
+  console.error('Failed to initialize Supabase Admin client:', error)
+}
 
 export interface CreateUserData {
   email: string
