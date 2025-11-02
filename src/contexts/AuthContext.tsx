@@ -197,46 +197,113 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true)
       
       const currentUserEmail = user?.email
+      const currentSession = session
+      
+      console.log('🔐 Iniciando processo de logout...', { 
+        hasUser: !!user, 
+        hasSession: !!currentSession,
+        userEmail: currentUserEmail 
+      })
       
       // Registrar tentativa de logout
       if (currentUserEmail) {
-        await UserSyncService.logAuthEvent(user?.id, AuthEventType.LOGOUT_ATTEMPTED, {
-          userEmail: currentUserEmail,
-          additionalData: { timestamp: new Date().toISOString() }
-        })
-      }
-      
-      // Registrar sucesso do logout ANTES do signOut (pois após signOut a sessão é invalidada)
-      if (currentUserEmail) {
         try {
-          await UserSyncService.logAuthEvent(user?.id, AuthEventType.LOGOUT_SUCCESS, {
+          await UserSyncService.logAuthEvent(user?.id, AuthEventType.LOGOUT_ATTEMPTED, {
             userEmail: currentUserEmail,
             additionalData: { timestamp: new Date().toISOString() }
           })
         } catch (logError) {
-          // Se falhar o log, não impedir o logout
-          console.warn('Falha ao registrar log de logout bem-sucedido:', logError)
+          console.warn('Falha ao registrar tentativa de logout (não crítico):', logError)
         }
       }
       
-      // Fazer logout com timeout
-      const logoutPromise = supabase.auth.signOut()
-      const { error } = await withTimeout(logoutPromise, AUTH_TIMEOUT)
+      // Verificar se há uma sessão válida antes de tentar logout no servidor
+      let shouldAttemptServerLogout = false
       
-      if (error) {
-        console.error('Erro no logout:', error.message)
-        // Não tentamos registrar falha aqui pois a sessão pode já estar invalidada
-        return { error }
+      if (currentSession) {
+        try {
+          // Verificar se a sessão ainda é válida
+          const { data: { session: validSession }, error: sessionError } = await supabase.auth.getSession()
+          
+          if (!sessionError && validSession) {
+            console.log('✅ Sessão válida encontrada, tentando logout no servidor')
+            shouldAttemptServerLogout = true
+          } else {
+            console.log('⚠️ Sessão local existe mas não é válida no servidor:', sessionError?.message || 'Sessão expirada')
+          }
+        } catch (sessionCheckError) {
+          console.warn('Erro ao verificar sessão (continuando com logout local):', sessionCheckError)
+        }
+      } else {
+        console.log('ℹ️ Nenhuma sessão local encontrada, fazendo apenas limpeza local')
       }
-
-      // Limpar estado local
+      
+      let serverLogoutError: AuthError | null = null
+      
+      // Tentar logout no servidor apenas se a sessão for válida
+      if (shouldAttemptServerLogout) {
+        try {
+          console.log('🌐 Tentando logout no servidor Supabase...')
+          const logoutPromise = supabase.auth.signOut()
+          const { error } = await withTimeout(logoutPromise, AUTH_TIMEOUT)
+          
+          if (error) {
+            console.warn('⚠️ Erro no logout do servidor:', error.message, error.code)
+            
+            // Verificar se é erro de sessão não encontrada (comum e não crítico)
+            if (error.message?.includes('session_not_found') || 
+                error.message?.includes('Session from session_id claim in JWT does not exist') ||
+                error.message?.includes('Auth session missing')) {
+              console.log('ℹ️ Sessão já expirada no servidor - continuando com limpeza local')
+            } else {
+              // Outros erros podem ser mais críticos
+              serverLogoutError = error
+            }
+          } else {
+            console.log('✅ Logout no servidor realizado com sucesso')
+          }
+        } catch (logoutError) {
+          console.warn('⚠️ Erro inesperado no logout do servidor:', logoutError)
+          // Não impedir a limpeza local mesmo com erro no servidor
+        }
+      }
+      
+      // SEMPRE limpar estado local, independente do resultado do logout no servidor
+      console.log('🧹 Limpando estado local...')
       setUser(null)
       setSession(null)
       setFirstAccessStatus(null)
       
-      return { error: null }
+      // Registrar sucesso do logout (limpeza local sempre é bem-sucedida)
+      if (currentUserEmail) {
+        try {
+          await UserSyncService.logAuthEvent(user?.id, AuthEventType.LOGOUT_SUCCESS, {
+            userEmail: currentUserEmail,
+            additionalData: { 
+              timestamp: new Date().toISOString(),
+              serverLogoutAttempted: shouldAttemptServerLogout,
+              serverLogoutSuccess: !serverLogoutError
+            }
+          })
+        } catch (logError) {
+          console.warn('Falha ao registrar log de logout bem-sucedido (não crítico):', logError)
+        }
+      }
+      
+      console.log('✅ Processo de logout concluído')
+      
+      // Retornar erro apenas se for crítico (não incluir session_not_found)
+      return { error: serverLogoutError }
+      
     } catch (error) {
-      console.error('Erro inesperado no signOut:', error)
+      console.error('❌ Erro inesperado no signOut:', error)
+      
+      // SEMPRE limpar estado local mesmo em caso de erro
+      console.log('🧹 Limpando estado local devido a erro...')
+      setUser(null)
+      setSession(null)
+      setFirstAccessStatus(null)
+      
       return { 
         error: error instanceof Error 
           ? error as AuthError 
