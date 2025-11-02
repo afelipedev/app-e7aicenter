@@ -436,48 +436,7 @@ export default function Payroll() {
         </Button>
       </div>
 
-      {/* Current Processing Status */}
-      {currentProcessings.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="w-5 h-5" />
-              Processamentos em Andamento
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {currentProcessings.map((processing) => (
-              <div key={processing.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  {getStatusIcon(processing.status)}
-                  <div>
-                    <p className="font-medium">{processing.company_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {processing.competencia} • {processing.total_files} arquivos
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="text-sm font-medium">
-                      {processing.processed_files}/{processing.total_files}
-                    </p>
-                    <Progress 
-                      value={(processing.processed_files / processing.total_files) * 100} 
-                      className="w-24"
-                    />
-                  </div>
-                  <Badge variant={getStatusBadgeVariant(processing.status)}>
-                    {processing.status === 'processing' ? 'Processando' : 
-                     processing.status === 'completed' ? 'Concluído' : 
-                     processing.status === 'error' ? 'Erro' : 'Pendente'}
-                  </Badge>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+
 
       {/* Upload Section */}
       <Card>
@@ -485,60 +444,67 @@ export default function Payroll() {
           <CardTitle>Upload de Holerites</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Form Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="company">Empresa *</Label>
-              <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a empresa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="competencia">Competência (MM/AAAA) *</Label>
-              <Input
-                id="competencia"
-                type="text"
-                placeholder="01/2025"
-                value={competencia}
-                onChange={(e) => setCompetencia(e.target.value)}
-                maxLength={7}
-              />
+          {/* Configuration Section */}
+          <div className="bg-gray-50 p-4 rounded-lg border">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Configurações do Upload</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="company">Empresa *</Label>
+                <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a empresa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <span className="text-sm font-medium text-gray-700">Competência (MM/AAAA) *</span>
+                <Input
+                  id="competencia"
+                  type="text"
+                  placeholder="01/2025"
+                  value={competencia}
+                  onChange={(e) => setCompetencia(e.target.value)}
+                  maxLength={7}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Drag and Drop Area */}
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
-              dragState.isDragOver 
-                ? 'border-primary bg-primary/5' 
-                : 'border-border hover:border-primary'
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-sm text-foreground font-medium mb-1">
-              Clique para fazer upload ou arraste os arquivos
-            </p>
-            <p className="text-xs text-muted-foreground mb-2">
-              Formatos aceitos: PDF • Máximo: {MAX_FILES} arquivos de {MAX_FILE_SIZE / 1024 / 1024}MB cada
-            </p>
-            {selectedFiles.length > 0 && (
-              <p className="text-xs text-primary">
-                {selectedFiles.length} arquivo(s) selecionado(s)
+          {/* Upload Area */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-gray-900">Selecionar Arquivos</h3>
+            {/* Drag and Drop Area */}
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+                dragState.isDragOver 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-border hover:border-primary'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-sm text-foreground font-medium mb-1">
+                Clique para fazer upload ou arraste os arquivos
               </p>
-            )}
+              <p className="text-xs text-muted-foreground mb-2">
+                Formatos aceitos: PDF • Máximo: {MAX_FILES} arquivos de {MAX_FILE_SIZE / 1024 / 1024}MB cada
+              </p>
+              {selectedFiles.length > 0 && (
+                <p className="text-xs text-primary">
+                  {selectedFiles.length} arquivo(s) selecionado(s)
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Hidden File Input */}
