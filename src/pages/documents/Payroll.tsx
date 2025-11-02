@@ -30,7 +30,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { PayrollService } from '@/services/payrollService';
 import { CompanyService } from '@/services/companyService';
 import type { 
-  Company, 
   PayrollUploadData, 
   PayrollStats, 
   ProcessingHistory, 
@@ -38,8 +37,11 @@ import type {
   DragDropState,
   CompanyOption,
   BatchUploadResult,
-  ProcessingStatus
+  ProcessingStatus,
+  EnhancedPayrollStats,
+  PaginatedResult
 } from '../../../shared/types/payroll';
+import type { Company } from '../../../shared/types/company';
 
 // Constants
 const MAX_FILES = 50;
@@ -69,11 +71,13 @@ export default function Payroll() {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [dragState, setDragState] = useState<DragDropState>({
     isDragOver: false,
-    isDragActive: false
+    isDragActive: false,
+    files: [],
+    errors: []
   });
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'completed' | 'error'>('idle');
-  const [stats, setStats] = useState<PayrollStats | null>(null);
-  const [processingHistory, setProcessingHistory] = useState<ProcessingHistory | null>(null);
+  const [stats, setStats] = useState<EnhancedPayrollStats | null>(null);
+  const [processingHistory, setProcessingHistory] = useState<PaginatedResult<ProcessingHistory> | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [lastUploadResult, setLastUploadResult] = useState<BatchUploadResult | null>(null);
@@ -233,13 +237,13 @@ export default function Payroll() {
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragState({ isDragOver: true, isDragActive: true });
+    setDragState(prev => ({ ...prev, isDragOver: true, isDragActive: true }));
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragState({ isDragOver: false, isDragActive: false });
+    setDragState(prev => ({ ...prev, isDragOver: false, isDragActive: false }));
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -250,7 +254,7 @@ export default function Payroll() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragState({ isDragOver: false, isDragActive: false });
+    setDragState(prev => ({ ...prev, isDragOver: false, isDragActive: false }));
     
     if (e.dataTransfer.files) {
       handleFileSelect(e.dataTransfer.files);
@@ -260,6 +264,24 @@ export default function Payroll() {
   // Remove file
   const removeFile = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Cancel/delete upload in progress
+  const handleCancelUpload = async (fileId: string) => {
+    try {
+      await cancelProcessing(fileId);
+      toast({
+        title: "Upload cancelado",
+        description: "O processamento foi cancelado com sucesso",
+      });
+    } catch (error) {
+      console.error('Erro ao cancelar upload:', error);
+      toast({
+        title: "Erro ao cancelar",
+        description: "Não foi possível cancelar o processamento",
+        variant: "destructive",
+      });
+    }
   };
 
   // Handle file upload with enhanced error handling and n8n webhook integration
@@ -322,11 +344,11 @@ export default function Payroll() {
 
       // Initialize progress tracking
       const initialProgress = selectedFiles.map((file, index) => ({
-        fileIndex: index,
-        fileName: file.name,
+        file_id: `upload-${Date.now()}-${index}`,
+        filename: file.name,
         progress: 0,
-        status: 'pending' as const,
-        error: null
+        status: 'uploading' as const,
+        error_message: undefined
       }));
       setUploadProgress(initialProgress);
 
@@ -385,7 +407,7 @@ export default function Payroll() {
 
         toast({
           title: "Upload realizado com sucesso!",
-          description: `${result.successful_files} arquivo(s) enviado(s) para processamento`,
+          description: `${result.successful_files} arquivo(s) enviado(s) para processamento. O arquivo XLSX será baixado automaticamente quando o processamento for concluído.`,
         });
 
         // Clear form
@@ -566,6 +588,25 @@ export default function Payroll() {
 
   const isUploading = uploadStatus === 'uploading';
 
+  // Escutar mudanças nos processamentos para detectar downloads automáticos
+  useEffect(() => {
+    if (activeProcessings.length > 0) {
+      activeProcessings.forEach(processing => {
+        // Verificar se o processamento foi concluído com sucesso
+        if (processing.status === 'completed' && processing.progress === 100) {
+          // Verificar se há dados de resposta do webhook indicando download
+          const webhookResponse = processing.webhook_response as any;
+          if (webhookResponse?.success && webhookResponse?.data?.arquivo?.urls?.excel_download) {
+            toast({
+              title: "Download automático concluído!",
+              description: `O arquivo XLSX processado foi baixado automaticamente para sua pasta de downloads.`,
+            });
+          }
+        }
+      });
+    }
+  }, [activeProcessings, toast]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -690,7 +731,7 @@ export default function Payroll() {
               <Label>Arquivos Selecionados</Label>
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {selectedFiles.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-3">
                       <FileText className="w-4 h-4 text-red-500" />
                       <div>
@@ -722,14 +763,25 @@ export default function Payroll() {
                 {uploadProgress.map((progress) => (
                   <div key={progress.file_id} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
-                      <span>{progress.filename}</span>
+                      <span className="flex-1">{progress.filename}</span>
                       <div className="flex items-center gap-2">
                         <span>{progress.progress}%</span>
-                        {progress.estimated_time && (
-                          <span className="text-xs text-muted-foreground">
-                            ~{progress.estimated_time}
+                        {progress.error_message && (
+                          <span className="text-xs text-red-500">
+                            {progress.error_message}
                           </span>
                         )}
+                        {/* Botão de cancelar/excluir upload */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCancelUpload(progress.file_id)}
+                          disabled={progress.status === 'completed'}
+                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          title="Cancelar upload"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
                     <Progress value={progress.progress} />

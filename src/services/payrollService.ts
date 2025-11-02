@@ -274,30 +274,66 @@ export class PayrollService {
     uploadData: BatchUploadData
   ): Promise<void> {
     try {
-      // Preparar dados dos arquivos para o webhook
+      // Buscar dados completos da empresa
+      const { data: companyData, error: companyError } = await supabase
+        .from('companies')
+        .select('id, name, cnpj, status, is_active, created_at, updated_at')
+        .eq('id', uploadData.company_id)
+        .single();
+
+      if (companyError) {
+        console.error('Erro ao buscar dados da empresa:', companyError);
+        throw new Error('Erro ao buscar dados da empresa');
+      }
+
       const filesData = processedFiles.map(item => ({
         file_id: item.payrollFile.id,
         pdf_base64: item.base64Data,
         filename: item.originalFile.name
       }));
 
-      const webhookPayload: WebhookPayload = {
+      // Payload melhorado com dados completos da empresa e competência
+      const webhookPayload = {
         processing_id: processingId,
         files: filesData,
         competency: uploadData.competencia,
         company_id: uploadData.company_id,
-        callback_url: `${window.location.origin}/api/webhook/payroll-status`
+        company_data: {
+          id: companyData.id,
+          name: companyData.name,
+          cnpj: companyData.cnpj,
+          status: companyData.status,
+          is_active: companyData.is_active,
+          created_at: companyData.created_at,
+          updated_at: companyData.updated_at
+        },
+        competency_data: {
+          month: uploadData.competencia.split('/')[0],
+          year: uploadData.competencia.split('/')[1],
+          formatted: uploadData.competencia,
+          timestamp: new Date().toISOString()
+        },
+        callback_url: `${window.location.origin}/api/webhook/payroll-status`,
+        metadata: {
+          total_files: processedFiles.length,
+          upload_timestamp: new Date().toISOString(),
+          processing_initiated_at: new Date().toISOString()
+        }
       };
 
       const webhookUrl = 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-holerite';
       
-      // Log da requisição com detalhes do payload
-      await this.addProcessingLog(processingId, 'INFO', 'Enviando arquivos para webhook n8n', {
+      // Log da requisição com detalhes do payload melhorado
+      await this.addProcessingLog(processingId, 'INFO', 'Enviando arquivos para webhook n8n com dados completos', {
         webhook_url: webhookUrl,
         files_count: processedFiles.length,
         payload_size: JSON.stringify(webhookPayload).length,
         competency: webhookPayload.competency,
         company_id: webhookPayload.company_id,
+        company_name: webhookPayload.company_data.name,
+        company_cnpj: webhookPayload.company_data.cnpj,
+        competency_month: webhookPayload.competency_data.month,
+        competency_year: webhookPayload.competency_data.year,
         callback_url: webhookPayload.callback_url
       });
 
@@ -377,19 +413,63 @@ export class PayrollService {
         });
       }
 
-      // Atualizar processamento com resposta inicial
-      await this.updateProcessing(processingId, {
-        status: 'processing',
-        progress: 10,
-        webhook_response: result || { status: 'accepted', message: 'Webhook processou a requisição com sucesso' },
-        estimated_time: result?.estimated_time
-      });
+      // Verificar se a resposta contém dados para download automático
+      if (result && result.success && result.data?.arquivo?.urls?.excel_download) {
+        try {
+          const downloadUrl = result.data.arquivo.urls.excel_download;
+          const filename = result.data.arquivo.excel_filename || 'holerite_processado.xlsx';
+          
+          await this.addProcessingLog(processingId, 'INFO', 'Iniciando download automático do arquivo XLSX', {
+            download_url: downloadUrl,
+            filename: filename
+          });
+
+          // Fazer download automático do arquivo XLSX
+          await this.downloadFile(downloadUrl, filename);
+          
+          await this.addProcessingLog(processingId, 'INFO', 'Download automático concluído com sucesso', {
+            filename: filename
+          });
+
+          // Atualizar processamento como concluído com download
+           await this.updateProcessing(processingId, {
+             status: 'completed',
+             progress: 100,
+             webhook_response: result,
+             estimated_time: result?.estimated_time
+           });
+
+        } catch (downloadError) {
+          await this.addProcessingLog(processingId, 'ERROR', 'Erro no download automático do arquivo XLSX', {
+            error: downloadError instanceof Error ? downloadError.message : 'Erro desconhecido',
+            download_url: result.data.arquivo.urls.excel_download
+          });
+
+          // Atualizar processamento como processando (sem download)
+          await this.updateProcessing(processingId, {
+            status: 'processing',
+            progress: 90,
+            webhook_response: result,
+            estimated_time: result?.estimated_time,
+            error_message: `Processamento concluído, mas erro no download: ${downloadError instanceof Error ? downloadError.message : 'Erro desconhecido'}`
+          });
+        }
+      } else {
+        // Atualizar processamento com resposta inicial (sem download)
+        await this.updateProcessing(processingId, {
+          status: 'processing',
+          progress: 10,
+          webhook_response: result || { status: 'accepted', message: 'Webhook processou a requisição com sucesso' },
+          estimated_time: result?.estimated_time
+        });
+      }
 
       // Log de sucesso
       await this.addProcessingLog(processingId, 'INFO', `Arquivos enviados com sucesso para webhook n8n - ${processedFiles.length} arquivo(s)`, {
         webhook_response: result,
         files_count: processedFiles.length,
-        success: true
+        success: true,
+        download_available: !!(result && result.success && result.data?.arquivo?.urls?.excel_download)
       });
 
     } catch (error) {
@@ -941,12 +1021,41 @@ export class PayrollService {
 
       const result = await response.json();
 
-      await this.update(payrollFileId, {
-        status: 'completed',
-        extracted_data: result.data,
-        excel_url: result.excel_url,
-        processed_at: new Date().toISOString()
-      });
+      // Verificar se a resposta contém dados para download automático
+      if (result.success && result.data?.arquivo?.urls?.excel_download) {
+        try {
+          const downloadUrl = result.data.arquivo.urls.excel_download;
+          const filename = result.data.arquivo.excel_filename || 'holerite_processado.xlsx';
+          
+          // Fazer download automático do arquivo XLSX
+          await this.downloadFile(downloadUrl, filename);
+          
+          await this.update(payrollFileId, {
+            status: 'completed',
+            extracted_data: result.data,
+            excel_url: result.excel_url,
+            processed_at: new Date().toISOString()
+          });
+
+        } catch (downloadError) {
+          console.error('Erro no download automático:', downloadError);
+          
+          await this.update(payrollFileId, {
+            status: 'completed',
+            extracted_data: result.data,
+            excel_url: result.excel_url,
+            processed_at: new Date().toISOString(),
+            error_message: `Processamento concluído, mas erro no download: ${downloadError instanceof Error ? downloadError.message : 'Erro desconhecido'}`
+          });
+        }
+      } else {
+        await this.update(payrollFileId, {
+          status: 'completed',
+          extracted_data: result.data,
+          excel_url: result.excel_url,
+          processed_at: new Date().toISOString()
+        });
+      }
 
     } catch (error) {
       await this.update(payrollFileId, {
@@ -1260,5 +1369,40 @@ export class PayrollService {
     return () => {
       supabase.removeChannel(subscription);
     };
+  }
+
+  /**
+   * Função auxiliar para download automático de arquivos
+   */
+  static async downloadFile(url: string, filename: string): Promise<void> {
+    try {
+      // Fazer fetch da URL
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error('Erro ao baixar arquivo');
+      }
+      
+      // Converter para blob
+      const blob = await response.blob();
+      
+      // Criar URL temporária
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      // Criar link temporário e clicar
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Limpar
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      
+    } catch (error) {
+      console.error('Erro ao baixar arquivo:', error);
+      throw error;
+    }
   }
 }

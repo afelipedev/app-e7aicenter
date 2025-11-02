@@ -273,6 +273,24 @@ export const PayrollManagement: React.FC = () => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Cancel/delete upload in progress
+  const handleCancelUpload = async (fileId: string) => {
+    try {
+      await cancelProcessing(fileId);
+      toast({
+        title: "Upload cancelado",
+        description: "O processamento foi cancelado com sucesso",
+      });
+    } catch (error) {
+      console.error('Erro ao cancelar upload:', error);
+      toast({
+        title: "Erro ao cancelar",
+        description: "Não foi possível cancelar o processamento",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Handle batch upload
   const handleBatchUpload = async () => {
     try {
@@ -665,7 +683,7 @@ export const PayrollManagement: React.FC = () => {
                   {uploadProgress.map((progress) => (
                     <div key={progress.file_id} className="space-y-1">
                       <div className="flex items-center justify-between text-sm">
-                        <span>{progress.filename}</span>
+                        <span className="flex-1">{progress.filename}</span>
                         <div className="flex items-center gap-2">
                           <span>{progress.progress}%</span>
                           {progress.estimated_time && (
@@ -673,6 +691,17 @@ export const PayrollManagement: React.FC = () => {
                               ~{progress.estimated_time}
                             </span>
                           )}
+                          {/* Botão de cancelar/excluir upload */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCancelUpload(progress.file_id)}
+                            disabled={progress.status === 'completed'}
+                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            title="Cancelar upload"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
                       <Progress value={progress.progress} />

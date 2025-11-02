@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { PayrollProcessing, ProcessingLog } from '@/shared/types/payroll';
+import { PayrollProcessing, ProcessingLog } from '../../shared/types/payroll';
 import { PayrollService } from '@/services/payrollService';
 import { toast } from 'sonner';
 
@@ -128,9 +128,7 @@ export function useProcessingUpdates(options: UseProcessingUpdatesOptions = {}):
                     case 'error':
                       toast.error(`Erro no processamento: ${updatedProcessing.error_message || 'Erro desconhecido'}`);
                       break;
-                    case 'cancelled':
-                      toast.info('Processamento cancelado');
-                      break;
+
                   }
                 }
               }
@@ -185,7 +183,7 @@ export function useProcessingUpdates(options: UseProcessingUpdatesOptions = {}):
               );
 
               newProcessings.forEach(processing => {
-                toast.info(`Novo processamento iniciado: ${processing.company?.name || 'Empresa'}`);
+                toast.info(`Novo processamento iniciado: Empresa ${processing.company_id}`);
               });
             }
 
@@ -361,6 +359,7 @@ export function useProcessingUpdates(options: UseProcessingUpdatesOptions = {}):
       intervalRef.current = setInterval(async () => {
         try {
           const activeData = await PayrollService.getCurrentProcessings();
+          
           setActiveProcessings(prev => {
             // Verificar novos processamentos para notificação
             if (showNotifications && prev.length > 0) {
@@ -369,14 +368,40 @@ export function useProcessingUpdates(options: UseProcessingUpdatesOptions = {}):
               );
 
               newProcessings.forEach(processing => {
-                toast.info(`Novo processamento iniciado: ${processing.company?.name || 'Empresa'}`);
+                toast.info(`Novo processamento iniciado: Empresa ${processing.company_id}`);
               });
+            }
+
+            // Verificar se todos os processamentos estão finalizados
+            const hasActiveProcessings = activeData.some(p => 
+              p.status === 'processing' || p.status === 'pending'
+            );
+
+            // Se não há processamentos ativos, parar o polling
+            if (!hasActiveProcessings) {
+              if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+                console.log('Polling parado: nenhum processamento ativo encontrado');
+              }
             }
 
             return activeData;
           });
         } catch (err) {
           console.error('Erro no polling de processamentos ativos:', err);
+          // Em caso de erro, reduzir a frequência do polling
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = setInterval(async () => {
+              try {
+                const activeData = await PayrollService.getCurrentProcessings();
+                setActiveProcessings(activeData);
+              } catch (retryErr) {
+                console.error('Erro persistente no polling:', retryErr);
+              }
+            }, refreshInterval * 3); // Triplicar o intervalo em caso de erro
+          }
         }
       }, refreshInterval);
     }
