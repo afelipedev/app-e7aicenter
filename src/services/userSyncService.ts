@@ -32,7 +32,10 @@ export interface RepairResult {
 // Eventos de auditoria
 export enum AuthEventType {
   FIRST_ACCESS_STARTED = 'first_access_started',
+  FIRST_ACCESS_ATTEMPTED = 'first_access_attempted',
   FIRST_ACCESS_COMPLETED = 'first_access_completed',
+  FIRST_ACCESS_FAILED = 'first_access_failed',
+  FIRST_ACCESS_REQUIRED = 'first_access_required',
   PASSWORD_RESET_ATTEMPTED = 'password_reset_attempted',
   PASSWORD_RESET_FAILED = 'password_reset_failed',
   PASSWORD_RESET_SUCCESS = 'password_reset_success',
@@ -58,6 +61,9 @@ export interface AuthLogEntry {
     userEmail?: string;
     ipAddress?: string;
     userAgent?: string;
+    timestamp?: string;
+    actionsPerformed?: string[];
+    errors?: string[];
     additionalData?: Record<string, any>;
   };
   createdAt?: string;
@@ -348,7 +354,12 @@ export class UserSyncService {
     userAgent?: string
   ): Promise<string | null> {
     try {
-      const { data, error } = await supabase
+      // Timeout para evitar que o log trave o processo principal
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Log timeout - 5 segundos')), 5000);
+      });
+
+      const logPromise = supabase
         .rpc('log_auth_event', {
           p_user_id: userId || null,
           p_event_type: eventType,
@@ -357,14 +368,103 @@ export class UserSyncService {
           p_user_agent: userAgent || null
         });
 
+      const { data, error } = await Promise.race([logPromise, timeoutPromise]);
+
       if (error) {
-        console.error('[UserSyncService] Erro ao registrar log:', error);
+        // Log detalhado do erro mas não interrompe o fluxo principal
+        console.warn('[UserSyncService] Erro ao registrar log (não crítico):', {
+          error: error.message,
+          code: error.code,
+          eventType,
+          userId: userId ? userId.substring(0, 8) + '...' : 'null'
+        });
+        
+        // Se for erro PGRST202, tentar fallback direto na tabela
+        if (error.code === 'PGRST202') {
+          console.warn('[UserSyncService] Tentando fallback direto na tabela audit_logs...');
+          return await this.logAuthEventFallback(userId, eventType, eventData, ipAddress, userAgent);
+        }
+        
         return null;
       }
 
       return data;
-    } catch (error) {
-      console.error('[UserSyncService] Falha ao registrar log:', error);
+    } catch (error: any) {
+      // Log do erro mas NUNCA interrompe o fluxo principal
+      console.warn('[UserSyncService] Falha ao registrar log (não crítico):', {
+        message: error.message,
+        eventType,
+        userId: userId ? userId.substring(0, 8) + '...' : 'null'
+      });
+      
+      // Tentar fallback se disponível
+      if (error.message?.includes('timeout') || error.message?.includes('PGRST202')) {
+        console.warn('[UserSyncService] Tentando fallback devido ao erro...');
+        return await this.logAuthEventFallback(userId, eventType, eventData, ipAddress, userAgent);
+      }
+      
+      return null;
+    }
+  }
+
+  /**
+   * Fallback para registrar log diretamente na tabela quando a função RPC falha
+   */
+  private static async logAuthEventFallback(
+    userId: string | undefined,
+    eventType: AuthEventType,
+    eventData: AuthLogEntry['eventData'],
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<string | null> {
+    try {
+      // Validação crítica: garantir que eventType nunca seja null/undefined
+      if (!eventType) {
+        console.error('[UserSyncService] ERRO CRÍTICO: eventType é null/undefined no fallback');
+        return null;
+      }
+
+      // Log detalhado para debug
+      console.info('[UserSyncService] Executando fallback com:', {
+        userId: userId ? userId.substring(0, 8) + '...' : 'null',
+        eventType,
+        hasEventData: !!eventData,
+        ipAddress: ipAddress || 'null',
+        userAgent: userAgent ? userAgent.substring(0, 50) + '...' : 'null'
+      });
+
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .insert({
+          user_id: userId || null,
+          event_type: eventType, // Garantido que não é null pela validação acima
+          event_data: eventData || {},
+          ip_address: ipAddress || null, // Supabase client handles inet conversion automatically
+          user_agent: userAgent || null,
+          created_at: new Date().toISOString()
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        console.warn('[UserSyncService] Fallback também falhou:', {
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          eventType,
+          userId: userId ? userId.substring(0, 8) + '...' : 'null'
+        });
+        return null;
+      }
+
+      console.info('[UserSyncService] Log registrado via fallback com sucesso:', data.id);
+      return data.id;
+    } catch (error: any) {
+      console.warn('[UserSyncService] Fallback falhou completamente:', {
+        message: error.message,
+        eventType,
+        userId: userId ? userId.substring(0, 8) + '...' : 'null'
+      });
       return null;
     }
   }

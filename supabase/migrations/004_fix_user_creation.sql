@@ -78,7 +78,9 @@ BEGIN
             role,
             active,
             created_at,
-            updated_at
+            updated_at,
+            first_access_completed,
+            first_access_at
         ) VALUES (
             NEW.id,
             user_email,
@@ -86,6 +88,8 @@ BEGIN
             user_role,
             true,
             NOW(),
+            NOW(),
+            true,
             NOW()
         );
         
@@ -155,7 +159,9 @@ BEGIN
         role,
         active,
         created_at,
-        updated_at
+        updated_at,
+        first_access_completed,
+        first_access_at
     ) VALUES (
         user_id,
         user_email,
@@ -163,6 +169,8 @@ BEGIN
         final_role,
         true,
         NOW(),
+        NOW(),
+        true,
         NOW()
     );
     

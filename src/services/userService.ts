@@ -311,7 +311,8 @@ export class UserService {
         name: userData.name,
         role: userData.role,
         status: userData.status || 'ativo',
-        first_access_completed: false // Novos usuários devem passar pelo primeiro acesso
+        first_access_completed: true, // Novos usuários já têm primeiro acesso completado automaticamente
+        first_access_at: new Date().toISOString() // Data de conclusão do primeiro acesso
       }
 
       console.log('📝 Dados do perfil:', profileData)
