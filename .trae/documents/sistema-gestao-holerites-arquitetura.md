@@ -42,53 +42,63 @@ graph TD
 
 ## 2. Descrição das Tecnologias
 
-- **Frontend**: React@18 + TypeScript + TailwindCSS@3 + Vite
-- **Backend**: Supabase (PostgreSQL + Auth + Storage)
-- **Processamento**: N8N Workflow Engine
-- **IA**: OpenAI GPT-4 para extração de dados
-- **Armazenamento**: AWS S3 (bucket e7-holerite)
-- **OCR**: N8N ExtractFromFile node
+* **Frontend**: React\@18 + TypeScript + TailwindCSS\@3 + Vite
+
+* **Backend**: Supabase (PostgreSQL + Auth + Storage)
+
+* **Processamento**: N8N Workflow Engine
+
+* **IA**: OpenAI GPT-4 para extração de dados
+
+* **Armazenamento**: AWS S3 (bucket e7-holerite)
+
+* **OCR**: N8N ExtractFromFile node
 
 ## 3. Definições de Rotas
 
-| Rota | Propósito |
-|------|-----------|
-| `/documents/payroll` | Página principal de gestão de holerites |
-| `/documents/payroll/upload` | Interface de upload de arquivos PDF |
-| `/documents/payroll/processing` | Acompanhamento de processamentos ativos |
-| `/documents/payroll/history` | Histórico de processamentos anteriores |
-| `/documents/payroll/results/:id` | Visualização de resultados específicos |
-| `/companies` | Gerenciamento de empresas cadastradas |
+| Rota                             | Propósito                               |
+| -------------------------------- | --------------------------------------- |
+| `/documents/payroll`             | Página principal de gestão de holerites |
+| `/documents/payroll/upload`      | Interface de upload de arquivos PDF     |
+| `/documents/payroll/processing`  | Acompanhamento de processamentos ativos |
+| `/documents/payroll/history`     | Histórico de processamentos anteriores  |
+| `/documents/payroll/results/:id` | Visualização de resultados específicos  |
+| `/companies`                     | Gerenciamento de empresas cadastradas   |
 
 ## 4. Definições de API
 
 ### 4.1 APIs Principais do Sistema
 
 **Upload e processamento de holerites**
+
 ```
 POST /api/payroll/upload
 ```
 
 Request:
-| Parâmetro | Tipo | Obrigatório | Descrição |
-|-----------|------|-------------|-----------|
-| files | File[] | true | Arquivos PDF dos holerites |
-| company_id | string | true | ID da empresa selecionada |
-| competencia | string | true | Competência no formato MM/AAAA |
+
+| Parâmetro   | Tipo    | Obrigatório | Descrição                      |
+| ----------- | ------- | ----------- | ------------------------------ |
+| files       | File\[] | true        | Arquivos PDF dos holerites     |
+| company\_id | string  | true        | ID da empresa selecionada      |
+| competencia | string  | true        | Competência no formato MM/AAAA |
 
 Response:
-| Parâmetro | Tipo | Descrição |
-|-----------|------|-----------|
-| processing_id | string | ID único do processamento |
-| status | string | Status inicial (pending/processing) |
-| files_count | number | Quantidade de arquivos enviados |
+
+| Parâmetro      | Tipo   | Descrição                           |
+| -------------- | ------ | ----------------------------------- |
+| processing\_id | string | ID único do processamento           |
+| status         | string | Status inicial (pending/processing) |
+| files\_count   | number | Quantidade de arquivos enviados     |
 
 **Webhook N8N Integration**
+
 ```
 POST https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-folha-pagamento
 ```
 
 Request:
+
 ```json
 {
   "competencia": "03/2025",
@@ -98,6 +108,7 @@ Request:
 ```
 
 Response:
+
 ```json
 {
   "success": true,
@@ -127,45 +138,52 @@ Response:
 ```
 
 **Status de processamento**
+
 ```
 GET /api/payroll/processing/:id/status
 ```
 
 Response:
-| Parâmetro | Tipo | Descrição |
-|-----------|------|-----------|
-| status | string | pending/processing/completed/error |
-| progress | number | Progresso de 0 a 100 |
-| estimated_time | number | Tempo estimado em minutos |
-| current_step | string | Etapa atual do processamento |
+
+| Parâmetro       | Tipo   | Descrição                          |
+| --------------- | ------ | ---------------------------------- |
+| status          | string | pending/processing/completed/error |
+| progress        | number | Progresso de 0 a 100               |
+| estimated\_time | number | Tempo estimado em minutos          |
+| current\_step   | string | Etapa atual do processamento       |
 
 **Histórico de processamentos**
+
 ```
 GET /api/payroll/history
 ```
 
 Query Parameters:
-| Parâmetro | Tipo | Descrição |
-|-----------|------|-----------|
-| company_id | string | Filtrar por empresa |
+
+| Parâmetro   | Tipo   | Descrição               |
+| ----------- | ------ | ----------------------- |
+| company\_id | string | Filtrar por empresa     |
 | competencia | string | Filtrar por competência |
-| status | string | Filtrar por status |
-| page | number | Página para paginação |
-| limit | number | Itens por página |
+| status      | string | Filtrar por status      |
+| page        | number | Página para paginação   |
+| limit       | number | Itens por página        |
 
 ### 4.2 APIs de Suporte
 
 **Listagem de empresas**
+
 ```
 GET /api/companies
 ```
 
 **Estatísticas de processamento**
+
 ```
 GET /api/payroll/stats
 ```
 
 **Download de arquivo processado**
+
 ```
 GET /api/payroll/download/:processing_id
 ```
@@ -283,6 +301,7 @@ erDiagram
 ### 6.2 Linguagem de Definição de Dados (DDL)
 
 **Tabela de Empresas**
+
 ```sql
 -- Criar tabela de empresas (já existe)
 CREATE TABLE companies (
@@ -300,6 +319,7 @@ CREATE INDEX idx_companies_active ON companies(is_active);
 ```
 
 **Tabela de Arquivos de Holerite**
+
 ```sql
 -- Criar tabela de arquivos de holerite (já existe)
 CREATE TABLE payroll_files (
@@ -328,6 +348,7 @@ CREATE INDEX idx_payroll_files_created_at ON payroll_files(created_at DESC);
 ```
 
 **Tabela de Processamentos**
+
 ```sql
 -- Criar tabela de processamentos (já existe)
 CREATE TABLE payroll_processing (
@@ -357,6 +378,7 @@ CREATE INDEX idx_payroll_processing_started_at ON payroll_processing(started_at 
 ```
 
 **Tabela de Logs de Processamento**
+
 ```sql
 -- Criar tabela de logs de processamento
 CREATE TABLE processing_logs (
@@ -375,6 +397,7 @@ CREATE INDEX idx_processing_logs_created_at ON processing_logs(created_at DESC);
 ```
 
 **Tabela de Rubricas Extraídas**
+
 ```sql
 -- Criar tabela de rubricas extraídas
 CREATE TABLE extracted_rubrics (
@@ -395,6 +418,7 @@ CREATE INDEX idx_extracted_rubrics_confidence ON extracted_rubrics(confidence_sc
 ```
 
 **Tabela de Relacionamento Arquivo-Processamento**
+
 ```sql
 -- Criar tabela de relacionamento entre arquivos e processamentos
 CREATE TABLE payroll_file_processing (
@@ -411,6 +435,7 @@ CREATE INDEX idx_payroll_file_processing_processing_id ON payroll_file_processin
 ```
 
 **Políticas RLS (Row Level Security)**
+
 ```sql
 -- Habilitar RLS nas tabelas
 ALTER TABLE payroll_files ENABLE ROW LEVEL SECURITY;
@@ -440,6 +465,7 @@ GRANT SELECT, INSERT ON payroll_file_processing TO authenticated;
 ```
 
 **Dados Iniciais**
+
 ```sql
 -- Inserir empresas de exemplo (se necessário)
 INSERT INTO companies (name, cnpj, is_active) VALUES
@@ -469,6 +495,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ## 7. Especificações de Integração
 
 ### 7.1 Fluxo de Dados N8N
+
 1. **Recepção**: Webhook recebe PDF em base64 + metadados
 2. **Validação**: Verifica formato, competência e integridade
 3. **OCR**: Extrai texto usando ExtractFromFile node
@@ -479,13 +506,22 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 8. **Resposta**: Retorna URLs e metadados para frontend
 
 ### 7.2 Estrutura S3
-- **Bucket**: e7-holerite
-- **PDFs**: `e7-holerites/{empresa_normalizada}/{ano}/{competencia}/arquivo.pdf`
-- **Excel**: `e7-holerites/{empresa_normalizada}/{ano}/{competencia}/extracao_excel/arquivo.xlsx`
-- **Permissões**: PDFs privados, Excel público para download
+
+* **Bucket**: e7-holerite
+
+* **PDFs**: `e7-holerites/{empresa_normalizada}/{ano}/{competencia}/arquivo.pdf`
+
+* **Excel**: `e7-holerites/{empresa_normalizada}/{ano}/{competencia}/extracao_excel/arquivo.xlsx`
+
+* **Permissões**: PDFs privados, Excel público para download
 
 ### 7.3 Monitoramento e Logs
-- Logs detalhados em cada etapa do processamento N8N
-- Métricas de performance e taxa de sucesso
-- Alertas para falhas de processamento
-- Auditoria completa de uploads e downloads
+
+* Logs detalhados em cada etapa do processamento N8N
+
+* Métricas de performance e taxa de sucesso
+
+* Alertas para falhas de processamento
+
+* Auditoria completa de uploads e downloads
+

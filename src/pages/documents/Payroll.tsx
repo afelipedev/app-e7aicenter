@@ -24,7 +24,6 @@ import {
   AlertCircle,
   Building2,
   Calendar,
-  Zap,
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet
@@ -497,65 +496,7 @@ export default function Payroll() {
     }
   };
 
-  // Test webhook connectivity
-  const testWebhookConnection = async () => {
-    try {
-      const webhookUrl = 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-holerite';
-      
-      toast({
-        title: "Testando Webhook N8N",
-        description: "Verificando conectividade com o webhook...",
-      });
 
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          test: true,
-          timestamp: new Date().toISOString()
-        }),
-        signal: AbortSignal.timeout(10000) // 10 segundos timeout
-      });
-
-      if (response.ok) {
-        toast({
-          title: "✅ Webhook N8N Ativo",
-          description: "O webhook está funcionando corretamente!",
-        });
-      } else {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { message: errorText };
-        }
-
-        if (response.status === 404 && errorData.message?.includes('not registered')) {
-          toast({
-            title: "⚠️ Webhook N8N Inativo",
-            description: "O workflow do N8N não está ativo. Ative o workflow no N8N para processar arquivos.",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "❌ Erro no Webhook N8N",
-            description: `Status: ${response.status} - ${errorData.message || response.statusText}`,
-            variant: "destructive",
-          });
-        }
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      toast({
-        title: "❌ Erro de Conexão",
-        description: `Não foi possível conectar ao webhook N8N: ${errorMessage}`,
-        variant: "destructive",
-      });
-    }
-  };
 
   // Status helpers
   const getStatusBadgeVariant = (status: string) => {
@@ -637,14 +578,6 @@ export default function Payroll() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={testWebhookConnection}
-            disabled={isUploading}
-          >
-            <Zap className="w-4 h-4 mr-2" />
-            Testar N8N
-          </Button>
           <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
             <Upload className="w-4 h-4 mr-2" />
             Novo Upload
