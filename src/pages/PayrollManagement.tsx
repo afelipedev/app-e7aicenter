@@ -751,8 +751,8 @@ export const PayrollManagement: React.FC = () => {
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="p-4 sm:p-6 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Arquivos Importados
+              <CheckCircle className="w-5 h-5" />
+              Histórico de Processamentos Concluídos
             </h2>
             <button
               onClick={loadData}
@@ -763,14 +763,14 @@ export const PayrollManagement: React.FC = () => {
             </button>
           </div>
 
-          {payrollFiles.length === 0 ? (
+          {payrollFiles.filter(file => file.status === 'processed').length === 0 ? (
             <div className="p-8 sm:p-12 text-center">
-              <File className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3 sm:mb-4" />
+              <CheckCircle className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3 sm:mb-4" />
               <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
-                Nenhum arquivo importado
+                Nenhum processamento concluído
               </h3>
               <p className="text-sm sm:text-base text-gray-500 px-4">
-                Faça o upload dos primeiros arquivos PDF de holerite
+                Arquivos processados com sucesso aparecerão aqui
               </p>
             </div>
           ) : (
@@ -781,19 +781,19 @@ export const PayrollManagement: React.FC = () => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Arquivo
-                      </th>
-                      <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Data de Importação
+                        Nome do Arquivo
                       </th>
                       <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Competência
                       </th>
                       <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Tamanho
+                        Holerites
                       </th>
                       <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
+                      </th>
+                      <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Data
                       </th>
                       <th className="px-4 xl:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Ações
@@ -801,12 +801,12 @@ export const PayrollManagement: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {payrollFiles.map((file) => (
+                    {payrollFiles.filter(file => file.status === 'processed').map((file) => (
                       <tr key={file.id} className="hover:bg-gray-50">
                         <td className="px-4 xl:px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="p-2 bg-red-100 rounded-lg mr-3 flex-shrink-0">
-                              <File className="w-4 h-4 xl:w-5 xl:h-5 text-red-600" />
+                            <div className="p-2 bg-green-100 rounded-lg mr-3 flex-shrink-0">
+                              <File className="w-4 h-4 xl:w-5 xl:h-5 text-green-600" />
                             </div>
                             <div className="min-w-0">
                               <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
@@ -816,25 +816,19 @@ export const PayrollManagement: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {PayrollService.formatDate(file.created_at || '')}
-                        </td>
-                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {file.competencia}
                         </td>
                         <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatFileSize(file.file_size || 0)}
+                          {file.processed_count || 0}
                         </td>
                         <td className="px-4 xl:px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            file.status === 'processed'
-                              ? 'bg-green-100 text-green-800'
-                              : file.status === 'processing'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {file.status === 'processed' ? 'Processado' : 
-                             file.status === 'processing' ? 'Processando' : 'Erro'}
+                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                            <CheckCircle className="w-3 h-3" />
+                            Concluído
                           </span>
+                        </td>
+                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {PayrollService.formatDate(file.created_at || '')}
                         </td>
                         <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end gap-1 xl:gap-2">
@@ -847,13 +841,6 @@ export const PayrollManagement: React.FC = () => {
                                 <Download className="w-4 h-4" />
                               </button>
                             )}
-                             <button
-                               onClick={() => handleDeleteClick(file)}
-                               className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                               title="Deletar arquivo"
-                             >
-                               <Trash2 className="w-4 h-4" />
-                             </button>
                            </div>
                          </td>
                        </tr>
@@ -864,12 +851,12 @@ export const PayrollManagement: React.FC = () => {
 
                {/* Mobile/Tablet Cards */}
                <div className="lg:hidden divide-y divide-gray-200">
-                 {payrollFiles.map((file) => (
+                 {payrollFiles.filter(file => file.status === 'processed').map((file) => (
                    <div key={file.id} className="p-4 sm:p-6 hover:bg-gray-50 transition-colors">
                      <div className="flex items-start justify-between gap-3">
                        <div className="flex items-start gap-3 min-w-0 flex-1">
-                         <div className="p-2 bg-red-100 rounded-lg flex-shrink-0">
-                           <File className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
+                         <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
+                           <File className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                          </div>
                          <div className="min-w-0 flex-1">
                            <h4 className="text-sm sm:text-base font-medium text-gray-900 truncate mb-1">
@@ -881,16 +868,10 @@ export const PayrollManagement: React.FC = () => {
                                <span>Competência: {file.competencia}</span>
                              </div>
                              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                               <span>Tamanho: {formatFileSize(file.file_size || 0)}</span>
-                               <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${
-                                 file.status === 'processed'
-                                   ? 'bg-green-100 text-green-800'
-                                   : file.status === 'processing'
-                                   ? 'bg-yellow-100 text-yellow-800'
-                                   : 'bg-red-100 text-red-800'
-                               }`}>
-                                 {file.status === 'processed' ? 'Processado' : 
-                                  file.status === 'processing' ? 'Processando' : 'Erro'}
+                               <span>Holerites: {file.processed_count || 0}</span>
+                               <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                 <CheckCircle className="w-3 h-3" />
+                                 Concluído
                                </span>
                              </div>
                            </div>
@@ -906,13 +887,6 @@ export const PayrollManagement: React.FC = () => {
                              <Download className="w-4 h-4" />
                            </button>
                          )}
-                         <button
-                           onClick={() => handleDeleteClick(file)}
-                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                           title="Deletar arquivo"
-                         >
-                           <Trash2 className="w-4 h-4" />
-                         </button>
                        </div>
                      </div>
                    </div>
