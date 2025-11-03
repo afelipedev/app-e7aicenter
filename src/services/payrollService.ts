@@ -207,7 +207,24 @@ export class PayrollService {
             originalFile: validation.file
           };
         } catch (error) {
-          throw new Error(`Erro no processamento de ${validation.file.name}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+          // Melhor tratamento de erro com informações específicas
+          let errorMessage = 'Erro desconhecido';
+          
+          if (error instanceof Error) {
+            if (error.message.includes('Failed to fetch')) {
+              errorMessage = 'Erro de conectividade. Verifique sua conexão com a internet e tente novamente.';
+            } else if (error.message.includes('não está ativo')) {
+              errorMessage = 'O workflow do n8n não está ativo. Entre em contato com o administrador do sistema.';
+            } else if (error.message.includes('timeout')) {
+              errorMessage = 'Timeout na conexão. O servidor pode estar sobrecarregado.';
+            } else if (error.message.includes('CORS')) {
+              errorMessage = 'Erro de CORS. Configuração de segurança bloqueou a requisição.';
+            } else {
+              errorMessage = error.message;
+            }
+          }
+          
+          throw new Error(`Erro no upload em lote: ${errorMessage}`);
         }
       });
 
@@ -252,12 +269,17 @@ export class PayrollService {
       }
 
       return {
+        success: processedFiles.length > 0,
+        partial_success: processedFiles.length > 0 && failedFiles.length > 0,
         processing_id: processingId,
-        uploaded_files: processedFiles.map(item => item.payrollFile),
-        failed_files: failedFiles,
         total_files: uploadData.files.length,
-        successful_uploads: processedFiles.length,
-        failed_uploads: failedFiles.length
+        successful_files: processedFiles.length,
+        failed_files: failedFiles.length,
+        uploaded_files: processedFiles.map(item => item.payrollFile),
+        failed_uploads: failedFiles.map(failed => ({
+          filename: failed.file.name,
+          error: failed.error
+        }))
       };
 
     } catch (error) {
@@ -473,21 +495,51 @@ export class PayrollService {
       });
 
     } catch (error) {
-      // Log detalhado do erro
-      await this.addProcessingLog(processingId, 'ERROR', 'Erro detalhado ao enviar para webhook n8n', {
+      // Log detalhado do erro com informações de conectividade
+      const errorDetails = {
         error_name: error instanceof Error ? error.constructor.name : 'Unknown',
         error_message: error instanceof Error ? error.message : 'Erro desconhecido',
         error_stack: error instanceof Error ? error.stack : undefined,
-        webhook_url: 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-holerite'
+        webhook_url: 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-holerite',
+        timestamp: new Date().toISOString(),
+        user_agent: navigator.userAgent,
+        connection_type: (navigator as any).connection?.effectiveType || 'unknown'
+      };
+
+      // Determinar o tipo específico de erro
+      let errorType = 'UNKNOWN_ERROR';
+      let userFriendlyMessage = 'Erro desconhecido ao conectar com o webhook n8n';
+
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          errorType = 'NETWORK_ERROR';
+          userFriendlyMessage = 'Erro de conectividade. Verifique sua conexão com a internet e tente novamente.';
+        } else if (error.message.includes('not registered')) {
+          errorType = 'WEBHOOK_NOT_ACTIVE';
+          userFriendlyMessage = 'O workflow do n8n não está ativo. Entre em contato com o administrador do sistema para ativar o workflow.';
+        } else if (error.message.includes('timeout') || error.name === 'AbortError') {
+          errorType = 'TIMEOUT_ERROR';
+          userFriendlyMessage = 'Timeout na conexão com o webhook n8n. O servidor pode estar sobrecarregado.';
+        } else if (error.message.includes('CORS')) {
+          errorType = 'CORS_ERROR';
+          userFriendlyMessage = 'Erro de CORS. Configuração de segurança do navegador bloqueou a requisição.';
+        }
+      }
+
+      await this.addProcessingLog(processingId, 'ERROR', `Erro detalhado ao enviar para webhook n8n - ${errorType}`, {
+        ...errorDetails,
+        error_type: errorType,
+        user_friendly_message: userFriendlyMessage
       });
 
-      // Atualizar status para erro
+      // Atualizar status para erro com mensagem específica
       await this.updateProcessing(processingId, {
         status: 'error',
-        error_message: error instanceof Error ? error.message : 'Erro desconhecido'
+        error_message: userFriendlyMessage
       });
 
-      throw error;
+      // Lançar erro com mensagem mais específica
+      throw new Error(userFriendlyMessage);
     }
   }
 
@@ -1204,26 +1256,6 @@ export class PayrollService {
   }
   
   /**
-   * Obtém logs de um processamento
-   */
-  static async getProcessingLogs(processingId: string): Promise<ProcessingLog[]> {
-    try {
-      const { data, error } = await supabase
-        .from('processing_logs')
-        .select('*')
-        .eq('processing_id', processingId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-
-      return data || [];
-    } catch (error) {
-      console.error('Erro ao buscar logs do processamento:', error);
-      throw new Error('Erro ao buscar logs do processamento');
-    }
-  }
-  
-  /**
    * Cancela um processamento
    */
   static async cancelProcessing(processingId: string): Promise<void> {
@@ -1272,7 +1304,7 @@ export class PayrollService {
       if (error) throw error;
 
       // Adicionar log de reprocessamento
-      await this.addProcessingLog(processingId, 'info', 'Reprocessamento iniciado');
+      await this.addProcessingLog(processingId, 'INFO', 'Reprocessamento iniciado');
 
       // Chamar webhook para reprocessar
       await this.triggerWebhookProcessing(processingId);
