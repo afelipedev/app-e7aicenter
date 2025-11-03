@@ -24,7 +24,10 @@ import {
   AlertCircle,
   Building2,
   Calendar,
-  Zap
+  Zap,
+  ChevronLeft,
+  ChevronRight,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { PayrollService } from '@/services/payrollService';
@@ -78,7 +81,7 @@ export default function Payroll() {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'completed' | 'error'>('idle');
   const [stats, setStats] = useState<EnhancedPayrollStats | null>(null);
   const [processingHistory, setProcessingHistory] = useState<PaginatedResult<ProcessingHistory> | null>(null);
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUploadResult, setLastUploadResult] = useState<BatchUploadResult | null>(null);
 
@@ -89,7 +92,12 @@ export default function Payroll() {
       const [companiesData, statsData, historyData] = await Promise.all([
         PayrollService.getCompanies(),
         PayrollService.getEnhancedStats(),
-        PayrollService.getProcessingHistory({ page: 1, limit: 10 })
+        PayrollService.getProcessingHistory(
+          { status: ['completed'] }, // Filtrar apenas processamentos concluídos
+          { field: 'started_at', direction: 'desc' },
+          1,
+          5
+        )
       ]);
 
       setCompanies(companiesData);
@@ -370,40 +378,8 @@ export default function Payroll() {
       if (result.success) {
         setUploadStatus('completed');
         
-        // Trigger n8n webhook for workflow execution
-        try {
-          const webhookPayload = {
-            company_id: selectedCompany,
-            competencia,
-            files: selectedFiles.map(file => ({
-              name: file.name,
-              size: file.size,
-              type: file.type
-            })),
-            user_id: user?.id || '',
-            upload_result: result,
-            timestamp: new Date().toISOString()
-          };
-
-          // Make POST request to n8n webhook
-          const webhookResponse = await fetch('/api/webhook/n8n/payroll-processing', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(webhookPayload)
-          });
-
-          if (!webhookResponse.ok) {
-            console.warn('N8N webhook call failed:', webhookResponse.statusText);
-            // Don't fail the upload if webhook fails, just log it
-          } else {
-            console.log('N8N workflow triggered successfully');
-          }
-        } catch (webhookError) {
-          console.warn('Error calling n8n webhook:', webhookError);
-          // Don't fail the upload if webhook fails
-        }
+        // N8N webhook is already being called by PayrollService.sendDirectToWebhook()
+        // No need for additional webhook call here
 
         toast({
           title: "Upload realizado com sucesso!",
@@ -471,19 +447,51 @@ export default function Payroll() {
   };
 
   // Load processing history with enhanced error handling
-  const loadProcessingHistory = async () => {
+  const loadProcessingHistory = async (page: number = currentPage) => {
     try {
-      const history = await PayrollService.getProcessingHistory({ 
-        page: 1, 
-        limit: 10,
-        search: searchTerm 
-      });
+      const history = await PayrollService.getProcessingHistory(
+        { status: ['completed'] }, // Filtrar apenas processamentos concluídos
+        { field: 'started_at', direction: 'desc' },
+        page,
+        5 // 5 itens por página
+      );
       setProcessingHistory(history);
+      setCurrentPage(page);
     } catch (error) {
       console.error('Error loading processing history:', error);
       toast({
         title: "Erro ao carregar histórico",
         description: "Não foi possível carregar o histórico de processamento",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Download Excel file from processing history
+  const handleDownloadExcel = async (item: ProcessingHistory) => {
+    try {
+      if (!item.result_file_url) {
+        toast({
+          title: "Arquivo não disponível",
+          description: "O arquivo Excel não está disponível para download",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Use the PayrollService downloadFile method
+      const filename = `holerite_${item.competency}_${item.company_name || 'processado'}.xlsx`;
+      await PayrollService.downloadFile(item.result_file_url, filename);
+      
+      toast({
+        title: "Download iniciado",
+        description: "O download do arquivo Excel foi iniciado",
+      });
+    } catch (error) {
+      console.error('Error downloading Excel file:', error);
+      toast({
+        title: "Erro no download",
+        description: "Não foi possível baixar o arquivo Excel",
         variant: "destructive",
       });
     }
@@ -784,7 +792,16 @@ export default function Payroll() {
                         </Button>
                       </div>
                     </div>
-                    <Progress value={progress.progress} />
+                    <Progress 
+                      value={progress.progress} 
+                      className={`transition-all duration-500 ease-out ${
+                        progress.status === 'uploading' 
+                          ? 'progress-shimmer progress-glow' 
+                          : progress.status === 'completed' 
+                            ? 'shadow-sm' 
+                            : ''
+                      }`}
+                    />
                   </div>
                 ))}
               </div>
@@ -857,76 +874,91 @@ export default function Payroll() {
       {/* Processing History */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Histórico de Processamentos</CardTitle>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 w-64"
-                />
-              </div>
-              <Button variant="outline" size="sm" onClick={loadProcessingHistory}>
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
+          <CardTitle>Histórico de Processamentos (Concluídos)</CardTitle>
         </CardHeader>
         <CardContent>
           {processingHistory && processingHistory.data.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Empresa</TableHead>
-                  <TableHead>Competência</TableHead>
-                  <TableHead>Arquivos</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {processingHistory.data.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.company_name}</TableCell>
-                    <TableCell>{item.competency}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {item.files_count}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className={getStatusColor(item.status)}>
-                          {getStatusIcon(item.status)}
-                        </span>
-                        <span className="capitalize">{item.status}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{new Date(item.started_at).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {item.can_download && (
-                          <Button variant="outline" size="sm">
-                            <Download className="w-4 h-4" />
-                          </Button>
-                        )}
-                        <Button variant="outline" size="sm">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Empresa</TableHead>
+                    <TableHead>Competência</TableHead>
+                    <TableHead>Arquivos</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {processingHistory.data.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.company_name}</TableCell>
+                      <TableCell>{item.competency}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">
+                          {item.files_count}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className={getStatusColor(item.status)}>
+                            {getStatusIcon(item.status)}
+                          </span>
+                          <span className="capitalize">{item.status}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{new Date(item.started_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDownloadExcel(item)}
+                          disabled={!item.result_file_url}
+                          title="Download Excel"
+                        >
+                          <FileSpreadsheet className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              
+              {/* Paginação */}
+              {processingHistory.total_pages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Página {processingHistory.page} de {processingHistory.total_pages} 
+                    ({processingHistory.total} processamentos)
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => loadProcessingHistory(currentPage - 1)}
+                      disabled={currentPage <= 1}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Anterior
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => loadProcessingHistory(currentPage + 1)}
+                      disabled={currentPage >= processingHistory.total_pages}
+                    >
+                      Próximo
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-8">
               <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhum processamento encontrado</p>
+              <p className="text-muted-foreground">Nenhum processamento concluído encontrado</p>
             </div>
           )}
         </CardContent>

@@ -119,7 +119,12 @@ export function ProcessingDetails({ processingId, onClose }: ProcessingDetailsPr
     if (!processing?.excel_url) return;
     
     try {
-      window.open(processing.excel_url, '_blank');
+      const filename = `holerite_${processing.competency || 'processado'}.xlsx`;
+      await PayrollService.downloadFile(processing.excel_url, filename);
+      toast({
+        title: "Download iniciado",
+        description: "O arquivo Excel está sendo baixado automaticamente",
+      });
     } catch (error) {
       toast({
         title: "Erro",

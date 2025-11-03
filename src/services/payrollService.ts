@@ -369,14 +369,90 @@ export class PayrollService {
         }))
       });
 
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(webhookPayload),
-        signal: AbortSignal.timeout(60000) // 60 segundos timeout
-      });
+      // Implementar retry logic para webhook
+      const maxRetries = 3;
+      let response: Response | null = null;
+      let lastError: Error | null = null;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          await this.addProcessingLog(processingId, 'INFO', `Tentativa ${attempt}/${maxRetries} de envio para webhook n8n`, {
+            attempt,
+            max_retries: maxRetries,
+            webhook_url: webhookUrl
+          });
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 segundos timeout
+
+          response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'User-Agent': 'PayrollSystem/1.0'
+            },
+            body: JSON.stringify(webhookPayload),
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          // Se a resposta foi bem-sucedida, sair do loop
+          if (response.ok) {
+            break;
+          }
+
+          // Para erros 5xx, tentar novamente
+          if (response.status >= 500 && response.status < 600 && attempt < maxRetries) {
+            await this.addProcessingLog(processingId, 'WARN', `Erro ${response.status} no webhook, tentando novamente`, {
+              status: response.status,
+              statusText: response.statusText,
+              attempt,
+              next_attempt_in: `${2000 * attempt}ms`
+            });
+            
+            await new Promise(resolve => setTimeout(resolve, 2000 * attempt)); // Backoff exponencial
+            continue;
+          }
+
+          // Para outros erros, não tentar novamente
+          break;
+
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error('Erro desconhecido');
+          
+          await this.addProcessingLog(processingId, 'ERROR', `Erro na tentativa ${attempt}/${maxRetries} de webhook`, {
+            error: lastError.message,
+            attempt,
+            error_type: lastError.constructor.name
+          });
+
+          // Para erros de rede/timeout, tentar novamente
+          if (attempt < maxRetries && (
+            lastError.message.includes('fetch') ||
+            lastError.message.includes('timeout') ||
+            lastError.message.includes('network') ||
+            lastError.name === 'AbortError'
+          )) {
+            await this.addProcessingLog(processingId, 'INFO', `Aguardando antes da próxima tentativa`, {
+              wait_time: `${2000 * attempt}ms`,
+              next_attempt: attempt + 1
+            });
+            
+            await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+            continue;
+          }
+
+          // Para outros erros ou última tentativa, sair do loop
+          break;
+        }
+      }
+
+      // Verificar se todas as tentativas falharam
+      if (!response) {
+        throw lastError || new Error('Falha em todas as tentativas de conexão com webhook');
+      }
 
       // Log da resposta HTTP
       await this.addProcessingLog(processingId, 'INFO', `Resposta do webhook recebida: ${response.status} ${response.statusText}`, {
@@ -441,6 +517,12 @@ export class PayrollService {
           const downloadUrl = result.data.arquivo.urls.excel_download;
           const filename = result.data.arquivo.excel_filename || 'holerite_processado.xlsx';
           
+          // Atualizar progresso para 85% (iniciando download)
+          await this.updateProcessing(processingId, {
+            status: 'processing',
+            progress: 85
+          });
+
           await this.addProcessingLog(processingId, 'INFO', 'Iniciando download automático do arquivo XLSX', {
             download_url: downloadUrl,
             filename: filename
@@ -470,7 +552,7 @@ export class PayrollService {
           // Atualizar processamento como processando (sem download)
           await this.updateProcessing(processingId, {
             status: 'processing',
-            progress: 90,
+            progress: 70,
             webhook_response: result,
             estimated_time: result?.estimated_time,
             error_message: `Processamento concluído, mas erro no download: ${downloadError instanceof Error ? downloadError.message : 'Erro desconhecido'}`
@@ -480,7 +562,7 @@ export class PayrollService {
         // Atualizar processamento com resposta inicial (sem download)
         await this.updateProcessing(processingId, {
           status: 'processing',
-          progress: 10,
+          progress: 30,
           webhook_response: result || { status: 'accepted', message: 'Webhook processou a requisição com sucesso' },
           estimated_time: result?.estimated_time
         });
@@ -756,15 +838,25 @@ export class PayrollService {
     const completedFiles = files.filter(f => f.status === 'completed').length;
 
     return {
-      processing_id: processingId,
+      id: processingId,
+      company_id: processing.company_id,
+      company_name: undefined, // Será preenchido se necessário
+      competency: processing.competency,
       status: processing.status,
       progress: processing.progress,
+      files_count: files.length,
       current_step: this.getCurrentStep(processing.progress),
-      estimated_time_remaining: this.calculateEstimatedTime(processing),
-      files_processed: completedFiles,
-      total_files: files.length,
+      estimated_completion_time: this.calculateEstimatedTime(processing)?.toString(),
+      result_url: processing.result_file_url,
       error_message: processing.error_message,
-      last_updated: processing.updated_at
+      created_at: processing.created_at,
+      started_at: processing.started_at,
+      completed_at: processing.completed_at,
+      statistics: {
+        successful_files: completedFiles,
+        failed_files: files.length - completedFiles,
+        total_records: files.length
+      }
     };
   }
 
@@ -1404,37 +1496,151 @@ export class PayrollService {
   }
 
   /**
-   * Função auxiliar para download automático de arquivos
+   * Função auxiliar para download automático de arquivos do S3
    */
   static async downloadFile(url: string, filename: string): Promise<void> {
-    try {
-      // Fazer fetch da URL
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error('Erro ao baixar arquivo');
+    const maxRetries = 3;
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Tentativa ${attempt}/${maxRetries} de download:`, { url, filename });
+
+        // Fazer fetch do arquivo com timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
+
+        const response = await fetch(url, {
+          method: 'GET',
+          mode: 'cors',
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*',
+            'Cache-Control': 'no-cache'
+          }
+        });
+
+        clearTimeout(timeoutId);
+
+        // Tratamento específico para diferentes códigos de erro
+        if (!response.ok) {
+          let errorMessage = `Erro ${response.status}`;
+          
+          switch (response.status) {
+            case 403:
+              errorMessage = 'Acesso negado ao arquivo. A URL pode ter expirado ou não ter permissões adequadas.';
+              break;
+            case 404:
+              errorMessage = 'Arquivo não encontrado. A URL pode estar incorreta ou o arquivo foi removido.';
+              break;
+            case 500:
+              errorMessage = 'Erro interno do servidor. Tente novamente em alguns minutos.';
+              break;
+            case 502:
+            case 503:
+            case 504:
+              errorMessage = 'Servidor temporariamente indisponível. Tentando novamente...';
+              break;
+            default:
+              errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
+          }
+
+          // Para erros 5xx, tentar novamente
+          if (response.status >= 500 && response.status < 600 && attempt < maxRetries) {
+            console.warn(`${errorMessage} Tentativa ${attempt}/${maxRetries}`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Backoff exponencial
+            continue;
+          }
+
+          throw new Error(errorMessage);
+        }
+
+        // Verificar se o conteúdo é válido
+        const contentType = response.headers.get('content-type');
+        const contentLength = response.headers.get('content-length');
+        
+        console.log('Resposta do download:', {
+          status: response.status,
+          contentType,
+          contentLength,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+
+        // Converter resposta para blob
+        const blob = await response.blob();
+
+        // Verificar se o blob tem conteúdo
+        if (blob.size === 0) {
+          throw new Error('Arquivo baixado está vazio');
+        }
+
+        // Criar URL temporária do blob
+        const blobUrl = window.URL.createObjectURL(blob);
+
+        // Criar elemento <a> temporário
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        link.style.display = 'none';
+
+        // Adicionar ao DOM, clicar e remover
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Liberar memória
+        setTimeout(() => {
+          window.URL.revokeObjectURL(blobUrl);
+        }, 100);
+
+        console.log('Download concluído com sucesso:', {
+          filename,
+          size: blob.size,
+          type: blob.type
+        });
+
+        return; // Sucesso, sair do loop
+
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Erro desconhecido no download');
+        
+        console.error(`Erro na tentativa ${attempt}/${maxRetries}:`, {
+          error: lastError.message,
+          url,
+          filename
+        });
+
+        // Se não é a última tentativa e o erro pode ser temporário, continuar
+        if (attempt < maxRetries && (
+          lastError.message.includes('fetch') ||
+          lastError.message.includes('timeout') ||
+          lastError.message.includes('network') ||
+          lastError.message.includes('Servidor temporariamente')
+        )) {
+          console.log(`Aguardando ${1000 * attempt}ms antes da próxima tentativa...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          continue;
+        }
+
+        // Para outros erros ou última tentativa, lançar o erro
+        if (attempt === maxRetries) {
+          break;
+        }
       }
-      
-      // Converter para blob
-      const blob = await response.blob();
-      
-      // Criar URL temporária
-      const blobUrl = window.URL.createObjectURL(blob);
-      
-      // Criar link temporário e clicar
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      
-      // Limpar
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-      
-    } catch (error) {
-      console.error('Erro ao baixar arquivo:', error);
-      throw error;
     }
+
+    // Se chegou aqui, todas as tentativas falharam
+    const finalError = new Error(
+      `Falha no download após ${maxRetries} tentativas: ${lastError?.message || 'Erro desconhecido'}`
+    );
+    
+    console.error('Download falhou definitivamente:', {
+      url,
+      filename,
+      attempts: maxRetries,
+      lastError: lastError?.message
+    });
+
+    throw finalError;
   }
 }
