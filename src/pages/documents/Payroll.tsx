@@ -548,6 +548,16 @@ export default function Payroll() {
     }
   };
 
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'completed': return 'Concluído';
+      case 'processing': return 'Processando';
+      case 'failed': return 'Falhou';
+      case 'pending': return 'Pendente';
+      default: return status;
+    }
+  };
+
   // Format file size
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -816,7 +826,7 @@ export default function Payroll() {
                           <span className={getStatusColor(item.status)}>
                             {getStatusIcon(item.status)}
                           </span>
-                          <span className="capitalize">{item.status}</span>
+                          <span>{getStatusText(item.status)}</span>
                         </div>
                       </TableCell>
                       <TableCell>{new Date(item.started_at).toLocaleDateString()}</TableCell>

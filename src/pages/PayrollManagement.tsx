@@ -447,7 +447,7 @@ export const PayrollManagement: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="flex items-center gap-3 text-gray-600">
           <RefreshCw className="w-6 h-6 animate-spin" />
           <span>Carregando dados...</span>
@@ -459,7 +459,7 @@ export const PayrollManagement: React.FC = () => {
   // Show error state if there's a connectivity issue
   if (error && !isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
@@ -493,7 +493,7 @@ export const PayrollManagement: React.FC = () => {
 
   if (!company) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Empresa não encontrada</h2>
@@ -509,24 +509,24 @@ export const PayrollManagement: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-4 mb-4">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
             <button
               onClick={() => navigate('/companies')}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="self-start p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg self-start sm:self-auto">
                 <Building2 className="w-6 h-6 text-blue-600" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{company.name}</h1>
-                <p className="text-gray-600">CNPJ: {CompanyService.formatCnpj(company.cnpj)}</p>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{company.name}</h1>
+                <p className="text-sm sm:text-base text-gray-600 break-all sm:break-normal">CNPJ: {CompanyService.formatCnpj(company.cnpj)}</p>
               </div>
             </div>
           </div>
@@ -534,34 +534,34 @@ export const PayrollManagement: React.FC = () => {
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <Card className="p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+            <Card className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-sm text-muted-foreground">Esta Semana</p>
-                  <p className="text-2xl font-bold text-foreground">{stats.files_this_week}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-foreground truncate">{stats.files_this_week}</p>
                 </div>
-                <Calendar className="w-8 h-8 text-ai-blue" />
+                <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-ai-blue flex-shrink-0 ml-2" />
               </div>
             </Card>
 
-            <Card className="p-4">
+            <Card className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-sm text-muted-foreground">Este Mês</p>
-                  <p className="text-2xl font-bold text-foreground">{stats.files_this_month}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-foreground truncate">{stats.files_this_month}</p>
                 </div>
-                <TrendingUp className="w-8 h-8 text-ai-green" />
+                <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-ai-green flex-shrink-0 ml-2" />
               </div>
             </Card>
 
-            <Card className="p-4">
+            <Card className="p-4 sm:p-6 sm:col-span-2 lg:col-span-1">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-sm text-muted-foreground">Total</p>
-                  <p className="text-2xl font-bold text-foreground">{stats.total_files}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-foreground truncate">{stats.total_files}</p>
                 </div>
-                <FileText className="w-8 h-8 text-ai-orange" />
+                <FileText className="w-6 h-6 sm:w-8 sm:h-8 text-ai-orange flex-shrink-0 ml-2" />
               </div>
             </Card>
           </div>
@@ -570,18 +570,18 @@ export const PayrollManagement: React.FC = () => {
 
 
         {/* Enhanced Upload Area */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <Card className="mb-6 sm:mb-8">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
               <Upload className="w-5 h-5" />
               Upload de Holerites em Lote
             </CardTitle>
           </CardHeader>
           
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
             {/* Competencia Input */}
             <div className="space-y-2">
-              <Label htmlFor="competencia">Competência (MM/AAAA)</Label>
+              <Label htmlFor="competencia" className="text-sm font-medium">Competência (MM/AAAA)</Label>
               <Input
                 id="competencia"
                 type="text"
@@ -589,13 +589,13 @@ export const PayrollManagement: React.FC = () => {
                 value={competencia}
                 onChange={(e) => setCompetencia(e.target.value)}
                 disabled={isUploading}
-                className="max-w-xs"
+                className="w-full sm:max-w-xs"
               />
             </div>
 
             {/* Drag and Drop Area */}
             <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+              className={`border-2 border-dashed rounded-lg p-4 sm:p-6 lg:p-8 text-center transition-colors ${
                 dragState.isDragOver
                   ? 'border-blue-400 bg-blue-50'
                   : 'border-gray-300 hover:border-gray-400'
@@ -607,16 +607,16 @@ export const PayrollManagement: React.FC = () => {
             >
               {isUploading ? (
                 <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-gray-600">Processando arquivos...</p>
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm sm:text-base text-gray-600">Processando arquivos...</p>
                 </div>
               ) : (
                 <>
-                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  <Upload className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 text-gray-400 mx-auto mb-3 sm:mb-4" />
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
                     Arraste arquivos PDF aqui
                   </h3>
-                  <p className="text-gray-600 mb-4">
+                  <p className="text-sm sm:text-base text-gray-600 mb-4 px-2">
                     ou clique para selecionar múltiplos arquivos
                   </p>
                   
@@ -624,12 +624,13 @@ export const PayrollManagement: React.FC = () => {
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploading}
+                    className="w-full sm:w-auto"
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Selecionar Arquivos
                   </Button>
                   
-                  <p className="text-xs text-gray-500 mt-2">
+                  <p className="text-xs text-gray-500 mt-2 px-2">
                     Máximo {MAX_FILES} arquivos • {formatFileSize(MAX_FILE_SIZE)} por arquivo
                   </p>
                 </>
@@ -648,14 +649,14 @@ export const PayrollManagement: React.FC = () => {
             {/* Selected Files */}
             {selectedFiles.length > 0 && (
               <div className="space-y-2">
-                <Label>Arquivos Selecionados ({selectedFiles.length})</Label>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
+                <Label className="text-sm font-medium">Arquivos Selecionados ({selectedFiles.length})</Label>
+                <div className="space-y-2 max-h-32 sm:max-h-40 overflow-y-auto">
                   {selectedFiles.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
-                      <div className="flex items-center gap-3">
-                        <File className="w-4 h-4 text-red-500" />
-                        <div>
-                          <p className="text-sm font-medium">{file.name}</p>
+                    <div key={index} className="flex items-center justify-between p-2 sm:p-3 border rounded-lg bg-gray-50">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                        <File className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{file.name}</p>
                           <p className="text-xs text-gray-500">
                             {formatFileSize(file.size)}
                           </p>
@@ -666,6 +667,7 @@ export const PayrollManagement: React.FC = () => {
                         size="sm"
                         onClick={() => removeFile(index)}
                         disabled={isUploading}
+                        className="flex-shrink-0 h-8 w-8 p-0"
                       >
                         <X className="w-4 h-4" />
                       </Button>
@@ -678,16 +680,16 @@ export const PayrollManagement: React.FC = () => {
             {/* Upload Progress */}
             {uploadProgress.length > 0 && (
               <div className="space-y-2">
-                <Label>Progresso do Upload</Label>
+                <Label className="text-sm font-medium">Progresso do Upload</Label>
                 <div className="space-y-2">
                   {uploadProgress.map((progress) => (
                     <div key={progress.file_id} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="flex-1">{progress.filename}</span>
-                        <div className="flex items-center gap-2">
-                          <span>{progress.progress}%</span>
+                      <div className="flex items-center justify-between text-sm gap-2">
+                        <span className="flex-1 truncate">{progress.filename}</span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs sm:text-sm">{progress.progress}%</span>
                           {progress.estimated_time && (
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground hidden sm:inline">
                               ~{progress.estimated_time}
                             </span>
                           )}
@@ -717,16 +719,19 @@ export const PayrollManagement: React.FC = () => {
                 onClick={handleBatchUpload}
                 className="w-full"
                 disabled={isUploading}
+                size="lg"
               >
                 {isUploading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Enviando {selectedFiles.length} arquivo(s)...
+                    <span className="hidden sm:inline">Enviando {selectedFiles.length} arquivo(s)...</span>
+                    <span className="sm:hidden">Enviando...</span>
                   </>
                 ) : (
                   <>
                     <Upload className="w-4 h-4 mr-2" />
-                    Enviar {selectedFiles.length} arquivo(s)
+                    <span className="hidden sm:inline">Enviar {selectedFiles.length} arquivo(s)</span>
+                    <span className="sm:hidden">Enviar ({selectedFiles.length})</span>
                   </>
                 )}
               </Button>
@@ -736,164 +741,227 @@ export const PayrollManagement: React.FC = () => {
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <span className="text-red-700">{error}</span>
+          <div className="mb-4 sm:mb-6 bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <span className="text-sm sm:text-base text-red-700 break-words">{error}</span>
           </div>
         )}
 
         {/* Files List */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="p-4 sm:p-6 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <FileText className="w-5 h-5" />
               Arquivos Importados
             </h2>
             <button
               onClick={loadData}
-              className="px-3 py-1 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2 transition-colors"
+              className="px-3 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2 transition-colors self-start sm:self-auto"
             >
               <RefreshCw className="w-4 h-4" />
-              Atualizar
+              <span className="hidden sm:inline">Atualizar</span>
             </button>
           </div>
 
           {payrollFiles.length === 0 ? (
-            <div className="p-12 text-center">
-              <File className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <div className="p-8 sm:p-12 text-center">
+              <File className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3 sm:mb-4" />
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
                 Nenhum arquivo importado
               </h3>
-              <p className="text-gray-500">
+              <p className="text-sm sm:text-base text-gray-500 px-4">
                 Faça o upload dos primeiros arquivos PDF de holerite
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Arquivo
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Data de Importação
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Competência
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tamanho
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Ações
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {payrollFiles.map((file) => (
-                    <tr key={file.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="p-2 bg-red-100 rounded-lg mr-3">
-                            <File className="w-5 h-5 text-red-600" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {file.filename}
+            <>
+              {/* Desktop Table */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Arquivo
+                      </th>
+                      <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Data de Importação
+                      </th>
+                      <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Competência
+                      </th>
+                      <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tamanho
+                      </th>
+                      <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-4 xl:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Ações
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {payrollFiles.map((file) => (
+                      <tr key={file.id} className="hover:bg-gray-50">
+                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="p-2 bg-red-100 rounded-lg mr-3 flex-shrink-0">
+                              <File className="w-4 h-4 xl:w-5 xl:h-5 text-red-600" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
+                                {file.filename}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {PayrollService.formatDate(file.created_at || '')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {file.competencia}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatFileSize(file.file_size || 0)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          file.status === 'processed'
-                            ? 'bg-green-100 text-green-800'
-                            : file.status === 'processing'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {file.status === 'processed' ? 'Processado' : 
-                           file.status === 'processing' ? 'Processando' : 'Erro'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end gap-2">
-                          {file.excel_url && PayrollService.canDownload(file) && (
-                            <button
-                              onClick={() => handleDownload(file)}
-                              className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                              title="Download XLSX"
-                            >
-                              <Download className="w-4 h-4" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDeleteClick(file)}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Deletar arquivo"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                        </td>
+                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {PayrollService.formatDate(file.created_at || '')}
+                        </td>
+                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {file.competencia}
+                        </td>
+                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatFileSize(file.file_size || 0)}
+                        </td>
+                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            file.status === 'processed'
+                              ? 'bg-green-100 text-green-800'
+                              : file.status === 'processing'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {file.status === 'processed' ? 'Processado' : 
+                             file.status === 'processing' ? 'Processando' : 'Erro'}
+                          </span>
+                        </td>
+                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end gap-1 xl:gap-2">
+                            {file.excel_url && PayrollService.canDownload(file) && (
+                              <button
+                                onClick={() => handleDownload(file)}
+                                className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                title="Download XLSX"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                            )}
+                             <button
+                               onClick={() => handleDeleteClick(file)}
+                               className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                               title="Deletar arquivo"
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </button>
+                           </div>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+
+               {/* Mobile/Tablet Cards */}
+               <div className="lg:hidden divide-y divide-gray-200">
+                 {payrollFiles.map((file) => (
+                   <div key={file.id} className="p-4 sm:p-6 hover:bg-gray-50 transition-colors">
+                     <div className="flex items-start justify-between gap-3">
+                       <div className="flex items-start gap-3 min-w-0 flex-1">
+                         <div className="p-2 bg-red-100 rounded-lg flex-shrink-0">
+                           <File className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
+                         </div>
+                         <div className="min-w-0 flex-1">
+                           <h4 className="text-sm sm:text-base font-medium text-gray-900 truncate mb-1">
+                             {file.filename}
+                           </h4>
+                           <div className="space-y-1 text-xs sm:text-sm text-gray-500">
+                             <div className="flex flex-wrap gap-x-4 gap-y-1">
+                               <span>Data: {PayrollService.formatDate(file.created_at || '')}</span>
+                               <span>Competência: {file.competencia}</span>
+                             </div>
+                             <div className="flex flex-wrap gap-x-4 gap-y-1">
+                               <span>Tamanho: {formatFileSize(file.file_size || 0)}</span>
+                               <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${
+                                 file.status === 'processed'
+                                   ? 'bg-green-100 text-green-800'
+                                   : file.status === 'processing'
+                                   ? 'bg-yellow-100 text-yellow-800'
+                                   : 'bg-red-100 text-red-800'
+                               }`}>
+                                 {file.status === 'processed' ? 'Processado' : 
+                                  file.status === 'processing' ? 'Processando' : 'Erro'}
+                               </span>
+                             </div>
+                           </div>
+                         </div>
+                       </div>
+                       <div className="flex items-center gap-1 flex-shrink-0">
+                         {file.excel_url && PayrollService.canDownload(file) && (
+                           <button
+                             onClick={() => handleDownload(file)}
+                             className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                             title="Download XLSX"
+                           >
+                             <Download className="w-4 h-4" />
+                           </button>
+                         )}
+                         <button
+                           onClick={() => handleDeleteClick(file)}
+                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                           title="Deletar arquivo"
+                         >
+                           <Trash2 className="w-4 h-4" />
+                         </button>
+                       </div>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             </>
+           )}
         </div>
       </div>
 
       {/* Delete Confirmation Modal */}
       {fileToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-red-100 rounded-lg">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="p-2 bg-red-100 rounded-lg flex-shrink-0">
                   <AlertCircle className="w-5 h-5 text-red-600" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Confirmar Exclusão
-                </h3>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    Confirmar Exclusão
+                  </h3>
+                </div>
               </div>
               
-              <p className="text-gray-600 mb-6">
-                Tem certeza que deseja excluir o arquivo <strong>{fileToDelete.filename}</strong>?
+              <p className="text-sm sm:text-base text-gray-600 mb-6 break-words">
+                Tem certeza que deseja excluir o arquivo <strong className="break-all">{fileToDelete.filename}</strong>?
                 Esta ação não pode ser desfeita.
               </p>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleDeleteCancel}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors order-2 sm:order-1"
                   disabled={isDeleting}
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleDeleteConfirm}
-                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 order-1 sm:order-2"
                   disabled={isDeleting}
                 >
                   {isDeleting ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Excluindo...
+                      <span className="hidden sm:inline">Excluindo...</span>
+                      <span className="sm:hidden">...</span>
                     </>
                   ) : (
                     <>
