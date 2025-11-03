@@ -50,6 +50,22 @@ const MAX_FILES = 50;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['application/pdf'];
 
+// Função para formatar máscara MM/AAAA
+const formatCompetencia = (value: string): string => {
+  // Remove tudo que não é número
+  const numbers = value.replace(/\D/g, '');
+  
+  // Limita a 6 dígitos (MMAAAA)
+  const limitedNumbers = numbers.slice(0, 6);
+  
+  // Aplica a máscara MM/AAAA
+  if (limitedNumbers.length <= 2) {
+    return limitedNumbers;
+  } else {
+    return `${limitedNumbers.slice(0, 2)}/${limitedNumbers.slice(2)}`;
+  }
+};
+
 export default function Payroll() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -135,6 +151,12 @@ export default function Payroll() {
   useEffect(() => {
     initializeData();
   }, []); // Executar apenas uma vez na montagem do componente
+
+  // Handle competencia input with mask
+  const handleCompetenciaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formattedValue = formatCompetencia(e.target.value);
+    setCompetencia(formattedValue);
+  };
 
   // Competencia validation
   const validateCompetencia = (comp: string): boolean => {
@@ -577,12 +599,7 @@ export default function Payroll() {
             Faça upload e processe holerites em lote com integração N8N
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-            <Upload className="w-4 h-4 mr-2" />
-            Novo Upload
-          </Button>
-        </div>
+
       </div>
 
 
@@ -620,8 +637,9 @@ export default function Payroll() {
                 type="text"
                 placeholder="12/2024"
                 value={competencia}
-                onChange={(e) => setCompetencia(e.target.value)}
+                onChange={handleCompetenciaChange}
                 disabled={isUploading}
+                maxLength={7}
               />
             </div>
           </div>
@@ -762,47 +780,7 @@ export default function Payroll() {
         </CardContent>
       </Card>
 
-      {/* Statistics */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total de Arquivos</p>
-                <p className="text-2xl font-bold text-foreground">{stats.total_files}</p>
-              </div>
-              <FileText className="w-8 h-8 text-ai-green" />
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Processados Este Mês</p>
-                <p className="text-2xl font-bold text-foreground">{stats.files_this_month}</p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-ai-blue" />
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Em Processamento</p>
-                <p className="text-2xl font-bold text-foreground">{stats.processing_files}</p>
-              </div>
-              <Clock className="w-8 h-8 text-ai-orange" />
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Taxa de Sucesso</p>
-                <p className="text-2xl font-bold text-foreground">{stats.success_rate}%</p>
-              </div>
-              <CheckCircle className="w-8 h-8 text-ai-green" />
-            </div>
-          </Card>
-        </div>
-      )}
+
 
       {/* Processing History */}
       <Card>
