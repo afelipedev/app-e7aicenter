@@ -14,7 +14,7 @@
 
 ---
 
-## 🎯 Visão Geral
+## 🎯 Visão Geral da Plataforma
 
 O **E7AI Center** é uma plataforma web desenvolvida para escritórios de advocacia e contabilidade, oferecendo assistentes de IA especializados e gestão de documentos, com foco principal no processamento automatizado de holerites (folhas de pagamento).
 
