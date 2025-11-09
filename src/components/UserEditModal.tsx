@@ -301,7 +301,8 @@ export function UserEditModal({ user, isOpen, onClose, onUserUpdated }: UserEdit
                     id="temp-password"
                     type={showPassword ? "text" : "password"}
                     value={tempPassword}
-                    readOnly
+                    onChange={(e) => setTempPassword(e.target.value)}
+                    placeholder="Digite ou gere uma senha"
                     className="font-mono"
                   />
                   <Button
@@ -322,7 +323,7 @@ export function UserEditModal({ user, isOpen, onClose, onUserUpdated }: UserEdit
                     ⚠️ Atenção: Esta senha será aplicada ao usuário quando você salvar as alterações.
                   </p>
                   <p className="text-xs text-blue-600 mt-1">
-                    Compartilhe esta senha com o usuário. Ela deve ser alterada no primeiro login.
+                    Você pode editar a senha gerada ou digitar uma senha personalizada. Compartilhe esta senha com o usuário. Ela deve ser alterada no primeiro login.
                   </p>
                 </div>
               </div>

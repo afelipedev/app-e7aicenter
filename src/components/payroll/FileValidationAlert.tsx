@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,18 @@ export function FileValidationAlert({
 }: FileValidationAlertProps) {
   const invalidFiles = validationResults.filter(result => !result.isValid);
   const validFiles = validationResults.filter(result => result.isValid);
+
+  // Auto-dismiss após 3 segundos
+  useEffect(() => {
+    if (invalidFiles.length > 0) {
+      const timer = setTimeout(() => {
+        onDismiss();
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invalidFiles.length]);
 
   if (invalidFiles.length === 0) return null;
 

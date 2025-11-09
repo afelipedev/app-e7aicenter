@@ -1,4 +1,4 @@
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 export interface ErrorDetails {
   code?: string;
@@ -282,7 +282,7 @@ export class ErrorHandler {
 
     files.forEach((file, index) => {
       try {
-        this.validateFile(file);
+        ErrorHandler.validateFile(file);
       } catch (error) {
         if (error instanceof ValidationError) {
           throw new ValidationError(
@@ -340,6 +340,8 @@ export class ErrorHandler {
  * Hook for handling errors in React components
  */
 export const useErrorHandler = () => {
+  const { toast } = useToast();
+
   const handleError = (error: unknown, context?: string, showToast: boolean = true) => {
     return ErrorHandler.handle(error, context, showToast, toast);
   };

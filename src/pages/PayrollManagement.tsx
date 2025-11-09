@@ -19,7 +19,10 @@ import {
   CheckCircle,
   Zap,
   Search,
-  Eye
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveProcessings } from "@/hooks/useProcessingUpdates";
 import { useErrorHandler, ValidationError, ProcessingError } from "@/utils/errorHandling";
@@ -36,12 +40,14 @@ import { CompanyService } from '@/services/companyService';
 import type { 
   Company, 
   PayrollFile, 
-  PayrollUploadData, 
+  BatchUploadData,
   PayrollStats, 
   UploadProgress,
   DragDropState,
   BatchUploadResult,
-  ProcessingStatus
+  ProcessingStatus,
+  ProcessingHistory,
+  PaginatedResult
 } from '../../shared/types/payroll';
 
 // Constants
@@ -49,6 +55,22 @@ const MAX_FILES = 50;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['application/pdf'];
 const REFRESH_INTERVAL = 5000; // 5 seconds for real-time updates
+
+// Função para formatar máscara MM/AAAA
+const formatCompetencia = (value: string): string => {
+  // Remove tudo que não é número
+  const numbers = value.replace(/\D/g, '');
+  
+  // Limita a 6 dígitos (MMAAAA)
+  const limitedNumbers = numbers.slice(0, 6);
+  
+  // Aplica a máscara MM/AAAA
+  if (limitedNumbers.length <= 2) {
+    return limitedNumbers;
+  } else {
+    return `${limitedNumbers.slice(0, 2)}/${limitedNumbers.slice(2)}`;
+  }
+};
 
 export const PayrollManagement: React.FC = () => {
   const { companyId } = useParams<{ companyId: string }>();
@@ -73,6 +95,8 @@ export const PayrollManagement: React.FC = () => {
   const [stats, setStats] = useState<PayrollStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [processingHistory, setProcessingHistory] = useState<PaginatedResult<ProcessingHistory> | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Enhanced upload state
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -117,15 +141,22 @@ export const PayrollManagement: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
-      const [companyData, filesData, statsData] = await Promise.all([
+      const [companyData, filesData, statsData, historyData] = await Promise.all([
         CompanyService.getById(companyId),
         PayrollService.getByCompanyId(companyId),
-        PayrollService.getStats(companyId)
+        PayrollService.getStats(companyId),
+        PayrollService.getProcessingHistory(
+          { status: ['completed'], company_id: companyId },
+          { field: 'started_at', direction: 'desc' },
+          1,
+          5
+        )
       ]);
 
       setCompany(companyData);
       setPayrollFiles(filesData);
       setStats(statsData);
+      setProcessingHistory(historyData);
     } catch (err) {
       // Se for erro de conectividade e ainda temos tentativas, retry
       if (err instanceof Error && 
@@ -171,6 +202,12 @@ export const PayrollManagement: React.FC = () => {
       loadData();
     }
   }, [companyId]); // Only depend on companyId, not loadData
+
+  // Handle competencia input with mask
+  const handleCompetenciaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formattedValue = formatCompetencia(e.target.value);
+    setCompetencia(formattedValue);
+  };
 
   // Competencia validation
   const validateCompetencia = (comp: string): boolean => {
@@ -276,16 +313,30 @@ export const PayrollManagement: React.FC = () => {
   // Cancel/delete upload in progress
   const handleCancelUpload = async (fileId: string) => {
     try {
+      // Validar se o ID é um UUID válido
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(fileId)) {
+        console.error('ID inválido para cancelamento:', fileId);
+        toast({
+          title: "Erro ao cancelar",
+          description: "ID de processamento inválido. Aguarde alguns instantes e tente novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       await cancelProcessing(fileId);
       toast({
         title: "Upload cancelado",
         description: "O processamento foi cancelado com sucesso",
       });
+      // Atualizar lista de processamentos
+      await refreshProcessings();
     } catch (error) {
       console.error('Erro ao cancelar upload:', error);
       toast({
         title: "Erro ao cancelar",
-        description: "Não foi possível cancelar o processamento",
+        description: error instanceof Error ? error.message : "Não foi possível cancelar o processamento",
         variant: "destructive",
       });
     }
@@ -322,19 +373,22 @@ export const PayrollManagement: React.FC = () => {
       // Initialize progress tracking
       // Upload progress is now handled by the useMemo hook based on active processings
 
-      const uploadData: PayrollUploadData = {
+      const uploadData: BatchUploadData = {
         files: selectedFiles,
-        competency: competencia,
+        competencia: competencia,
         company_id: companyId
       };
 
-      const { result, error } = await handleAsync(
-        () => PayrollService.batchUpload(uploadData),
-        'batch_upload'
-      );
+      // Perform upload - same approach as Payroll.tsx
+      const result = await PayrollService.batchUpload(uploadData);
 
-      if (error) {
+      if (!result) {
         setUploadStatus('error');
+        toast({
+          title: "Erro no Upload",
+          description: "Resposta inválida do servidor",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -342,17 +396,32 @@ export const PayrollManagement: React.FC = () => {
 
       if (result.success) {
         setUploadStatus('completed');
-        toast({
+        
+        // N8N webhook is already being called by PayrollService.sendDirectToWebhook()
+        // No need for additional webhook call here
+
+        const toastResult = toast({
           title: "Upload realizado com sucesso!",
-          description: `${result.successful_files} arquivo(s) enviado(s) para processamento`,
+          description: `${result.successful_files} arquivo(s) enviado(s) para processamento. O arquivo XLSX será baixado automaticamente quando o processamento for concluído.`,
         });
+        
+        // Fechar toast automaticamente após 5 segundos
+        setTimeout(() => {
+          if (toastResult?.dismiss) {
+            toastResult.dismiss();
+          }
+        }, 5000);
 
         // Clear form
         setSelectedFiles([]);
         setCompetencia('');
         
         // Refresh data
-        await handleAsync(() => loadData(), 'data_refresh');
+        await Promise.all([
+          loadData(),
+          refreshProcessings(),
+          loadProcessingHistory(1)
+        ]);
         
       } else if (result.partial_success) {
         setUploadStatus('completed');
@@ -363,7 +432,11 @@ export const PayrollManagement: React.FC = () => {
         });
       } else {
         setUploadStatus('error');
-        throw new ProcessingError(result.error || "Erro desconhecido durante o upload");
+        toast({
+          title: "Erro no Upload",
+          description: result.error || "Erro desconhecido durante o upload",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       setUploadStatus('error');
@@ -405,32 +478,127 @@ export const PayrollManagement: React.FC = () => {
     setFileToDelete(null);
   };
 
-  const handleDownload = async (file: PayrollFile) => {
+  // Load processing history with pagination
+  const loadProcessingHistory = async (page: number = currentPage) => {
+    if (!companyId) return;
+    
     try {
-      if (!file.excel_url) {
-        throw new ValidationError('Arquivo Excel não disponível para download');
+      const history = await PayrollService.getProcessingHistory(
+        { status: ['completed'], company_id: companyId },
+        { field: 'started_at', direction: 'desc' },
+        page,
+        5
+      );
+      setProcessingHistory(history);
+      setCurrentPage(page);
+    } catch (error) {
+      console.error('Error loading processing history:', error);
+      toast({
+        title: "Erro ao carregar histórico",
+        description: "Não foi possível carregar o histórico de processamento",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Download Excel file from processing history
+  const handleDownloadExcel = async (item: ProcessingHistory) => {
+    try {
+      if (!item.result_file_url) {
+        const toastResult = toast({
+          title: "Arquivo não disponível",
+          description: "O arquivo Excel não está disponível para download",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          if (toastResult?.dismiss) {
+            toastResult.dismiss();
+          }
+        }, 5000);
+        return;
       }
 
-      const { result: url, error } = await handleAsync(
-        () => PayrollService.getDownloadUrl(file.excel_url!),
-        'file_download'
-      );
+      const filename = `holerite_${item.competency}_${item.company_name || 'processado'}.xlsx`;
+      await PayrollService.downloadFile(item.result_file_url, filename);
+      
+      toast({
+        title: "Download iniciado",
+        description: "O download do arquivo Excel foi iniciado",
+      });
+    } catch (error) {
+      console.error('Error downloading Excel file:', error);
+      const toastResult = toast({
+        title: "Erro no download",
+        description: "Não foi possível baixar o arquivo Excel",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        if (toastResult?.dismiss) {
+          toastResult.dismiss();
+        }
+      }, 5000);
+    }
+  };
 
-      if (error) return;
+  // Download PDF file from processing history
+  const handleDownloadPDF = async (processingId: string) => {
+    try {
+      const files = await PayrollService.getFilesByProcessingId(processingId);
+      if (files.length === 0) {
+        const toastResult = toast({
+          title: "Arquivo não disponível",
+          description: "Nenhum arquivo PDF encontrado para este processamento",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          if (toastResult?.dismiss) {
+            toastResult.dismiss();
+          }
+        }, 5000);
+        return;
+      }
 
+      // Baixar o primeiro arquivo PDF (ou todos se necessário)
+      const fileWithS3 = files.find(f => f.s3_url);
+      if (!fileWithS3 || !fileWithS3.s3_url) {
+        const toastResult = toast({
+          title: "Arquivo não disponível",
+          description: "O arquivo PDF não está disponível para download",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          if (toastResult?.dismiss) {
+            toastResult.dismiss();
+          }
+        }, 5000);
+        return;
+      }
+
+      // Fazer download do PDF
       const link = document.createElement('a');
-      link.href = url;
-      link.download = `${file.filename.replace('.pdf', '')}.xlsx`;
+      link.href = fileWithS3.s3_url;
+      link.download = fileWithS3.filename;
+      link.target = '_blank';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
       toast({
         title: "Download iniciado",
-        description: "O download do arquivo foi iniciado",
+        description: "O download do arquivo PDF foi iniciado",
       });
     } catch (error) {
-      handleError(error, 'file_download');
+      console.error('Error downloading PDF file:', error);
+      const toastResult = toast({
+        title: "Erro no download",
+        description: "Não foi possível baixar o arquivo PDF",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        if (toastResult?.dismiss) {
+          toastResult.dismiss();
+        }
+      }, 5000);
     }
   };
 
@@ -587,9 +755,10 @@ export const PayrollManagement: React.FC = () => {
                 type="text"
                 placeholder="12/2024"
                 value={competencia}
-                onChange={(e) => setCompetencia(e.target.value)}
+                onChange={handleCompetenciaChange}
                 disabled={isUploading}
                 className="w-full sm:max-w-xs"
+                maxLength={7}
               />
             </div>
 
@@ -747,154 +916,108 @@ export const PayrollManagement: React.FC = () => {
           </div>
         )}
 
-        {/* Files List */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="p-4 sm:p-6 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <CheckCircle className="w-5 h-5" />
-              Histórico de Processamentos Concluídos
-            </h2>
-            <button
-              onClick={loadData}
-              className="px-3 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2 transition-colors self-start sm:self-auto"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span className="hidden sm:inline">Atualizar</span>
-            </button>
-          </div>
-
-          {payrollFiles.filter(file => file.status === 'processed').length === 0 ? (
-            <div className="p-8 sm:p-12 text-center">
-              <CheckCircle className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3 sm:mb-4" />
-              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
-                Nenhum processamento concluído
-              </h3>
-              <p className="text-sm sm:text-base text-gray-500 px-4">
-                Arquivos processados com sucesso aparecerão aqui
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Desktop Table */}
-              <div className="hidden lg:block overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Nome do Arquivo
-                      </th>
-                      <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Competência
-                      </th>
-                      <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Holerites
-                      </th>
-                      <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-4 xl:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Data
-                      </th>
-                      <th className="px-4 xl:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Ações
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {payrollFiles.filter(file => file.status === 'processed').map((file) => (
-                      <tr key={file.id} className="hover:bg-gray-50">
-                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="p-2 bg-green-100 rounded-lg mr-3 flex-shrink-0">
-                              <File className="w-4 h-4 xl:w-5 xl:h-5 text-green-600" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
-                                {file.filename}
-                              </div>
-                            </div>
+        {/* Processing History */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Histórico de Processamentos (Concluídos)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {processingHistory && processingHistory.data.length > 0 ? (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Empresa</TableHead>
+                      <TableHead>Competência</TableHead>
+                      <TableHead>Arquivos</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {processingHistory.data.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.company_name}</TableCell>
+                        <TableCell>{item.competency}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">
+                            {item.files_count}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="text-green-600">
+                              <CheckCircle className="w-4 h-4" />
+                            </span>
+                            <span>Concluído</span>
                           </div>
-                        </td>
-                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {file.competencia}
-                        </td>
-                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {file.processed_count || 0}
-                        </td>
-                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                            <CheckCircle className="w-3 h-3" />
-                            Concluído
-                          </span>
-                        </td>
-                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {PayrollService.formatDate(file.created_at || '')}
-                        </td>
-                        <td className="px-4 xl:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex items-center justify-end gap-1 xl:gap-2">
-                            {file.excel_url && PayrollService.canDownload(file) && (
-                              <button
-                                onClick={() => handleDownload(file)}
-                                className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                title="Download XLSX"
-                              >
-                                <Download className="w-4 h-4" />
-                              </button>
-                            )}
-                           </div>
-                         </td>
-                       </tr>
-                     ))}
-                   </tbody>
-                 </table>
-               </div>
-
-               {/* Mobile/Tablet Cards */}
-               <div className="lg:hidden divide-y divide-gray-200">
-                 {payrollFiles.filter(file => file.status === 'processed').map((file) => (
-                   <div key={file.id} className="p-4 sm:p-6 hover:bg-gray-50 transition-colors">
-                     <div className="flex items-start justify-between gap-3">
-                       <div className="flex items-start gap-3 min-w-0 flex-1">
-                         <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
-                           <File className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
-                         </div>
-                         <div className="min-w-0 flex-1">
-                           <h4 className="text-sm sm:text-base font-medium text-gray-900 truncate mb-1">
-                             {file.filename}
-                           </h4>
-                           <div className="space-y-1 text-xs sm:text-sm text-gray-500">
-                             <div className="flex flex-wrap gap-x-4 gap-y-1">
-                               <span>Data: {PayrollService.formatDate(file.created_at || '')}</span>
-                               <span>Competência: {file.competencia}</span>
-                             </div>
-                             <div className="flex flex-wrap gap-x-4 gap-y-1">
-                               <span>Holerites: {file.processed_count || 0}</span>
-                               <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                 <CheckCircle className="w-3 h-3" />
-                                 Concluído
-                               </span>
-                             </div>
-                           </div>
-                         </div>
-                       </div>
-                       <div className="flex items-center gap-1 flex-shrink-0">
-                         {file.excel_url && PayrollService.canDownload(file) && (
-                           <button
-                             onClick={() => handleDownload(file)}
-                             className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                             title="Download XLSX"
-                           >
-                             <Download className="w-4 h-4" />
-                           </button>
-                         )}
-                       </div>
-                     </div>
-                   </div>
-                 ))}
-               </div>
-             </>
-           )}
-        </div>
+                        </TableCell>
+                        <TableCell>{new Date(item.started_at).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleDownloadPDF(item.id)}
+                              title="Download PDF"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleDownloadExcel(item)}
+                              disabled={!item.result_file_url}
+                              title="Download Excel"
+                            >
+                              <FileSpreadsheet className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                
+                {/* Paginação */}
+                {processingHistory.total_pages > 1 && (
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="text-sm text-muted-foreground">
+                      Página {processingHistory.page} de {processingHistory.total_pages} 
+                      ({processingHistory.total} processamentos)
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => loadProcessingHistory(currentPage - 1)}
+                        disabled={currentPage <= 1}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Anterior
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => loadProcessingHistory(currentPage + 1)}
+                        disabled={currentPage >= processingHistory.total_pages}
+                      >
+                        Próximo
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">Nenhum processamento concluído encontrado</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Delete Confirmation Modal */}

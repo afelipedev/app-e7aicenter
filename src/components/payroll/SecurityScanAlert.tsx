@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,17 @@ export function SecurityScanAlert({
   onDismiss,
   onRescan 
 }: SecurityScanAlertProps) {
+  // Auto-dismiss após 3 segundos
+  useEffect(() => {
+    if (scanResults.length > 0) {
+      const timer = setTimeout(() => {
+        onDismiss();
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanResults.length]);
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;

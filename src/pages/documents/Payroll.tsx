@@ -298,16 +298,30 @@ export default function Payroll() {
   // Cancel/delete upload in progress
   const handleCancelUpload = async (fileId: string) => {
     try {
+      // Validar se o ID é um UUID válido
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(fileId)) {
+        console.error('ID inválido para cancelamento:', fileId);
+        toast({
+          title: "Erro ao cancelar",
+          description: "ID de processamento inválido. Aguarde alguns instantes e tente novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       await cancelProcessing(fileId);
       toast({
         title: "Upload cancelado",
         description: "O processamento foi cancelado com sucesso",
       });
+      // Atualizar lista de processamentos
+      await refreshProcessings();
     } catch (error) {
       console.error('Erro ao cancelar upload:', error);
       toast({
         title: "Erro ao cancelar",
-        description: "Não foi possível cancelar o processamento",
+        description: error instanceof Error ? error.message : "Não foi possível cancelar o processamento",
         variant: "destructive",
       });
     }
@@ -371,17 +385,8 @@ export default function Payroll() {
         user_id: user?.id || ''
       };
 
-      // Initialize progress tracking
-      const initialProgress = selectedFiles.map((file, index) => ({
-        file_id: `upload-${Date.now()}-${index}`,
-        filename: file.name,
-        progress: 0,
-        status: 'uploading' as const,
-        error_message: undefined
-      }));
-      setUploadProgress(initialProgress);
-
       // Perform upload
+      // O progresso será atualizado automaticamente pelo useEffect que monitora activeProcessings
       const result = await PayrollService.batchUpload(uploadData);
 
       if (!result) {
@@ -402,10 +407,17 @@ export default function Payroll() {
         // N8N webhook is already being called by PayrollService.sendDirectToWebhook()
         // No need for additional webhook call here
 
-        toast({
+        const toastResult = toast({
           title: "Upload realizado com sucesso!",
           description: `${result.successful_files} arquivo(s) enviado(s) para processamento. O arquivo XLSX será baixado automaticamente quando o processamento for concluído.`,
         });
+        
+        // Fechar toast automaticamente após 5 segundos
+        setTimeout(() => {
+          if (toastResult?.dismiss) {
+            toastResult.dismiss();
+          }
+        }, 5000);
 
         // Clear form
         setSelectedFiles([]);
@@ -492,11 +504,16 @@ export default function Payroll() {
   const handleDownloadExcel = async (item: ProcessingHistory) => {
     try {
       if (!item.result_file_url) {
-        toast({
+        const toastResult = toast({
           title: "Arquivo não disponível",
           description: "O arquivo Excel não está disponível para download",
           variant: "destructive",
         });
+        setTimeout(() => {
+          if (toastResult?.dismiss) {
+            toastResult.dismiss();
+          }
+        }, 5000);
         return;
       }
 
@@ -510,11 +527,78 @@ export default function Payroll() {
       });
     } catch (error) {
       console.error('Error downloading Excel file:', error);
-      toast({
+      const toastResult = toast({
         title: "Erro no download",
         description: "Não foi possível baixar o arquivo Excel",
         variant: "destructive",
       });
+      setTimeout(() => {
+        if (toastResult?.dismiss) {
+          toastResult.dismiss();
+        }
+      }, 5000);
+    }
+  };
+
+  // Download PDF file from processing history
+  const handleDownloadPDF = async (processingId: string) => {
+    try {
+      const files = await PayrollService.getFilesByProcessingId(processingId);
+      if (files.length === 0) {
+        const toastResult = toast({
+          title: "Arquivo não disponível",
+          description: "Nenhum arquivo PDF encontrado para este processamento",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          if (toastResult?.dismiss) {
+            toastResult.dismiss();
+          }
+        }, 5000);
+        return;
+      }
+
+      // Baixar o primeiro arquivo PDF (ou todos se necessário)
+      const fileWithS3 = files.find(f => f.s3_url);
+      if (!fileWithS3 || !fileWithS3.s3_url) {
+        const toastResult = toast({
+          title: "Arquivo não disponível",
+          description: "O arquivo PDF não está disponível para download",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          if (toastResult?.dismiss) {
+            toastResult.dismiss();
+          }
+        }, 5000);
+        return;
+      }
+
+      // Fazer download do PDF
+      const link = document.createElement('a');
+      link.href = fileWithS3.s3_url;
+      link.download = fileWithS3.filename;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Download iniciado",
+        description: "O download do arquivo PDF foi iniciado",
+      });
+    } catch (error) {
+      console.error('Error downloading PDF file:', error);
+      const toastResult = toast({
+        title: "Erro no download",
+        description: "Não foi possível baixar o arquivo PDF",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        if (toastResult?.dismiss) {
+          toastResult.dismiss();
+        }
+      }, 5000);
     }
   };
 
@@ -831,15 +915,25 @@ export default function Payroll() {
                       </TableCell>
                       <TableCell>{new Date(item.started_at).toLocaleDateString()}</TableCell>
                       <TableCell>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleDownloadExcel(item)}
-                          disabled={!item.result_file_url}
-                          title="Download Excel"
-                        >
-                          <FileSpreadsheet className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDownloadPDF(item.id)}
+                            title="Download PDF"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDownloadExcel(item)}
+                            disabled={!item.result_file_url}
+                            title="Download Excel"
+                          >
+                            <FileSpreadsheet className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

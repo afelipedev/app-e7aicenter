@@ -512,10 +512,14 @@ export class PayrollService {
       }
 
       // Verificar se a resposta contém dados para download automático
-      if (result && result.success && result.data?.arquivo?.urls?.excel_download) {
+      // A estrutura da resposta do n8n é: result.data.arquivos.excel.url e result.data.arquivos.pdf.url
+      const excelUrl = result?.data?.arquivos?.excel?.url || result?.data?.arquivo?.urls?.excel_download || null;
+      const pdfUrl = result?.data?.arquivos?.pdf?.url || result?.data?.arquivo?.urls?.pdf_download || result?.data?.arquivo?.urls?.s3_url || null;
+      
+      if (result && result.success && excelUrl) {
         try {
-          const downloadUrl = result.data.arquivo.urls.excel_download;
-          const filename = result.data.arquivo.excel_filename || 'holerite_processado.xlsx';
+          const downloadUrl = excelUrl;
+          const filename = result.data?.arquivos?.excel?.nome || result.data?.arquivo?.excel_filename || 'holerite_processado.xlsx';
           
           // Atualizar progresso para 85% (iniciando download)
           await this.updateProcessing(processingId, {
@@ -536,17 +540,55 @@ export class PayrollService {
           });
 
           // Atualizar processamento como concluído com download
-           await this.updateProcessing(processingId, {
-             status: 'completed',
-             progress: 100,
-             webhook_response: result,
-             estimated_time: result?.estimated_time
-           });
+          // Usar função do banco que atualiza tanto payroll_processing quanto payroll_files
+          const { error: rpcError } = await supabase.rpc('receive_processing_result', {
+            p_processing_id: processingId,
+            p_status: 'completed',
+            p_progress: 100,
+            p_result_file_url: excelUrl,
+            p_extracted_data: result.data || null,
+            p_error_message: null,
+            p_webhook_response: result
+          });
+
+          if (rpcError) {
+            console.error('Erro ao atualizar status via RPC:', rpcError);
+            // Fallback: atualizar apenas payroll_processing
+            await this.updateProcessing(processingId, {
+              status: 'completed',
+              progress: 100,
+              webhook_response: result,
+              estimated_time: result?.estimated_time,
+              completed_at: new Date().toISOString()
+            });
+            
+            // Atualizar arquivos manualmente como fallback
+            await this.updateFilesStatusByProcessingId(processingId, 'completed');
+          } else {
+            // Atualizar s3_url e excel_url nos arquivos relacionados
+            // Log para debug
+            console.log('Atualizando URLs dos arquivos:', {
+              processingId,
+              pdfUrl,
+              excelUrl,
+              webhookResponse: result.data
+            });
+            
+            if (pdfUrl || excelUrl) {
+              await this.updateFilesUrlsByProcessingId(
+                processingId,
+                pdfUrl,
+                excelUrl
+              );
+            } else {
+              console.warn('Nenhuma URL encontrada na resposta do webhook para atualizar arquivos');
+            }
+          }
 
         } catch (downloadError) {
           await this.addProcessingLog(processingId, 'ERROR', 'Erro no download automático do arquivo XLSX', {
             error: downloadError instanceof Error ? downloadError.message : 'Erro desconhecido',
-            download_url: result.data.arquivo.urls.excel_download
+            download_url: excelUrl
           });
 
           // Atualizar processamento como processando (sem download)
@@ -788,6 +830,84 @@ export class PayrollService {
   }
 
   /**
+   * Atualiza status dos arquivos relacionados a um processamento
+   */
+  static async updateFilesStatusByProcessingId(processingId: string, status: 'pending' | 'processing' | 'completed' | 'error'): Promise<void> {
+    // Buscar IDs dos arquivos relacionados
+    const { data: fileIds, error: fileIdsError } = await supabase
+      .from('payroll_files_processing')
+      .select('payroll_file_id')
+      .eq('processing_id', processingId);
+
+    if (fileIdsError) {
+      throw new Error(`Erro ao buscar IDs dos arquivos: ${fileIdsError.message}`);
+    }
+
+    if (!fileIds || fileIds.length === 0) {
+      return;
+    }
+
+    // Atualizar status dos arquivos
+    const ids = fileIds.map(item => item.payroll_file_id);
+    const { error: updateError } = await supabase
+      .from('payroll_files')
+      .update({ status })
+      .in('id', ids);
+
+    if (updateError) {
+      throw new Error(`Erro ao atualizar status dos arquivos: ${updateError.message}`);
+    }
+  }
+
+  /**
+   * Atualiza URLs (s3_url e excel_url) dos arquivos relacionados a um processamento
+   */
+  static async updateFilesUrlsByProcessingId(
+    processingId: string, 
+    s3Url: string | null, 
+    excelUrl: string | null
+  ): Promise<void> {
+    // Buscar IDs dos arquivos relacionados
+    const { data: fileIds, error: fileIdsError } = await supabase
+      .from('payroll_files_processing')
+      .select('payroll_file_id')
+      .eq('processing_id', processingId);
+
+    if (fileIdsError) {
+      throw new Error(`Erro ao buscar IDs dos arquivos: ${fileIdsError.message}`);
+    }
+
+    if (!fileIds || fileIds.length === 0) {
+      return;
+    }
+
+    // Preparar dados de atualização
+    const updateData: any = {};
+    if (s3Url) {
+      updateData.s3_url = s3Url;
+    }
+    if (excelUrl) {
+      updateData.excel_url = excelUrl;
+    }
+
+    // Se não há nada para atualizar, retornar
+    if (Object.keys(updateData).length === 0) {
+      return;
+    }
+
+    // Atualizar URLs dos arquivos
+    const ids = fileIds.map(item => item.payroll_file_id);
+    const { error: updateError } = await supabase
+      .from('payroll_files')
+      .update(updateData)
+      .in('id', ids);
+
+    if (updateError) {
+      throw new Error(`Erro ao atualizar URLs dos arquivos: ${updateError.message}`);
+    }
+  }
+
+  /**
    * Adiciona log de processamento
    */
   static async addProcessingLog(
@@ -1010,15 +1130,65 @@ export class PayrollService {
    */
   static async receiveWebhookStatusUpdate(update: WebhookStatusUpdate): Promise<void> {
     try {
-      // Atualizar processamento
-      await this.updateProcessing(update.processing_id, {
-        status: update.status,
-        progress: update.progress,
-        result_file_url: update.result_file_url,
-        extracted_data: update.extracted_data,
-        error_message: update.error_message,
-        completed_at: update.status === 'completed' ? new Date().toISOString() : undefined
-      });
+      // Se o status for 'completed' ou 'error', usar função RPC que atualiza tanto payroll_processing quanto payroll_files
+      if (update.status === 'completed' || update.status === 'error') {
+        const { error: rpcError } = await supabase.rpc('receive_processing_result', {
+          p_processing_id: update.processing_id,
+          p_status: update.status,
+          p_progress: update.progress || (update.status === 'completed' ? 100 : null),
+          p_result_file_url: update.result_file_url || null,
+          p_extracted_data: update.extracted_data || null,
+          p_error_message: update.error_message || null,
+          p_webhook_response: null
+        });
+
+        if (rpcError) {
+          console.error('Erro ao atualizar status via RPC:', rpcError);
+          // Fallback: atualizar apenas payroll_processing
+          await this.updateProcessing(update.processing_id, {
+            status: update.status,
+            progress: update.progress,
+            result_file_url: update.result_file_url,
+            extracted_data: update.extracted_data,
+            error_message: update.error_message,
+            completed_at: update.status === 'completed' ? new Date().toISOString() : undefined
+          });
+          
+          // Atualizar arquivos manualmente como fallback
+          await this.updateFilesStatusByProcessingId(update.processing_id, update.status);
+        } else if (update.status === 'completed') {
+          // Atualizar s3_url e excel_url nos arquivos relacionados quando completado
+          // Extrair URLs do webhook_response se disponível
+          // A estrutura pode ser: data.arquivos.pdf.url ou data.arquivo.urls.pdf_download
+          const webhookResponse = update.extracted_data as any;
+          const s3Url = webhookResponse?.arquivos?.pdf?.url || 
+                       webhookResponse?.arquivo?.urls?.pdf_download || 
+                       webhookResponse?.arquivo?.urls?.s3_url || 
+                       null;
+          const excelUrl = update.result_file_url || 
+                          webhookResponse?.arquivos?.excel?.url ||
+                          webhookResponse?.arquivo?.urls?.excel_download || 
+                          null;
+          
+          if (s3Url || excelUrl) {
+            await this.updateFilesUrlsByProcessingId(
+              update.processing_id,
+              s3Url,
+              excelUrl
+            );
+          }
+        }
+      } else {
+        // Para outros status, atualizar apenas payroll_processing
+        await this.updateProcessing(update.processing_id, {
+          status: update.status,
+          progress: update.progress,
+          result_file_url: update.result_file_url,
+          extracted_data: update.extracted_data,
+          error_message: update.error_message,
+          completed_at: update.status === 'completed' ? new Date().toISOString() : undefined
+        });
+      }
 
       // Adicionar log
       await this.addProcessingLog(
