@@ -3,11 +3,12 @@ import { X, Building2, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { CompanyService } from '../services/companyService';
 import type { CreateCompanyData } from '../../shared/types/company';
+import { useToast } from '@/hooks/use-toast';
 
 interface CompanyCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (company?: any) => void;
 }
 
 export const CompanyCreateModal: React.FC<CompanyCreateModalProps> = ({
@@ -15,6 +16,7 @@ export const CompanyCreateModal: React.FC<CompanyCreateModalProps> = ({
   onClose,
   onSuccess
 }) => {
+  const { toast } = useToast();
   const [formData, setFormData] = useState<CreateCompanyData>({
     name: '',
     cnpj: ''
@@ -85,23 +87,57 @@ export const CompanyCreateModal: React.FC<CompanyCreateModalProps> = ({
         cnpj: CompanyService.cleanCnpj(formData.cnpj)
       };
 
-      await CompanyService.create(cleanedData);
+      const newCompany = await CompanyService.create(cleanedData);
       
       // Resetar formulário
       setFormData({ name: '', cnpj: '' });
       setErrors({});
       
-      onSuccess();
+      // Passar a empresa criada para o callback com estatísticas padrão
+      const companyWithStats = {
+        ...newCompany,
+        total_payroll_files: 0,
+        files_this_week: 0,
+        files_this_month: 0
+      };
+      onSuccess(companyWithStats);
       onClose();
+      
+      toast({
+        title: "Sucesso",
+        description: "Empresa criada com sucesso",
+      });
     } catch (error) {
       console.error('Erro ao criar empresa:', error);
       
+      let errorMessage = 'Erro desconhecido ao criar empresa';
+      
       if (error instanceof Error) {
-        if (error.message.includes('CNPJ')) {
+        errorMessage = error.message;
+        
+        if (error.message.includes('CNPJ') || error.message.includes('cnpj')) {
           setErrors({ cnpj: error.message });
+        } else if (error.message.includes('Sessão expirada') || error.message.includes('não autenticado')) {
+          setErrors({ name: error.message });
+          toast({
+            title: "Erro de Autenticação",
+            description: error.message,
+            variant: "destructive",
+          });
         } else {
           setErrors({ name: error.message });
+          toast({
+            title: "Erro ao criar empresa",
+            description: errorMessage,
+            variant: "destructive",
+          });
         }
+      } else {
+        toast({
+          title: "Erro ao criar empresa",
+          description: errorMessage,
+          variant: "destructive",
+        });
       }
     } finally {
       setIsLoading(false);

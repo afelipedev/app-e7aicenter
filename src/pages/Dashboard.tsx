@@ -9,6 +9,7 @@ import {
   Clock,
   CheckCircle,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const stats = [
   {
@@ -108,6 +109,12 @@ const quickActions = [
 ];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+
+  const handleQuickActionClick = (url: string) => {
+    navigate(url);
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -143,6 +150,7 @@ export default function Dashboard() {
             <Card
               key={action.title}
               className="p-6 cursor-pointer hover:shadow-lg transition-all hover:-translate-y-1"
+              onClick={() => handleQuickActionClick(action.url)}
             >
               <div className={`w-12 h-12 rounded-lg ${action.color} flex items-center justify-center mb-4`}>
                 <action.icon className="w-6 h-6 text-white" />

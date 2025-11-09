@@ -63,16 +63,39 @@ export class CompanyService {
       .from('companies')
       .select('*')
       .eq('cnpj', cnpj)
-      .single();
+      .maybeSingle(); // Usa maybeSingle em vez de single para evitar erro 406
 
     if (error) {
+      // Se for erro de "não encontrado", retorna null
       if (error.code === 'PGRST116') {
-        return null; // Empresa não encontrada
+        return null;
       }
       throw new Error(`Erro ao buscar empresa por CNPJ: ${error.message}`);
     }
 
-    return data;
+    return data || null;
+  }
+
+  /**
+   * Renova a sessão do usuário se necessário
+   */
+  private static async ensureAuthenticatedSession(): Promise<void> {
+    try {
+      // Tentar renovar a sessão
+      const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+      
+      if (refreshError) {
+        console.warn('Erro ao renovar sessão:', refreshError);
+        // Se não conseguir renovar, verificar se ainda há sessão válida
+        const { data: { user }, error: getUserError } = await supabase.auth.getUser();
+        if (getUserError || !user) {
+          throw new Error('Sessão expirada. Por favor, faça login novamente.');
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao garantir sessão autenticada:', error);
+      throw error;
+    }
   }
 
   /**
@@ -84,18 +107,17 @@ export class CompanyService {
       throw new Error('CNPJ inválido');
     }
 
-    // Verificar se já existe empresa com este CNPJ
-    const existingCompany = await this.getByCnpj(companyData.cnpj);
-    if (existingCompany) {
-      throw new Error('Já existe uma empresa cadastrada com este CNPJ');
-    }
+    // Garantir que a sessão está válida antes de criar empresa
+    await this.ensureAuthenticatedSession();
 
-    // Obter usuário atual
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    // Obter usuário atual (fazer antes da verificação para evitar timeout)
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
       throw new Error('Usuário não autenticado');
     }
 
+    // Tentar inserir diretamente - a constraint unique do banco já valida duplicidade
+    // Isso é mais eficiente que fazer uma query separada para verificar
     const { data, error } = await supabase
       .from('companies')
       .insert({
@@ -107,6 +129,10 @@ export class CompanyService {
       .single();
 
     if (error) {
+      // Se for erro de constraint unique, retornar mensagem amigável
+      if (error.code === '23505' || error.message.includes('duplicate') || error.message.includes('unique')) {
+        throw new Error('Já existe uma empresa cadastrada com este CNPJ');
+      }
       throw new Error(`Erro ao criar empresa: ${error.message}`);
     }
 
@@ -160,19 +186,28 @@ export class CompanyService {
 
   /**
    * Busca empresas com estatísticas de holerites
+   * Otimizado para fazer queries em paralelo com limite de concorrência
    */
   static async getAllWithStats(): Promise<CompanyWithStats[]> {
     const companies = await this.getAll();
     
-    const companiesWithStats = await Promise.all(
-      companies.map(async (company) => {
-        const stats = await this.getPayrollStats(company.id);
-        return {
-          ...company,
-          ...stats
-        };
-      })
-    );
+    // Limitar concorrência para evitar sobrecarga
+    const BATCH_SIZE = 10;
+    const companiesWithStats: CompanyWithStats[] = [];
+    
+    for (let i = 0; i < companies.length; i += BATCH_SIZE) {
+      const batch = companies.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(async (company) => {
+          const stats = await this.getPayrollStats(company.id);
+          return {
+            ...company,
+            ...stats
+          };
+        })
+      );
+      companiesWithStats.push(...batchResults);
+    }
 
     return companiesWithStats;
   }

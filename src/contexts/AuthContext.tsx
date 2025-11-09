@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { User as SupabaseUser, Session, AuthError } from '@supabase/supabase-js'
 import { supabase, User, UserRole, validateSupabaseConfig } from '../lib/supabase'
 import { FirstAccessService, FirstAccessStatus } from '../services/firstAccessService'
@@ -50,6 +50,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [firstAccessStatus, setFirstAccessStatus] = useState<FirstAccessStatus | null>(null)
+  
+  // Refs para acessar valores atuais sem causar re-renders
+  const sessionRef = useRef<Session | null>(null)
+  const userRef = useRef<User | null>(null)
+  const signOutRef = useRef<(() => Promise<{ error: AuthError | null }>) | null>(null)
+  const fetchUserProfileRef = useRef<((authUser: SupabaseUser) => Promise<void>) | null>(null)
+  
+  // Atualizar refs quando estado mudar
+  useEffect(() => {
+    sessionRef.current = session
+  }, [session])
+  
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
 
   // Validar configuração do Supabase na inicialização
   useEffect(() => {
@@ -192,7 +207,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
-  const signOut = async (): Promise<{ error: AuthError | null }> => {
+  const signOut = useCallback(async (): Promise<{ error: AuthError | null }> => {
     try {
       setLoading(true)
       
@@ -312,7 +327,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user, session])
 
   // Método de logout simplificado para uso interno
   const logout = async (): Promise<void> => {
@@ -392,34 +407,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('Fazendo query para buscar usuário...')
       
-      // Implementar timeout para evitar carregamento infinito - aumentado para 30 segundos
-      const queryPromise = supabase
+      // Query simplificada sem timeout artificial - Supabase gerencia timeout internamente
+      const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('auth_user_id', authUser.id)
-        .limit(1)
-
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Query timeout - 30 segundos')), 30000)
-      })
-
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any
+        .maybeSingle() // Retorna objeto único ou null, não array
 
       console.log('Query concluída:', { data, error })
 
       if (error) {
         console.error('Erro ao buscar perfil do usuário:', error)
-        // NÃO fazer logout automático em caso de erro de RLS - apenas log
-        console.warn('Continuando sem fazer logout automático devido a erro de RLS')
-        setLoading(false)
-        return
+        // Se for erro de RLS ou não encontrado, tentar criar usuário
+        if (error.code === 'PGRST116' || error.message?.includes('row-level security')) {
+          console.log('Usuário não encontrado ou bloqueado por RLS, tentando criar perfil...')
+          // Continuar para criar usuário abaixo
+        } else {
+          // NÃO fazer logout automático em caso de erro de RLS - apenas log
+          console.warn('Continuando sem fazer logout automático devido a erro:', error.message)
+          setLoading(false)
+          return
+        }
       }
 
-      // Verificar se encontrou usuário (data é array agora)
-      if (!data || !Array.isArray(data) || data.length === 0) {
+      // Verificar se encontrou usuário (data é objeto único com maybeSingle, não array)
+      if (!data) {
         console.log('Usuário não encontrado, criando perfil na tabela public.users')
         
-        const { data: newUserArray, error: createError } = await supabase
+        const { data: newUserData, error: createError } = await supabase
           .from('users')
           .insert({
             auth_user_id: authUser.id,
@@ -429,8 +444,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             status: 'ativo'
           })
           .select()
-        
-        console.log('Resultado da criação:', { newUserArray, createError })
+          .maybeSingle() // Usar maybeSingle aqui também
+      
+        console.log('Resultado da criação:', { newUserData, createError })
         
         if (createError) {
           console.error('Erro ao criar usuário na tabela public.users:', createError)
@@ -439,22 +455,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return
         }
         
-        if (newUserArray && newUserArray.length > 0) {
-          console.log('Usuário criado com sucesso:', newUserArray[0])
-          setUser(newUserArray[0])
+        if (newUserData) {
+          console.log('Usuário criado com sucesso:', newUserData)
+          setUser(newUserData)
         }
         setLoading(false)
         return
       }
 
-      // Usuário encontrado
-      const userData = data[0]
-      if (!userData) {
-        console.error('Nenhum usuário encontrado na tabela public.users para auth_user_id:', authUser.id)
-        // NÃO fazer logout automático - apenas log do erro
-        setLoading(false)
-        return
-      }
+      // Usuário encontrado - data já é o objeto, não precisa de [0]
+      const userData = data
 
       // Verificar se o usuário está ativo
       if (userData.status !== 'ativo') {
@@ -490,8 +500,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [])
 
+  // Atualizar refs das funções quando mudarem
+  useEffect(() => {
+    signOutRef.current = signOut
+  }, [signOut])
+  
+  useEffect(() => {
+    fetchUserProfileRef.current = fetchUserProfile
+  }, [fetchUserProfile])
+
   useEffect(() => {
     let mounted = true
+    let inactivityTimer: NodeJS.Timeout | null = null
+    let listenersAdded = false
+    
+    // Configuração de timeout de sessão (30 minutos de inatividade)
+    const SESSION_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutos
+
+    const resetInactivityTimer = () => {
+      if (inactivityTimer) {
+        clearTimeout(inactivityTimer)
+      }
+      
+      if (!sessionRef.current) return
+      
+      inactivityTimer = setTimeout(async () => {
+        console.log('⏰ Timeout de sessão detectado por inatividade')
+        if (mounted && signOutRef.current) {
+          await signOutRef.current()
+        }
+      }, SESSION_TIMEOUT_MS)
+    }
+
+    // Event listeners para detectar atividade do usuário
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
+    const handleActivity = () => {
+      resetInactivityTimer()
+    }
+
+    const addActivityListeners = () => {
+      if (listenersAdded) return
+      listenersAdded = true
+      activityEvents.forEach(event => {
+        window.addEventListener(event, handleActivity, { passive: true })
+      })
+    }
+
+    const removeActivityListeners = () => {
+      if (!listenersAdded) return
+      listenersAdded = false
+      activityEvents.forEach(event => {
+        window.removeEventListener(event, handleActivity)
+      })
+    }
 
     const initializeAuth = async () => {
       try {
@@ -509,7 +570,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (mounted) {
           setSession(session)
           if (session?.user) {
-            await fetchUserProfile(session.user)
+            if (fetchUserProfileRef.current) {
+              await fetchUserProfileRef.current(session.user)
+            }
+            resetInactivityTimer()
+            addActivityListeners()
           }
           setLoading(false)
         }
@@ -526,18 +591,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Listen for auth changes
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return
 
       console.log('Auth state changed:', event)
       
-      setSession(session)
+      // Evitar atualizar se a sessão não mudou realmente
+      const currentSession = sessionRef.current
+      if (currentSession?.access_token === newSession?.access_token && event !== 'SIGNED_OUT' && event !== 'SIGNED_IN') {
+        console.log('Sessão não mudou, ignorando atualização')
+        return
+      }
       
-      if (session?.user) {
-        await fetchUserProfile(session.user)
+      setSession(newSession)
+      
+      if (newSession?.user) {
+        if (fetchUserProfileRef.current) {
+          await fetchUserProfileRef.current(newSession.user)
+        }
+        resetInactivityTimer()
+        addActivityListeners()
       } else {
         setUser(null)
         setFirstAccessStatus(null)
+        
+        // Limpar timers e listeners quando usuário faz logout
+        if (inactivityTimer) {
+          clearTimeout(inactivityTimer)
+          inactivityTimer = null
+        }
+        
+        removeActivityListeners()
+        
+        // Redirecionar para login se não estiver já lá
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
       }
       
       setLoading(false)
@@ -546,8 +635,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => {
       mounted = false
       subscription.unsubscribe()
+      
+      if (inactivityTimer) {
+        clearTimeout(inactivityTimer)
+      }
+      
+      removeActivityListeners()
     }
-  }, [])
+  }, []) // Sem dependências para evitar loops
 
   const value: AuthContextType = {
     user,

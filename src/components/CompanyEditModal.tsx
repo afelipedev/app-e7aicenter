@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CompanyService } from '../services/companyService';
 import type { Company, UpdateCompanyData } from '../../shared/types/company';
+import { useToast } from '@/hooks/use-toast';
 
 interface CompanyEditModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export const CompanyEditModal: React.FC<CompanyEditModalProps> = ({
   onClose,
   onSuccess
 }) => {
+  const { toast } = useToast();
   const [formData, setFormData] = useState<UpdateCompanyData>({
     name: '',
     cnpj: '',
@@ -103,17 +105,44 @@ export const CompanyEditModal: React.FC<CompanyEditModalProps> = ({
 
       await CompanyService.update(company.id, updateData);
       
+      toast({
+        title: "Sucesso",
+        description: "Empresa atualizada com sucesso",
+      });
+      
       onSuccess();
       onClose();
     } catch (error) {
       console.error('Erro ao atualizar empresa:', error);
       
+      let errorMessage = 'Erro desconhecido ao atualizar empresa';
+      
       if (error instanceof Error) {
-        if (error.message.includes('CNPJ')) {
+        errorMessage = error.message;
+        
+        if (error.message.includes('CNPJ') || error.message.includes('cnpj')) {
           setErrors({ cnpj: error.message });
+        } else if (error.message.includes('Sessão expirada') || error.message.includes('não autenticado')) {
+          setErrors({ name: error.message });
+          toast({
+            title: "Erro de Autenticação",
+            description: error.message,
+            variant: "destructive",
+          });
         } else {
           setErrors({ name: error.message });
+          toast({
+            title: "Erro ao atualizar empresa",
+            description: errorMessage,
+            variant: "destructive",
+          });
         }
+      } else {
+        toast({
+          title: "Erro ao atualizar empresa",
+          description: errorMessage,
+          variant: "destructive",
+        });
       }
     } finally {
       setIsLoading(false);

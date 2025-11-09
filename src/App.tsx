@@ -77,6 +77,11 @@ const App = () => (
               <Route path="/companies/:companyId/payrolls" element={<PayrollManagement />} />
               
               {/* Admin routes - require admin permission */}
+              <Route path="/admin" element={
+                <ProtectedRoute requiredPermission="admin">
+                  <Users />
+                </ProtectedRoute>
+              } />
               <Route path="/admin/users" element={
                 <ProtectedRoute requiredPermission="admin">
                   <Users />

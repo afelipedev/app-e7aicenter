@@ -1,0 +1,131 @@
+{
+  "tech_stack": [
+    "TypeScript",
+    "React",
+    "Vite",
+    "PostgreSQL",
+    "Supabase",
+    "Tailwind CSS",
+    "shadcn/ui",
+    "React Router",
+    "TanStack Query"
+  ],
+  "features": [
+    {
+      "name": "Authentication System",
+      "description": "Sistema completo de autenticação com login, logout, primeiro acesso e sincronização de usuários",
+      "files": [
+        "src/contexts/AuthContext.tsx",
+        "src/pages/Login.tsx",
+        "src/components/FirstAccessGuard.tsx",
+        "src/components/FirstAccessModal.tsx",
+        "src/services/firstAccessService.ts",
+        "src/services/userSyncService.ts"
+      ]
+    },
+    {
+      "name": "User Management",
+      "description": "CRUD completo de usuários com controle de permissões baseado em roles",
+      "files": [
+        "src/pages/admin/Users.tsx",
+        "src/components/UserCreateModal.tsx",
+        "src/components/UserEditModal.tsx",
+        "src/components/UsersPagination.tsx",
+        "src/services/userService.ts"
+      ]
+    },
+    {
+      "name": "Company Management",
+      "description": "CRUD completo de empresas com validação de CNPJ e estatísticas de holerites",
+      "files": [
+        "src/pages/Companies.tsx",
+        "src/components/CompanyCreateModal.tsx",
+        "src/components/CompanyEditModal.tsx",
+        "src/services/companyService.ts"
+      ]
+    },
+    {
+      "name": "Payroll Processing",
+      "description": "Upload em lote de PDFs, processamento assíncrono via n8n, rastreamento em tempo real",
+      "files": [
+        "src/pages/documents/Payroll.tsx",
+        "src/pages/PayrollManagement.tsx",
+        "src/components/payroll/PayrollProcessingDetails.tsx",
+        "src/components/payroll/ProcessingDetails.tsx",
+        "src/components/payroll/ProcessingStatusCard.tsx",
+        "src/components/payroll/ProcessingHistoryTable.tsx",
+        "src/components/payroll/RealTimeStatusTracker.tsx",
+        "src/components/payroll/UploadProgress.tsx",
+        "src/components/payroll/SecurityScanAlert.tsx",
+        "src/components/payroll/FileValidationAlert.tsx",
+        "src/services/payrollService.ts"
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "description": "Página inicial com estatísticas gerais, ações rápidas e atividades recentes",
+      "files": [
+        "src/pages/Dashboard.tsx"
+      ]
+    },
+    {
+      "name": "AI Assistants",
+      "description": "Chats especializados por área (tributário, cível, financeiro, contábil)",
+      "files": [
+        "src/pages/assistants/ChatGeneral.tsx",
+        "src/pages/assistants/TaxLaw.tsx",
+        "src/pages/assistants/CivilLaw.tsx",
+        "src/pages/assistants/Financial.tsx",
+        "src/pages/assistants/Accounting.tsx"
+      ]
+    },
+    {
+      "name": "Documents Management",
+      "description": "Gestão de documentos incluindo holerites, casos e relatórios",
+      "files": [
+        "src/pages/documents/Payroll.tsx",
+        "src/pages/documents/Cases.tsx",
+        "src/pages/documents/Reports.tsx"
+      ]
+    },
+    {
+      "name": "Integrations",
+      "description": "Integrações com PowerBI, Trello e Calendário",
+      "files": [
+        "src/pages/integrations/PowerBI.tsx",
+        "src/pages/integrations/Trello.tsx",
+        "src/pages/integrations/CalendarIntegration.tsx"
+      ]
+    },
+    {
+      "name": "Layout Components",
+      "description": "Componentes de layout incluindo sidebar, header e navegação",
+      "files": [
+        "src/components/layout/AppLayout.tsx",
+        "src/components/layout/AppSidebar.tsx",
+        "src/components/layout/Header.tsx"
+      ]
+    },
+    {
+      "name": "Protected Routes",
+      "description": "Sistema de rotas protegidas com validação de permissões",
+      "files": [
+        "src/components/ProtectedRoute.tsx"
+      ]
+    },
+    {
+      "name": "UI Components",
+      "description": "Biblioteca de componentes shadcn/ui",
+      "files": [
+        "src/components/ui/*"
+      ]
+    },
+    {
+      "name": "Error Handling",
+      "description": "Sistema centralizado de tratamento de erros",
+      "files": [
+        "src/utils/errorHandling.ts"
+      ]
+    }
+  ]
+}

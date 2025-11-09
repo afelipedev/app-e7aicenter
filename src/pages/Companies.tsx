@@ -109,8 +109,26 @@ export const Companies: React.FC = () => {
     };
   }, []);
 
-  const handleCreateSuccess = () => {
-    loadCompanies();
+  const handleCreateSuccess = async (newCompany?: CompanyWithStats) => {
+    // Se a nova empresa foi retornada, adicionar à lista sem recarregar tudo
+    if (newCompany) {
+      // Adicionar estatísticas padrão se não vierem
+      const companyWithStats: CompanyWithStats = {
+        ...newCompany,
+        total_payroll_files: newCompany.total_payroll_files || 0,
+        files_this_week: newCompany.files_this_week || 0,
+        files_this_month: newCompany.files_this_month || 0
+      };
+      
+      setCompanies(prev => [...prev, companyWithStats].sort((a, b) => 
+        a.name.localeCompare(b.name)
+      ));
+    } else {
+      // Se não tiver a empresa, recarregar apenas se não houver busca ativa
+      if (!searchTerm) {
+        loadCompanies();
+      }
+    }
   };
 
   const handleEditClick = (company: CompanyWithStats) => {
