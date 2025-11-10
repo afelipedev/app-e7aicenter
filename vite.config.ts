@@ -13,6 +13,8 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Alias para pasta shared (usar ~shared para evitar conflito com @)
+      "~shared": path.resolve(__dirname, "./shared"),
     },
   },
   build: {
