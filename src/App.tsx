@@ -27,7 +27,31 @@ import NotFound from "./pages/NotFound";
 import { TestPage } from "./pages/TestPage";
 import { TestPayrollWorkflow } from "./pages/TestPayrollWorkflow";
 
-const queryClient = new QueryClient();
+// Configuração do QueryClient com cache otimizado
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Cache por 5 minutos por padrão
+      staleTime: 5 * 60 * 1000,
+      // Manter dados em cache por 10 minutos
+      gcTime: 10 * 60 * 1000,
+      // Refetch quando a janela recebe foco
+      refetchOnWindowFocus: true,
+      // Refetch quando reconecta à internet
+      refetchOnReconnect: true,
+      // Não refetch automaticamente em background
+      refetchOnMount: true,
+      // Retry 3 vezes em caso de erro
+      retry: 3,
+      // Tempo entre retries
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    },
+    mutations: {
+      // Retry mutations apenas 1 vez
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

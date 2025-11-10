@@ -1,21 +1,43 @@
 import { supabase } from '../lib/supabase';
 import type { Company, CreateCompanyData, UpdateCompanyData, CompanyWithStats } from '../../shared/types/company';
 
+// Timeout padrão para operações (15 segundos)
+const DEFAULT_TIMEOUT = 15000;
+
+// Função utilitária para adicionar timeout a promises
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number = DEFAULT_TIMEOUT): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Operação expirou. Verifique sua conexão e tente novamente.')), timeoutMs)
+    )
+  ]);
+};
+
 export class CompanyService {
   /**
    * Busca todas as empresas
    */
   static async getAll(): Promise<Company[]> {
-    const { data, error } = await supabase
-      .from('companies')
-      .select('*')
-      .order('name');
+    try {
+      const queryPromise = supabase
+        .from('companies')
+        .select('*')
+        .order('name');
 
-    if (error) {
-      throw new Error(`Erro ao buscar empresas: ${error.message}`);
+      const { data, error } = await withTimeout(queryPromise, DEFAULT_TIMEOUT);
+
+      if (error) {
+        throw new Error(`Erro ao buscar empresas: ${error.message}`);
+      }
+
+      return data || [];
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('expirou')) {
+        throw error;
+      }
+      throw new Error(`Erro ao buscar empresas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
-
-    return data || [];
   }
 
   /**
@@ -23,11 +45,13 @@ export class CompanyService {
    */
   static async getById(id: string): Promise<Company | null> {
     try {
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from('companies')
         .select('*')
         .eq('id', id)
         .single();
+
+      const { data, error } = await withTimeout(queryPromise, DEFAULT_TIMEOUT);
 
       if (error) {
         if (error.code === 'PGRST116') {
@@ -44,6 +68,10 @@ export class CompanyService {
 
       return data;
     } catch (err) {
+      // Captura erros de timeout
+      if (err instanceof Error && err.message.includes('expirou')) {
+        throw err;
+      }
       // Captura erros de rede ou outros erros não relacionados ao Supabase
       if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
         console.error('Network connectivity error:', err);
@@ -51,7 +79,7 @@ export class CompanyService {
       }
       
       console.error('Unexpected error in getById:', err);
-      throw err;
+      throw err instanceof Error ? err : new Error('Erro desconhecido ao buscar empresa');
     }
   }
 
@@ -59,42 +87,61 @@ export class CompanyService {
    * Busca uma empresa por CNPJ
    */
   static async getByCnpj(cnpj: string): Promise<Company | null> {
-    const { data, error } = await supabase
-      .from('companies')
-      .select('*')
-      .eq('cnpj', cnpj)
-      .maybeSingle(); // Usa maybeSingle em vez de single para evitar erro 406
+    try {
+      const queryPromise = supabase
+        .from('companies')
+        .select('*')
+        .eq('cnpj', cnpj)
+        .maybeSingle(); // Usa maybeSingle em vez de single para evitar erro 406
 
-    if (error) {
-      // Se for erro de "não encontrado", retorna null
-      if (error.code === 'PGRST116') {
-        return null;
+      const { data, error } = await withTimeout(queryPromise, DEFAULT_TIMEOUT);
+
+      if (error) {
+        // Se for erro de "não encontrado", retorna null
+        if (error.code === 'PGRST116') {
+          return null;
+        }
+        throw new Error(`Erro ao buscar empresa por CNPJ: ${error.message}`);
       }
-      throw new Error(`Erro ao buscar empresa por CNPJ: ${error.message}`);
-    }
 
-    return data || null;
+      return data || null;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('expirou')) {
+        throw error;
+      }
+      throw new Error(`Erro ao buscar empresa por CNPJ: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    }
   }
 
   /**
    * Renova a sessão do usuário se necessário
+   * Com timeout para evitar travamento infinito
    */
   private static async ensureAuthenticatedSession(): Promise<void> {
     try {
-      // Tentar renovar a sessão
-      const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+      // Verificar primeiro se já há uma sessão válida (mais rápido)
+      const getUserPromise = supabase.auth.getUser();
+      const { data: { user }, error: getUserError } = await withTimeout(getUserPromise, 5000);
       
-      if (refreshError) {
+      if (!getUserError && user) {
+        // Sessão válida encontrada, não precisa renovar
+        return;
+      }
+
+      // Se não há sessão válida, tentar renovar (com timeout menor)
+      const refreshPromise = supabase.auth.refreshSession();
+      const { data: { session }, error: refreshError } = await withTimeout(refreshPromise, 10000);
+      
+      if (refreshError || !session) {
         console.warn('Erro ao renovar sessão:', refreshError);
-        // Se não conseguir renovar, verificar se ainda há sessão válida
-        const { data: { user }, error: getUserError } = await supabase.auth.getUser();
-        if (getUserError || !user) {
-          throw new Error('Sessão expirada. Por favor, faça login novamente.');
-        }
+        throw new Error('Sessão expirada. Por favor, faça login novamente.');
       }
     } catch (error) {
       console.error('Erro ao garantir sessão autenticada:', error);
-      throw error;
+      if (error instanceof Error && error.message.includes('expirou')) {
+        throw error;
+      }
+      throw new Error('Erro ao verificar autenticação. Tente novamente.');
     }
   }
 
@@ -107,36 +154,53 @@ export class CompanyService {
       throw new Error('CNPJ inválido');
     }
 
-    // Garantir que a sessão está válida antes de criar empresa
-    await this.ensureAuthenticatedSession();
+    try {
+      // Garantir que a sessão está válida antes de criar empresa (com timeout)
+      await this.ensureAuthenticatedSession();
 
-    // Obter usuário atual (fazer antes da verificação para evitar timeout)
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      throw new Error('Usuário não autenticado');
-    }
-
-    // Tentar inserir diretamente - a constraint unique do banco já valida duplicidade
-    // Isso é mais eficiente que fazer uma query separada para verificar
-    const { data, error } = await supabase
-      .from('companies')
-      .insert({
-        ...companyData,
-        created_by: user.id,
-        status: 'ativo'
-      })
-      .select()
-      .single();
-
-    if (error) {
-      // Se for erro de constraint unique, retornar mensagem amigável
-      if (error.code === '23505' || error.message.includes('duplicate') || error.message.includes('unique')) {
-        throw new Error('Já existe uma empresa cadastrada com este CNPJ');
+      // Obter usuário atual (com timeout)
+      const getUserPromise = supabase.auth.getUser();
+      const { data: { user }, error: authError } = await withTimeout(getUserPromise, 5000);
+      
+      if (authError || !user) {
+        throw new Error('Usuário não autenticado. Por favor, faça login novamente.');
       }
-      throw new Error(`Erro ao criar empresa: ${error.message}`);
-    }
 
-    return data;
+      // Tentar inserir diretamente - a constraint unique do banco já valida duplicidade
+      // Isso é mais eficiente que fazer uma query separada para verificar
+      const insertPromise = supabase
+        .from('companies')
+        .insert({
+          ...companyData,
+          created_by: user.id,
+          status: 'ativo'
+        })
+        .select()
+        .single();
+
+      const { data, error } = await withTimeout(insertPromise, DEFAULT_TIMEOUT);
+
+      if (error) {
+        // Se for erro de constraint unique, retornar mensagem amigável
+        if (error.code === '23505' || error.message.includes('duplicate') || error.message.includes('unique')) {
+          throw new Error('Já existe uma empresa cadastrada com este CNPJ');
+        }
+        throw new Error(`Erro ao criar empresa: ${error.message}`);
+      }
+
+      if (!data) {
+        throw new Error('Erro ao criar empresa: nenhum dado retornado');
+      }
+
+      return data;
+    } catch (error) {
+      // Re-throw erros já tratados
+      if (error instanceof Error) {
+        throw error;
+      }
+      // Erros não esperados
+      throw new Error('Erro inesperado ao criar empresa. Tente novamente.');
+    }
   }
 
   /**
@@ -148,39 +212,61 @@ export class CompanyService {
       throw new Error('CNPJ inválido');
     }
 
-    // Verificar se já existe outra empresa com este CNPJ
-    if (companyData.cnpj) {
-      const existingCompany = await this.getByCnpj(companyData.cnpj);
-      if (existingCompany && existingCompany.id !== id) {
-        throw new Error('Já existe uma empresa cadastrada com este CNPJ');
+    try {
+      // Verificar se já existe outra empresa com este CNPJ
+      if (companyData.cnpj) {
+        const existingCompany = await this.getByCnpj(companyData.cnpj);
+        if (existingCompany && existingCompany.id !== id) {
+          throw new Error('Já existe uma empresa cadastrada com este CNPJ');
+        }
       }
+
+      const updatePromise = supabase
+        .from('companies')
+        .update(companyData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      const { data, error } = await withTimeout(updatePromise, DEFAULT_TIMEOUT);
+
+      if (error) {
+        throw new Error(`Erro ao atualizar empresa: ${error.message}`);
+      }
+
+      if (!data) {
+        throw new Error('Erro ao atualizar empresa: nenhum dado retornado');
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Erro inesperado ao atualizar empresa. Tente novamente.');
     }
-
-    const { data, error } = await supabase
-      .from('companies')
-      .update(companyData)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Erro ao atualizar empresa: ${error.message}`);
-    }
-
-    return data;
   }
 
   /**
    * Deleta uma empresa
    */
   static async delete(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('companies')
-      .delete()
-      .eq('id', id);
+    try {
+      const deletePromise = supabase
+        .from('companies')
+        .delete()
+        .eq('id', id);
 
-    if (error) {
-      throw new Error(`Erro ao deletar empresa: ${error.message}`);
+      const { error } = await withTimeout(deletePromise, DEFAULT_TIMEOUT);
+
+      if (error) {
+        throw new Error(`Erro ao deletar empresa: ${error.message}`);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('expirou')) {
+        throw error;
+      }
+      throw new Error(`Erro ao deletar empresa: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   }
 
@@ -220,29 +306,40 @@ export class CompanyService {
     files_this_week: number;
     files_this_month: number;
   }> {
-    const { data, error } = await supabase
-      .rpc('get_payroll_stats', { company_uuid: companyId });
+    try {
+      const rpcPromise = supabase
+        .rpc('get_payroll_stats', { company_uuid: companyId });
 
-    if (error) {
-      console.error('Erro ao buscar estatísticas:', error);
+      const { data, error } = await withTimeout(rpcPromise, 10000); // Timeout menor para RPC
+
+      if (error) {
+        console.error('Erro ao buscar estatísticas:', error);
+        return {
+          total_payroll_files: 0,
+          files_this_week: 0,
+          files_this_month: 0
+        };
+      }
+
+      const stats = data?.[0] || {
+        total_files: 0,
+        files_this_week: 0,
+        files_this_month: 0
+      };
+
+      return {
+        total_payroll_files: stats.total_files,
+        files_this_week: stats.files_this_week,
+        files_this_month: stats.files_this_month
+      };
+    } catch (error) {
+      console.error('Erro ao buscar estatísticas (timeout ou erro):', error);
       return {
         total_payroll_files: 0,
         files_this_week: 0,
         files_this_month: 0
       };
     }
-
-    const stats = data?.[0] || {
-      total_files: 0,
-      files_this_week: 0,
-      files_this_month: 0
-    };
-
-    return {
-      total_payroll_files: stats.total_files,
-      files_this_week: stats.files_this_week,
-      files_this_month: stats.files_this_month
-    };
   }
 
   /**
@@ -318,11 +415,13 @@ export class CompanyService {
   static async searchCompanies(query: string): Promise<{ data: CompanyWithStats[] | null; error: any }> {
     try {
       // Primeiro buscar empresas que correspondem à query
-      const { data: companies, error } = await supabase
+      const searchPromise = supabase
         .from('companies')
         .select('*')
         .or(`name.ilike.%${query}%,cnpj.ilike.%${query}%`)
         .order('name');
+
+      const { data: companies, error } = await withTimeout(searchPromise, DEFAULT_TIMEOUT);
 
       if (error) {
         return { data: null, error };

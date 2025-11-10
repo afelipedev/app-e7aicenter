@@ -77,7 +77,14 @@ export const CompanyCreateModal: React.FC<CompanyCreateModalProps> = ({
       return;
     }
 
+    // Garantir que não há loading em andamento antes de iniciar
+    if (isLoading) {
+      return;
+    }
+
     setIsLoading(true);
+    // Limpar erros anteriores
+    setErrors({});
 
     try {
       // Limpar CNPJ antes de enviar
@@ -89,7 +96,7 @@ export const CompanyCreateModal: React.FC<CompanyCreateModalProps> = ({
 
       const newCompany = await CompanyService.create(cleanedData);
       
-      // Resetar formulário
+      // Resetar formulário apenas se sucesso
       setFormData({ name: '', cnpj: '' });
       setErrors({});
       
@@ -100,6 +107,8 @@ export const CompanyCreateModal: React.FC<CompanyCreateModalProps> = ({
         files_this_week: 0,
         files_this_month: 0
       };
+      
+      // Fechar modal e chamar callback de sucesso ANTES do toast
       onSuccess(companyWithStats);
       onClose();
       
@@ -111,28 +120,35 @@ export const CompanyCreateModal: React.FC<CompanyCreateModalProps> = ({
       console.error('Erro ao criar empresa:', error);
       
       let errorMessage = 'Erro desconhecido ao criar empresa';
+      let shouldShowToast = true;
       
       if (error instanceof Error) {
         errorMessage = error.message;
         
+        // Tratar diferentes tipos de erro
         if (error.message.includes('CNPJ') || error.message.includes('cnpj')) {
-          setErrors({ cnpj: error.message });
-        } else if (error.message.includes('Sessão expirada') || error.message.includes('não autenticado')) {
-          setErrors({ name: error.message });
+          setErrors({ cnpj: errorMessage });
+          shouldShowToast = false; // Erro de validação não precisa de toast
+        } else if (
+          error.message.includes('Sessão expirada') || 
+          error.message.includes('não autenticado') ||
+          error.message.includes('expirou') ||
+          error.message.includes('conexão')
+        ) {
+          setErrors({ name: errorMessage });
           toast({
             title: "Erro de Autenticação",
-            description: error.message,
-            variant: "destructive",
-          });
-        } else {
-          setErrors({ name: error.message });
-          toast({
-            title: "Erro ao criar empresa",
             description: errorMessage,
             variant: "destructive",
           });
+          shouldShowToast = false; // Já mostrou toast
+        } else {
+          setErrors({ name: errorMessage });
         }
-      } else {
+      }
+      
+      // Mostrar toast apenas se necessário
+      if (shouldShowToast) {
         toast({
           title: "Erro ao criar empresa",
           description: errorMessage,
@@ -140,6 +156,7 @@ export const CompanyCreateModal: React.FC<CompanyCreateModalProps> = ({
         });
       }
     } finally {
+      // SEMPRE resetar o estado de loading, mesmo em caso de erro
       setIsLoading(false);
     }
   };
