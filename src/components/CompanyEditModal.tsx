@@ -93,7 +93,14 @@ export const CompanyEditModal: React.FC<CompanyEditModalProps> = ({
       return;
     }
 
+    // Garantir que não há loading em andamento antes de iniciar
+    if (isLoading) {
+      return;
+    }
+
     setIsLoading(true);
+    // Limpar erros anteriores
+    setErrors({});
 
     try {
       // Preparar dados para atualização
@@ -110,34 +117,42 @@ export const CompanyEditModal: React.FC<CompanyEditModalProps> = ({
         description: "Empresa atualizada com sucesso",
       });
       
+      // Chamar callback de sucesso e fechar modal
       onSuccess();
       onClose();
     } catch (error) {
       console.error('Erro ao atualizar empresa:', error);
       
       let errorMessage = 'Erro desconhecido ao atualizar empresa';
+      let shouldShowToast = true;
       
       if (error instanceof Error) {
         errorMessage = error.message;
         
+        // Tratar diferentes tipos de erro
         if (error.message.includes('CNPJ') || error.message.includes('cnpj')) {
-          setErrors({ cnpj: error.message });
-        } else if (error.message.includes('Sessão expirada') || error.message.includes('não autenticado')) {
-          setErrors({ name: error.message });
+          setErrors({ cnpj: errorMessage });
+          shouldShowToast = false; // Erro de validação não precisa de toast
+        } else if (
+          error.message.includes('Sessão expirada') || 
+          error.message.includes('não autenticado') ||
+          error.message.includes('expirou') ||
+          error.message.includes('conexão')
+        ) {
+          setErrors({ name: errorMessage });
           toast({
             title: "Erro de Autenticação",
-            description: error.message,
-            variant: "destructive",
-          });
-        } else {
-          setErrors({ name: error.message });
-          toast({
-            title: "Erro ao atualizar empresa",
             description: errorMessage,
             variant: "destructive",
           });
+          shouldShowToast = false; // Já mostrou toast
+        } else {
+          setErrors({ name: errorMessage });
         }
-      } else {
+      }
+      
+      // Mostrar toast apenas se necessário
+      if (shouldShowToast) {
         toast({
           title: "Erro ao atualizar empresa",
           description: errorMessage,
@@ -145,6 +160,7 @@ export const CompanyEditModal: React.FC<CompanyEditModalProps> = ({
         });
       }
     } finally {
+      // SEMPRE resetar o estado de loading, mesmo em caso de erro
       setIsLoading(false);
     }
   };
