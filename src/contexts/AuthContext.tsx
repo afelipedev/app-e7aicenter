@@ -56,6 +56,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const userRef = useRef<User | null>(null)
   const signOutRef = useRef<(() => Promise<{ error: AuthError | null }>) | null>(null)
   const fetchUserProfileRef = useRef<((authUser: SupabaseUser) => Promise<void>) | null>(null)
+  const fetchingProfileRef = useRef<boolean>(false) // Evitar chamadas simultâneas
   
   // Atualizar refs quando estado mudar
   useEffect(() => {
@@ -402,7 +403,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   const fetchUserProfile = useCallback(async (authUser: SupabaseUser) => {
+    // Evitar chamadas simultâneas para o mesmo usuário
+    if (fetchingProfileRef.current) {
+      console.log('fetchUserProfile já em execução, ignorando chamada duplicada')
+      return
+    }
+    
+    // Verificar se já temos o perfil deste usuário
+    // Comparar pelo auth_user_id que corresponde ao authUser.id
+    if (userRef.current?.auth_user_id === authUser.id) {
+      console.log('Perfil do usuário já carregado, ignorando')
+      fetchingProfileRef.current = false
+      return
+    }
+    
     console.log('fetchUserProfile iniciado para:', authUser.id)
+    fetchingProfileRef.current = true
     
     try {
       console.log('Fazendo query para buscar usuário...')
@@ -497,6 +513,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // NÃO fazer logout automático em caso de erro inesperado
       console.warn('Continuando sem fazer logout automático devido a erro inesperado')
       setLoading(false)
+    } finally {
+      fetchingProfileRef.current = false
     }
   }, [])
 
@@ -598,38 +616,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Evitar atualizar se a sessão não mudou realmente
       const currentSession = sessionRef.current
-      if (currentSession?.access_token === newSession?.access_token && event !== 'SIGNED_OUT' && event !== 'SIGNED_IN') {
+      const currentAccessToken = currentSession?.access_token
+      const newAccessToken = newSession?.access_token
+      
+      // Ignorar eventos de TOKEN_REFRESHED se o token não mudou realmente
+      if (event === 'TOKEN_REFRESHED' && currentAccessToken === newAccessToken) {
+        console.log('Token refresh ignorado - token não mudou')
+        return
+      }
+      
+      // Evitar atualizar se a sessão não mudou realmente (exceto para eventos importantes)
+      if (currentAccessToken === newAccessToken && event !== 'SIGNED_OUT' && event !== 'SIGNED_IN') {
         console.log('Sessão não mudou, ignorando atualização')
         return
       }
       
-      setSession(newSession)
-      
-      if (newSession?.user) {
-        if (fetchUserProfileRef.current) {
-          await fetchUserProfileRef.current(newSession.user)
-        }
-        resetInactivityTimer()
-        addActivityListeners()
-      } else {
-        setUser(null)
-        setFirstAccessStatus(null)
+      // Evitar loops: não atualizar se já está processando
+      if (mounted) {
+        setSession(newSession)
         
-        // Limpar timers e listeners quando usuário faz logout
-        if (inactivityTimer) {
-          clearTimeout(inactivityTimer)
-          inactivityTimer = null
+        if (newSession?.user) {
+          // Verificar se o usuário já é o mesmo para evitar chamadas desnecessárias
+          const currentUserId = userRef.current?.id
+          const newUserId = newSession.user.id
+          
+          if (currentUserId !== newUserId && fetchUserProfileRef.current) {
+            await fetchUserProfileRef.current(newSession.user)
+          } else if (!currentUserId && fetchUserProfileRef.current) {
+            // Se não há usuário atual, sempre buscar perfil
+            await fetchUserProfileRef.current(newSession.user)
+          }
+          
+          resetInactivityTimer()
+          addActivityListeners()
+        } else {
+          setUser(null)
+          setFirstAccessStatus(null)
+          
+          // Limpar timers e listeners quando usuário faz logout
+          if (inactivityTimer) {
+            clearTimeout(inactivityTimer)
+            inactivityTimer = null
+          }
+          
+          removeActivityListeners()
+          
+          // Redirecionar para login se não estiver já lá
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login'
+          }
         }
         
-        removeActivityListeners()
-        
-        // Redirecionar para login se não estiver já lá
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login'
-        }
+        setLoading(false)
       }
-      
-      setLoading(false)
     })
 
     return () => {

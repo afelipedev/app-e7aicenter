@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { Company, CreateCompanyData, UpdateCompanyData, CompanyWithStats } from '../../shared/types/company';
+import type { Session, User } from '@supabase/supabase-js';
 
 // Timeout padrão para operações (15 segundos)
 const DEFAULT_TIMEOUT = 15000;
@@ -114,31 +115,34 @@ export class CompanyService {
   }
 
   /**
-   * Renova a sessão do usuário se necessário
-   * Com timeout para evitar travamento infinito
+   * Verifica se há uma sessão autenticada válida e retorna a sessão
+   * Usa getSession() que é mais rápido e confiável que getUser()
+   * NÃO renova sessão automaticamente para evitar loops infinitos
    */
-  private static async ensureAuthenticatedSession(): Promise<void> {
+  private static async ensureAuthenticatedSession(): Promise<{ session: Session; user: User }> {
     try {
-      // Verificar primeiro se já há uma sessão válida (mais rápido)
-      const getUserPromise = supabase.auth.getUser();
-      const { data: { user }, error: getUserError } = await withTimeout(getUserPromise, 5000);
+      // Usar getSession() que é mais rápido e verifica a sessão local primeiro
+      const getSessionPromise = supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await withTimeout(getSessionPromise, 10000);
       
-      if (!getUserError && user) {
-        // Sessão válida encontrada, não precisa renovar
-        return;
+      if (sessionError) {
+        console.warn('Erro ao verificar sessão:', sessionError);
+        throw new Error('Erro ao verificar autenticação. Tente novamente.');
       }
 
-      // Se não há sessão válida, tentar renovar (com timeout menor)
-      const refreshPromise = supabase.auth.refreshSession();
-      const { data: { session }, error: refreshError } = await withTimeout(refreshPromise, 10000);
-      
-      if (refreshError || !session) {
-        console.warn('Erro ao renovar sessão:', refreshError);
+      if (!session || !session.user) {
         throw new Error('Sessão expirada. Por favor, faça login novamente.');
       }
+
+      // NÃO renovar sessão automaticamente aqui para evitar loops infinitos
+      // O Supabase já renova automaticamente com autoRefreshToken: true
+      // Renovação manual pode causar loops com onAuthStateChange
+
+      return { session, user: session.user };
     } catch (error) {
       console.error('Erro ao garantir sessão autenticada:', error);
-      if (error instanceof Error && error.message.includes('expirou')) {
+      if (error instanceof Error) {
+        // Re-throw erros já tratados
         throw error;
       }
       throw new Error('Erro ao verificar autenticação. Tente novamente.');
@@ -155,16 +159,8 @@ export class CompanyService {
     }
 
     try {
-      // Garantir que a sessão está válida antes de criar empresa (com timeout)
-      await this.ensureAuthenticatedSession();
-
-      // Obter usuário atual (com timeout)
-      const getUserPromise = supabase.auth.getUser();
-      const { data: { user }, error: authError } = await withTimeout(getUserPromise, 5000);
-      
-      if (authError || !user) {
-        throw new Error('Usuário não autenticado. Por favor, faça login novamente.');
-      }
+      // Garantir que a sessão está válida e obter dados da sessão (evita chamada duplicada)
+      const { user } = await this.ensureAuthenticatedSession();
 
       // Tentar inserir diretamente - a constraint unique do banco já valida duplicidade
       // Isso é mais eficiente que fazer uma query separada para verificar
