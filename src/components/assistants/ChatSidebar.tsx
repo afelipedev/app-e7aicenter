@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Plus,
@@ -8,6 +9,9 @@ import {
   Trash2,
   MessageSquare,
   MoreVertical,
+  Edit2,
+  Check,
+  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -19,6 +23,8 @@ import { cn } from "@/lib/utils";
 import { useChatHistory, Chat } from "@/hooks/useChatHistory";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ChatSidebarProps {
   assistantType: string;
@@ -33,12 +39,18 @@ export function ChatSidebar({
   onChatSelect,
   onNewChat,
 }: ChatSidebarProps) {
+  const isMobile = useIsMobile();
   const [activeSection, setActiveSection] = useState<"favorites" | "recent">("recent");
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState<string>("");
   const {
     favoriteChats,
     recentChats,
     deleteChat,
     toggleFavorite,
+    updateChat,
+    loading,
+    error,
   } = useChatHistory(assistantType);
 
   const handleNewChat = () => {
@@ -49,21 +61,77 @@ export function ChatSidebar({
     onChatSelect(chat);
   };
 
-  const handleDelete = (e: React.MouseEvent, chatId: string) => {
+  const handleDelete = async (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
-    deleteChat(chatId);
+    try {
+      await deleteChat(chatId);
+    } catch (error) {
+      console.error("Erro ao deletar chat:", error);
+    }
   };
 
-  const handleToggleFavorite = (e: React.MouseEvent, chatId: string) => {
+  const handleToggleFavorite = async (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
-    toggleFavorite(chatId);
+    try {
+      await toggleFavorite(chatId);
+    } catch (error) {
+      console.error("Erro ao alternar favorito:", error);
+    }
+  };
+
+  const handleStartRename = (e: React.MouseEvent, chat: Chat) => {
+    e.stopPropagation();
+    setEditingChatId(chat.id);
+    setEditTitle(chat.title);
+  };
+
+  const handleCancelRename = () => {
+    setEditingChatId(null);
+    setEditTitle("");
+  };
+
+  const handleSaveRename = async (chatId: string) => {
+    const trimmedTitle = editTitle.trim();
+    
+    if (!trimmedTitle) {
+      toast.error("O título não pode estar vazio");
+      return;
+    }
+
+    if (trimmedTitle.length > 255) {
+      toast.error("O título não pode ter mais de 255 caracteres");
+      return;
+    }
+
+    try {
+      await updateChat(chatId, { title: trimmedTitle });
+      setEditingChatId(null);
+      setEditTitle("");
+      toast.success("Chat renomeado com sucesso");
+    } catch (error) {
+      console.error("Erro ao renomear chat:", error);
+      toast.error("Erro ao renomear chat");
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, chatId: string) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSaveRename(chatId);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      handleCancelRename();
+    }
   };
 
   const displayChats = activeSection === "favorites" ? favoriteChats : recentChats;
   const hasChats = displayChats.length > 0;
 
   return (
-    <div className="h-full w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col">
+    <div className={cn(
+      "h-full border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col",
+      isMobile ? "w-full" : "w-64"
+    )}>
       {/* Header */}
       <div className="p-4 border-b border-sidebar-border">
         <Button
@@ -117,7 +185,15 @@ export function ChatSidebar({
           {activeSection === "favorites" ? "Conversas Favoritas" : "Histórico Recente"}
         </div>
         <ScrollArea className="flex-1">
-          {!hasChats ? (
+          {loading ? (
+            <div className="px-4 py-8 text-center text-sm text-sidebar-foreground/50">
+              <p>Carregando...</p>
+            </div>
+          ) : error ? (
+            <div className="px-4 py-8 text-center text-sm text-sidebar-foreground/50">
+              <p>Erro ao carregar chats</p>
+            </div>
+          ) : !hasChats ? (
             <div className="px-4 py-8 text-center text-sm text-sidebar-foreground/50">
               <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
               <p>
@@ -130,72 +206,109 @@ export function ChatSidebar({
             <div className="p-2 space-y-1">
               {displayChats.map((chat) => (
                 <div key={chat.id} className="group/item">
-                  <Button
-                    onClick={() => handleChatClick(chat)}
-                    variant={currentChatId === chat.id ? "secondary" : "ghost"}
-                    className="w-full justify-start gap-2 h-auto py-2 px-3 group/button"
-                  >
-                    <MessageSquare className="w-4 h-4 shrink-0" />
-                    <span className="truncate flex-1 text-left text-sm">
-                      {chat.title}
-                    </span>
-                    <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                  {editingChatId === chat.id ? (
+                    <div className="px-3 py-2 flex items-center gap-2">
+                      <Input
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, chat.id)}
+                        className="h-8 text-sm flex-1"
+                        autoFocus
+                        maxLength={255}
+                      />
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 p-0"
-                        onClick={(e) => handleToggleFavorite(e, chat.id)}
+                        onClick={() => handleSaveRename(chat.id)}
                       >
-                        <Star
-                          className={cn(
-                            "w-3.5 h-3.5",
-                            chat.isFavorite && "fill-current"
-                          )}
-                        />
+                        <Check className="w-3.5 h-3.5 text-green-600" />
                       </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 p-0"
+                        onClick={handleCancelRename}
+                      >
+                        <X className="w-3.5 h-3.5 text-destructive" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <Button
+                        onClick={() => handleChatClick(chat)}
+                        variant={currentChatId === chat.id ? "secondary" : "ghost"}
+                        className="w-full justify-start gap-2 h-auto py-2 px-3 group/button relative"
+                      >
+                        <MessageSquare className="w-4 h-4 shrink-0" />
+                        <span className="truncate flex-1 text-left text-sm min-w-0">
+                          {chat.title}
+                        </span>
+                        <div className="flex items-center gap-1 opacity-100 shrink-0">
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 p-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <MoreVertical className="w-3.5 h-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" side="right">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleFavorite(e, chat.id);
-                            }}
+                            onClick={(e) => handleToggleFavorite(e, chat.id)}
                           >
                             <Star
                               className={cn(
-                                "w-4 h-4 mr-2",
+                                "w-3.5 h-3.5",
                                 chat.isFavorite && "fill-current"
                               )}
                             />
-                            {chat.isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => handleDelete(e, chat.id)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Excluir conversa
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </Button>
-                  <div className="px-3 pb-1 text-xs text-sidebar-foreground/50">
-                    {formatDistanceToNow(new Date(chat.updatedAt), {
-                      addSuffix: true,
-                      locale: ptBR,
-                    })}
-                  </div>
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 p-0"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreVertical className="w-3.5 h-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" side={isMobile ? "bottom" : "right"}>
+                              <DropdownMenuItem
+                                onClick={(e) => handleStartRename(e, chat)}
+                              >
+                                <Edit2 className="w-4 h-4 mr-2" />
+                                Renomear conversa
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleFavorite(e, chat.id);
+                                }}
+                              >
+                                <Star
+                                  className={cn(
+                                    "w-4 h-4 mr-2",
+                                    chat.isFavorite && "fill-current"
+                                  )}
+                                />
+                                {chat.isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => handleDelete(e, chat.id)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Excluir conversa
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </Button>
+                      <div className="px-3 pb-1 text-xs text-sidebar-foreground/50">
+                        {formatDistanceToNow(new Date(chat.updatedAt), {
+                          addSuffix: true,
+                          locale: ptBR,
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
