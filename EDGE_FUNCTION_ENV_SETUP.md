@@ -85,3 +85,4 @@ Se houver erros, verifique:
 - Se os secrets foram configurados corretamente no dashboard
 - Se os nomes das variáveis estão exatamente como especificado (sem espaços extras)
 - Os logs da Edge Function no Supabase Dashboard para ver erros detalhados
+
