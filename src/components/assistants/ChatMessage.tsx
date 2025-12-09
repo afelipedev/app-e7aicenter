@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Bot, User } from "lucide-react";
+import { Bot, User, Copy, Check } from "lucide-react";
 import type { ChatMessage as ChatMessageType } from "@/hooks/useChatHistory";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -24,6 +27,19 @@ export function ChatMessage({ message, metadata, className }: ChatMessageProps) 
   const isMobile = useIsMobile();
   const isUser = message.role === "user";
   const formattedContent = formatMessage(message.content);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      toast.success("Texto copiado para a área de transferência");
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error("Erro ao copiar:", error);
+      toast.error("Erro ao copiar texto");
+    }
+  };
 
   return (
     <div
@@ -48,7 +64,7 @@ export function ChatMessage({ message, metadata, className }: ChatMessageProps) 
       
       <div
         className={cn(
-          "rounded-lg",
+          "rounded-lg relative group",
           isMobile ? "max-w-[85%] p-3" : "max-w-[80%] p-4",
           isUser
             ? "bg-primary text-primary-foreground"
@@ -66,6 +82,26 @@ export function ChatMessage({ message, metadata, className }: ChatMessageProps) 
             </span>
           ))}
         </div>
+        
+        {!isUser && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity",
+              isMobile ? "h-6 w-6" : "h-7 w-7",
+              copied && "opacity-100"
+            )}
+            onClick={handleCopy}
+            title="Copiar mensagem"
+          >
+            {copied ? (
+              <Check className={cn("text-green-600", isMobile ? "h-3 w-3" : "h-4 w-4")} />
+            ) : (
+              <Copy className={cn(isMobile ? "h-3 w-3" : "h-4 w-4")} />
+            )}
+          </Button>
+        )}
         
         {metadata && !isUser && (
           <div className={cn(

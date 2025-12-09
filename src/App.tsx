@@ -12,6 +12,9 @@ import TaxLaw from "./pages/assistants/TaxLaw";
 import CivilLaw from "./pages/assistants/CivilLaw";
 import Financial from "./pages/assistants/Financial";
 import Accounting from "./pages/assistants/Accounting";
+import AILibrary from "./pages/assistants/AILibrary";
+import AgentsByTheme from "./pages/assistants/AgentsByTheme";
+import AgentChat from "./pages/assistants/AgentChat";
 import Payroll from "./pages/documents/Payroll";
 import Cases from "./pages/documents/Cases";
 import Reports from "./pages/documents/Reports";
@@ -78,6 +81,11 @@ const App = () => (
               <Route path="/assistants/civil" element={<CivilLaw />} />
               <Route path="/assistants/financial" element={<Financial />} />
               <Route path="/assistants/accounting" element={<Accounting />} />
+              
+              {/* AI Library - accessible to all authenticated users */}
+              <Route path="/assistants/library" element={<AILibrary />} />
+              <Route path="/assistants/library/:themeId" element={<AgentsByTheme />} />
+              <Route path="/assistants/library/agent/:agentId" element={<AgentChat />} />
               
               {/* Documents - accessible to all authenticated users */}
               <Route path="/documents/payroll" element={<Payroll />} />

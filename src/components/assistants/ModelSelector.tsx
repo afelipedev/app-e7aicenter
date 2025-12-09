@@ -5,7 +5,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Sparkles, Zap, Brain } from "lucide-react";
 import type { LLMModel } from "@/services/chatService";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -82,40 +81,18 @@ export function ModelSelector({
           <div className="flex items-center gap-2">
             {currentModelInfo.icon}
             <SelectValue>
-              <div className={cn(
-                "flex items-center gap-2",
-                isMobile && "gap-1"
-              )}>
-                <span className={cn(isMobile && "text-xs")}>
-                  {currentModelInfo.displayName}
-                </span>
-                <Badge variant="outline" className={cn(
-                  "text-xs",
-                  isMobile && "text-[10px] px-1 py-0"
-                )}>
-                  {currentModelInfo.speed}
-                </Badge>
-              </div>
+              <span className={cn(isMobile && "text-xs")}>
+                {currentModelInfo.displayName}
+              </span>
             </SelectValue>
           </div>
         </SelectTrigger>
         <SelectContent>
           {Object.values(MODEL_INFO).map((model) => (
             <SelectItem key={model.name} value={model.name}>
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  {model.icon}
-                  <span className="font-medium">{model.displayName}</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{model.description}</span>
-                  <Badge variant="outline" className="text-xs">
-                    {model.speed}
-                  </Badge>
-                  <Badge variant="secondary" className="text-xs">
-                    {model.cost}
-                  </Badge>
-                </div>
+              <div className="flex items-center gap-2">
+                {model.icon}
+                <span className="font-medium">{model.displayName}</span>
               </div>
             </SelectItem>
           ))}

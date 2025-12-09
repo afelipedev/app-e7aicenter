@@ -14,6 +14,7 @@ import {
   Users,
   Building,
   ChevronDown,
+  BookOpen,
 } from "lucide-react";
 import {
   Sidebar,
@@ -49,6 +50,7 @@ const menuItems = [
     icon: MessageSquare,
     color: "text-ai-purple",
     items: [
+      { title: "Biblioteca IA", url: "/assistants/library", icon: BookOpen },
       { title: "Chat Geral", url: "/assistants/chat", icon: MessageSquare },
       { title: "Jurídico Tributário", url: "/assistants/tax", icon: Scale },
       { title: "Jurídico Cível", url: "/assistants/civil", icon: Building2 },

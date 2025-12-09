@@ -1,0 +1,444 @@
+import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Send, Loader2, ArrowLeft, Sparkles, Paperclip, X } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ChatMessage } from "@/components/assistants/ChatMessage";
+import { N8NAgentService } from "@/services/n8nAgentService";
+import { getAgentById, getThemeInfo } from "@/config/aiAgents";
+import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
+
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: Date;
+}
+
+export default function AgentChat() {
+  const { agentId } = useParams<{ agentId: string }>();
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [fileContent, setFileContent] = useState<string>("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const agent = agentId ? getAgentById(agentId) : undefined;
+  const theme = agent ? getThemeInfo(agent.theme) : undefined;
+  const ThemeIcon = theme?.icon;
+
+  useEffect(() => {
+    if (!agentId || !agent) {
+      toast.error("Agente não encontrado");
+      navigate("/assistants/library");
+      return;
+    }
+  }, [agentId, agent, navigate]);
+
+  // Scroll automático para o final quando novas mensagens chegarem
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages.length, isSending]);
+
+  // Ajustar altura do textarea automaticamente
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [input]);
+
+  const handleFileSelect = async (file: File) => {
+    try {
+      // Validar tamanho do arquivo (máximo 10MB)
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(
+          `Arquivo muito grande. Tamanho máximo: ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB`
+        );
+        return;
+      }
+
+      setAttachedFile(file);
+
+      // Ler conteúdo do arquivo
+      if (file.type.startsWith("text/") || file.type === "application/json") {
+        // Arquivos de texto: ler como texto
+        const text = await file.text();
+        setFileContent(text);
+        toast.success(`Arquivo "${file.name}" anexado`);
+      } else if (file.type === "application/pdf") {
+        // PDF: converter para base64
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result as string;
+          setFileContent(base64);
+          toast.success(`Arquivo PDF "${file.name}" anexado`);
+        };
+        reader.onerror = () => {
+          toast.error("Erro ao ler arquivo");
+          setAttachedFile(null);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // Outros tipos: tentar ler como texto
+        try {
+          const text = await file.text();
+          setFileContent(text);
+          toast.success(`Arquivo "${file.name}" anexado`);
+        } catch (error) {
+          toast.error("Tipo de arquivo não suportado");
+          setAttachedFile(null);
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao processar arquivo:", error);
+      toast.error("Erro ao processar arquivo");
+      setAttachedFile(null);
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+    // Resetar input para permitir selecionar o mesmo arquivo novamente
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setAttachedFile(null);
+    setFileContent("");
+    toast.info("Arquivo removido");
+  };
+
+  const handleSend = async () => {
+    if ((!input.trim() && !attachedFile) || !agent || isSending) return;
+
+    // Preparar mensagem combinando texto e arquivo
+    let userMessage = input.trim();
+    
+    if (attachedFile && fileContent) {
+      if (userMessage) {
+        userMessage += "\n\n--- Arquivo anexado ---\n";
+        userMessage += `Nome do arquivo: ${attachedFile.name}\n`;
+        userMessage += `Tipo: ${attachedFile.type}\n`;
+        userMessage += `Tamanho: ${(attachedFile.size / 1024).toFixed(2)} KB\n\n`;
+      }
+      
+      // Adicionar conteúdo do arquivo
+      if (attachedFile.type.startsWith("text/") || attachedFile.type === "application/json") {
+        userMessage += fileContent;
+      } else if (attachedFile.type === "application/pdf") {
+        // Para PDF, adicionar base64 completo para processamento
+        userMessage += `\n[Conteúdo do arquivo PDF em base64:]\n${fileContent}`;
+      } else {
+        userMessage += fileContent;
+      }
+    }
+
+    const finalMessage = userMessage || `[Arquivo anexado: ${attachedFile?.name}]`;
+    const displayMessage = input.trim() || `Arquivo anexado: ${attachedFile?.name}`;
+    
+    setInput("");
+    setAttachedFile(null);
+    setFileContent("");
+    setIsSending(true);
+
+    // Adicionar mensagem do usuário
+    const userMsg: Message = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: displayMessage,
+      createdAt: new Date(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+
+    try {
+      // Chamar o agente n8n
+      const response = await N8NAgentService.callAgent(agent.id, finalMessage);
+
+      // Adicionar resposta do assistente
+      const assistantMsg: Message = {
+        id: `assistant-${Date.now()}`,
+        role: "assistant",
+        content: response.output,
+        createdAt: new Date(),
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+    } catch (error) {
+      console.error("Erro ao chamar agente:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Erro ao processar sua solicitação. Por favor, tente novamente.";
+
+      toast.error(errorMessage);
+
+      // Adicionar mensagem de erro
+      const errorMsg: Message = {
+        id: `error-${Date.now()}`,
+        role: "assistant",
+        content: `Desculpe, ocorreu um erro: ${errorMessage}`,
+        createdAt: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleBackClick = () => {
+    if (agent) {
+      navigate(`/assistants/library/${agent.theme}`);
+    } else {
+      navigate("/assistants/library");
+    }
+  };
+
+  if (!agent || !theme) {
+    return null;
+  }
+
+  return (
+    <div className="flex h-[calc(100vh-4rem)] w-full flex-col">
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        {/* Header */}
+        <div
+          className={cn(
+            "border-b border-border bg-background shrink-0",
+            isMobile ? "p-3" : "p-4 sm:p-6 pb-4"
+          )}
+        >
+          <Button
+            variant="ghost"
+            onClick={handleBackClick}
+            className={cn(
+              "mb-3 sm:mb-4 gap-2",
+              isMobile && "h-9 text-sm px-2"
+            )}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Voltar</span>
+          </Button>
+
+          <div className={cn(
+            "flex items-center gap-2 sm:gap-3"
+          )}>
+            <div
+              className={cn(
+                "rounded-lg bg-gradient-purple flex items-center justify-center shrink-0",
+                isMobile ? "w-9 h-9" : "w-10 h-10 sm:w-12 sm:h-12"
+              )}
+            >
+              <ThemeIcon
+                className={cn(
+                  "text-white",
+                  isMobile ? "w-5 h-5" : "w-6 h-6"
+                )}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1
+                className={cn(
+                  "font-bold text-foreground truncate leading-tight",
+                  isMobile ? "text-lg sm:text-xl" : "text-xl sm:text-2xl"
+                )}
+              >
+                {agent.name}
+              </h1>
+              <p
+                className={cn(
+                  "text-muted-foreground truncate mt-0.5",
+                  isMobile ? "text-xs sm:text-sm" : "text-sm"
+                )}
+              >
+                {agent.description}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Chat Area */}
+        <Card
+          className={cn(
+            "flex-1 flex flex-col min-h-0",
+            isMobile ? "mx-3 mb-3 mt-2" : "mx-4 sm:mx-6 mb-4 sm:mb-6 mt-2 sm:mt-4"
+          )}
+        >
+          <ScrollArea className="flex-1 min-h-0">
+            <div
+              className={cn(
+                "space-y-3 sm:space-y-4",
+                isMobile ? "p-3 sm:p-4" : "p-4 sm:p-6"
+              )}
+            >
+              {messages.length === 0 && (
+                <div className="text-center text-muted-foreground py-8">
+                  <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className={isMobile ? "text-sm" : ""}>
+                    Comece uma conversa com o agente. Digite sua solicitação e
+                    clique em "Gerar".
+                  </p>
+                </div>
+              )}
+              {messages.map((message) => (
+                <ChatMessage
+                  key={message.id}
+                  message={{
+                    id: message.id,
+                    role: message.role,
+                    content: message.content,
+                    createdAt: message.createdAt.toISOString(),
+                  }}
+                />
+              ))}
+              {isSending && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className={isMobile ? "text-sm" : ""}>
+                    Processando...
+                  </span>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
+
+          {/* Input Area */}
+          <div
+            className={cn(
+              "border-t border-border flex-shrink-0",
+              isMobile ? "p-2 sm:p-3" : "p-3 sm:p-4"
+            )}
+          >
+            {/* Arquivo anexado */}
+            {attachedFile && (
+              <div className={cn(
+                "mb-2 flex items-center gap-2 rounded-md bg-muted",
+                isMobile ? "p-1.5 text-xs" : "p-2 text-sm"
+              )}>
+                <Paperclip className={cn(
+                  "text-muted-foreground shrink-0",
+                  isMobile ? "h-3.5 w-3.5" : "h-4 w-4"
+                )} />
+                <span className="flex-1 truncate text-foreground">
+                  {attachedFile.name}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleRemoveFile}
+                  className={cn(
+                    "shrink-0",
+                    isMobile ? "h-6 w-6" : "h-7 w-7"
+                  )}
+                  disabled={isSending}
+                >
+                  <X className={cn(
+                    isMobile ? "h-3 w-3" : "h-3.5 w-3.5"
+                  )} />
+                </Button>
+              </div>
+            )}
+
+            <div className={cn(
+              "flex gap-2",
+              isMobile && "gap-1.5"
+            )}>
+              <div className="relative flex-1 min-w-0">
+                <Textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!isSending && (input.trim() || attachedFile)) {
+                        handleSend();
+                      }
+                    }
+                  }}
+                  placeholder={isMobile 
+                    ? "Digite... (Shift+Enter para nova linha)"
+                    : "Digite sua solicitação... (Shift+Enter para nova linha)"
+                  }
+                  className={cn(
+                    "min-h-[60px] max-h-[200px] resize-none",
+                    isMobile 
+                      ? "text-sm px-3 py-2" 
+                      : "px-3 py-2"
+                  )}
+                  disabled={isSending}
+                  rows={1}
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileInputChange}
+                  accept=".pdf,.txt,.doc,.docx,.json,.csv"
+                  disabled={isSending}
+                />
+              </div>
+              <div className={cn(
+                "flex flex-col gap-1.5 sm:gap-2 shrink-0"
+              )}>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isSending}
+                  className={cn(
+                    "shrink-0",
+                    isMobile ? "h-9 w-9" : "h-10 w-10"
+                  )}
+                  title="Anexar arquivo"
+                >
+                  <Paperclip className={cn(
+                    isMobile ? "h-4 w-4" : "h-4 w-4"
+                  )} />
+                </Button>
+                <Button
+                  onClick={handleSend}
+                  size="icon"
+                  disabled={isSending || (!input.trim() && !attachedFile)}
+                  className={cn(
+                    "shrink-0",
+                    isMobile ? "h-9 w-9" : "h-10 w-10"
+                  )}
+                  title="Enviar"
+                >
+                  {isSending ? (
+                    <Loader2 className={cn(
+                      "animate-spin",
+                      isMobile ? "h-4 w-4" : "h-4 w-4"
+                    )} />
+                  ) : (
+                    <Send className={cn(
+                      isMobile ? "h-4 w-4" : "h-4 w-4"
+                    )} />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
