@@ -116,6 +116,8 @@ export default function AgentsByTheme() {
           <div
             className={cn(
               "grid gap-3 sm:gap-4",
+              "pt-1",
+              "items-stretch",
               isMobile
                 ? "grid-cols-1"
                 : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
