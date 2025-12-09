@@ -79,11 +79,11 @@ const recentActivities = [
 
 const quickActions = [
   {
-    title: "Novo Chat",
-    description: "Iniciar conversa com IA",
+    title: "Biblioteca de IA",
+    description: "Explore a biblioteca de assistentes de IA",
     icon: MessageSquare,
     color: "bg-gradient-purple",
-    url: "/assistants/chat",
+    url: "/assistants/library",
   },
   {
     title: "Upload Holerite",
