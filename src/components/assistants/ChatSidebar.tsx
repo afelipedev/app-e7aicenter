@@ -203,9 +203,9 @@ export function ChatSidebar({
               </p>
             </div>
           ) : (
-            <div className="p-2 space-y-1">
+            <div className="p-2 space-y-1 overflow-visible">
               {displayChats.map((chat) => (
-                <div key={chat.id} className="group/item">
+                <div key={chat.id} className="group/item overflow-visible">
                   {editingChatId === chat.id ? (
                     <div className="px-3 py-2 flex items-center gap-2">
                       <Input
@@ -235,72 +235,68 @@ export function ChatSidebar({
                     </div>
                   ) : (
                     <>
-                      <Button
-                        onClick={() => handleChatClick(chat)}
-                        variant={currentChatId === chat.id ? "secondary" : "ghost"}
-                        className="w-full justify-start gap-2 h-auto py-2 px-3 group/button relative"
-                      >
-                        <MessageSquare className="w-4 h-4 shrink-0" />
-                        <span className="truncate flex-1 text-left text-sm min-w-0">
-                          {chat.title}
-                        </span>
-                        <div className="flex items-center gap-1 opacity-100 shrink-0">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 p-0"
-                            onClick={(e) => handleToggleFavorite(e, chat.id)}
+                      <div className="relative group/item min-w-0">
+                        <div 
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-2 rounded-md transition-colors min-w-0",
+                            currentChatId === chat.id 
+                              ? "bg-sidebar-accent" 
+                              : "hover:bg-sidebar-accent/50"
+                          )}
+                          onClick={() => handleChatClick(chat)}
+                        >
+                          <MessageSquare className="w-4 h-4 shrink-0 flex-shrink-0" />
+                          <span 
+                            className="text-left text-sm flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+                            title={chat.title}
                           >
-                            <Star
-                              className={cn(
-                                "w-3.5 h-3.5",
-                                chat.isFavorite && "fill-current"
-                              )}
-                            />
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 p-0"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MoreVertical className="w-3.5 h-3.5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" side={isMobile ? "bottom" : "right"}>
-                              <DropdownMenuItem
-                                onClick={(e) => handleStartRename(e, chat)}
-                              >
-                                <Edit2 className="w-4 h-4 mr-2" />
-                                Renomear conversa
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleFavorite(e, chat.id);
-                                }}
-                              >
-                                <Star
-                                  className={cn(
-                                    "w-4 h-4 mr-2",
-                                    chat.isFavorite && "fill-current"
-                                  )}
-                                />
-                                {chat.isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={(e) => handleDelete(e, chat.id)}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Excluir conversa
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                            {chat.title.length > 20 ? `${chat.title.substring(0, 20)}...` : chat.title}
+                          </span>
+                          <div className="flex items-center shrink-0 flex-shrink-0">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 p-0 shrink-0 flex-shrink-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" side={isMobile ? "bottom" : "right"}>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleFavorite(e, chat.id);
+                                  }}
+                                >
+                                  <Star
+                                    className={cn(
+                                      "w-4 h-4 mr-2",
+                                      chat.isFavorite && "fill-current"
+                                    )}
+                                  />
+                                  {chat.isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => handleStartRename(e, chat)}
+                                >
+                                  <Edit2 className="w-4 h-4 mr-2" />
+                                  Renomear conversa
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => handleDelete(e, chat.id)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Excluir conversa
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
-                      </Button>
+                      </div>
                       <div className="px-3 pb-1 text-xs text-sidebar-foreground/50">
                         {formatDistanceToNow(new Date(chat.updatedAt), {
                           addSuffix: true,

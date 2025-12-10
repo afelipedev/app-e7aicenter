@@ -1,40 +1,48 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Loader2, ArrowLeft, Sparkles, Paperclip, X } from "lucide-react";
+import { Send, Loader2, ArrowLeft, Sparkles, Paperclip, X, Menu } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { ChatMessage } from "@/components/assistants/ChatMessage";
+import { ChatSidebar } from "@/components/assistants/ChatSidebar";
 import { N8NAgentService } from "@/services/n8nAgentService";
 import { getAgentById, getThemeInfo } from "@/config/aiAgents";
+import { useChatHistory, Chat } from "@/hooks/useChatHistory";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt: Date;
-}
 
 export default function AgentChat() {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [messages, setMessages] = useState<Message[]>([]);
+  
+  const agent = agentId ? getAgentById(agentId) : undefined;
+  const theme = agent ? getThemeInfo(agent.theme) : undefined;
+  const ThemeIcon = theme?.icon;
+
+  // Usar o agentId como assistant_type para histórico de conversas
+  const {
+    currentChat,
+    currentChatId,
+    createNewChat,
+    addMessage,
+    loadChat,
+    setCurrentChatId,
+    loading: chatsLoading,
+  } = useChatHistory(agentId || "");
+
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [fileContent, setFileContent] = useState<string>("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const agent = agentId ? getAgentById(agentId) : undefined;
-  const theme = agent ? getThemeInfo(agent.theme) : undefined;
-  const ThemeIcon = theme?.icon;
 
   useEffect(() => {
     if (!agentId || !agent) {
@@ -43,6 +51,20 @@ export default function AgentChat() {
       return;
     }
   }, [agentId, agent, navigate]);
+
+  // Criar novo chat automaticamente se não houver nenhum selecionado
+  useEffect(() => {
+    if (agentId && !currentChatId && !chatsLoading && createNewChat) {
+      createNewChat().then((newChat) => {
+        setCurrentChatId(newChat.id);
+      }).catch((error) => {
+        console.error("Erro ao criar novo chat automaticamente:", error);
+      });
+    }
+  }, [agentId, currentChatId, chatsLoading, createNewChat, setCurrentChatId]);
+
+  // Carregar mensagens do chat atual
+  const messages = currentChat?.messages || [];
 
   // Scroll automático para o final quando novas mensagens chegarem
   useEffect(() => {
@@ -127,7 +149,7 @@ export default function AgentChat() {
   };
 
   const handleSend = async () => {
-    if ((!input.trim() && !attachedFile) || !agent || isSending) return;
+    if ((!input.trim() && !attachedFile) || !agent || !currentChat || isSending) return;
 
     // Preparar mensagem combinando texto e arquivo
     let userMessage = input.trim();
@@ -159,27 +181,24 @@ export default function AgentChat() {
     setFileContent("");
     setIsSending(true);
 
-    // Adicionar mensagem do usuário
-    const userMsg: Message = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: displayMessage,
-      createdAt: new Date(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-
     try {
+      // Salvar mensagem do usuário no banco de dados
+      await addMessage(currentChat.id, {
+        role: "user",
+        content: displayMessage,
+      });
+
       // Chamar o agente n8n
       const response = await N8NAgentService.callAgent(agent.id, finalMessage);
 
-      // Adicionar resposta do assistente
-      const assistantMsg: Message = {
-        id: `assistant-${Date.now()}`,
+      // Salvar resposta do assistente no banco de dados
+      await addMessage(currentChat.id, {
         role: "assistant",
         content: response.output,
-        createdAt: new Date(),
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
+      });
+
+      // Recarregar o chat para obter as mensagens atualizadas
+      await loadChat(currentChat.id);
     } catch (error) {
       console.error("Erro ao chamar agente:", error);
       const errorMessage =
@@ -190,15 +209,48 @@ export default function AgentChat() {
       toast.error(errorMessage);
 
       // Adicionar mensagem de erro
-      const errorMsg: Message = {
-        id: `error-${Date.now()}`,
-        role: "assistant",
-        content: `Desculpe, ocorreu um erro: ${errorMessage}`,
-        createdAt: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
+      try {
+        await addMessage(currentChat.id, {
+          role: "assistant",
+          content: `Desculpe, ocorreu um erro: ${errorMessage}`,
+        });
+        await loadChat(currentChat.id);
+      } catch (err) {
+        console.error("Erro ao adicionar mensagem de erro:", err);
+      }
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleNewChat = async () => {
+    try {
+      const newChat = await createNewChat();
+      setCurrentChatId(newChat.id);
+      setInput("");
+      setAttachedFile(null);
+      setFileContent("");
+      if (isMobile) {
+        setSidebarOpen(false);
+      }
+    } catch (error) {
+      console.error("Erro ao criar novo chat:", error);
+      toast.error("Erro ao criar novo chat");
+    }
+  };
+
+  const handleChatSelect = async (chat: Chat) => {
+    try {
+      await loadChat(chat.id);
+      setInput("");
+      setAttachedFile(null);
+      setFileContent("");
+      if (isMobile) {
+        setSidebarOpen(false);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar chat:", error);
+      toast.error("Erro ao carregar chat");
     }
   };
 
@@ -214,8 +266,33 @@ export default function AgentChat() {
     return null;
   }
 
+  const sidebarContent = (
+    <ChatSidebar
+      assistantType={agentId || ""}
+      currentChatId={currentChatId}
+      onChatSelect={handleChatSelect}
+      onNewChat={handleNewChat}
+    />
+  );
+
   return (
-    <div className="flex h-[calc(100vh-4rem)] w-full flex-col">
+    <div className="flex h-[calc(100vh-4rem)] w-full">
+      {/* Desktop Sidebar */}
+      {!isMobile && (
+        <div className="hidden md:block">
+          {sidebarContent}
+        </div>
+      )}
+
+      {/* Mobile Sidebar Sheet */}
+      {isMobile && (
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent side="left" className="w-[280px] p-0">
+            {sidebarContent}
+          </SheetContent>
+        </Sheet>
+      )}
+
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         {/* Header */}
         <div
@@ -224,17 +301,32 @@ export default function AgentChat() {
             isMobile ? "p-3" : "p-4 sm:p-6 pb-4"
           )}
         >
-          <Button
-            variant="ghost"
-            onClick={handleBackClick}
-            className={cn(
-              "mb-3 sm:mb-4 gap-2",
-              isMobile && "h-9 text-sm px-2"
+          <div className={cn(
+            "flex items-center gap-3 mb-3 sm:mb-4",
+            isMobile && "flex-wrap"
+          )}>
+            {isMobile && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(true)}
+                className="shrink-0"
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
             )}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Voltar</span>
-          </Button>
+            <Button
+              variant="ghost"
+              onClick={handleBackClick}
+              className={cn(
+                "gap-2",
+                isMobile && "h-9 text-sm px-2"
+              )}
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Voltar</span>
+            </Button>
+          </div>
 
           <div className={cn(
             "flex items-center gap-2 sm:gap-3"
@@ -287,26 +379,40 @@ export default function AgentChat() {
                 isMobile ? "p-3 sm:p-4" : "p-4 sm:p-6"
               )}
             >
-              {messages.length === 0 && (
+              {!currentChat && !chatsLoading && (
+                <div className="text-center text-muted-foreground py-8">
+                  <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className={isMobile ? "text-sm" : ""}>
+                    Selecione uma conversa existente ou crie uma nova para começar.
+                  </p>
+                </div>
+              )}
+              {currentChat && messages.length === 0 && !chatsLoading && (
                 <div className="text-center text-muted-foreground py-8">
                   <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p className={isMobile ? "text-sm" : ""}>
                     Comece uma conversa com o agente. Digite sua solicitação e
-                    clique em "Gerar".
+                    clique em "Enviar".
                   </p>
                 </div>
               )}
-              {messages.map((message) => (
-                <ChatMessage
-                  key={message.id}
-                  message={{
-                    id: message.id,
-                    role: message.role,
-                    content: message.content,
-                    createdAt: message.createdAt.toISOString(),
-                  }}
-                />
-              ))}
+              {messages.map((message, index) => {
+                // Usar ID da mensagem se disponível, senão usar uma key única
+                const messageKey = message.id || `${message.role}-${index}-${message.content.slice(0, 30)}-${message.createdAt || index}`;
+                return (
+                  <ChatMessage
+                    key={messageKey}
+                    message={{
+                      id: message.id || `msg-${index}`,
+                      role: message.role,
+                      content: message.content,
+                      createdAt: message.createdAt 
+                        ? new Date(message.createdAt).toISOString()
+                        : new Date().toISOString(),
+                    }}
+                  />
+                );
+              })}
               {isSending && (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -368,7 +474,7 @@ export default function AgentChat() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      if (!isSending && (input.trim() || attachedFile)) {
+                      if (!isSending && (input.trim() || attachedFile) && currentChat) {
                         handleSend();
                       }
                     }
@@ -383,7 +489,7 @@ export default function AgentChat() {
                       ? "text-sm px-3 py-2" 
                       : "px-3 py-2"
                   )}
-                  disabled={isSending}
+                  disabled={isSending || !currentChat}
                   rows={1}
                 />
                 <input
@@ -392,7 +498,7 @@ export default function AgentChat() {
                   className="hidden"
                   onChange={handleFileInputChange}
                   accept=".pdf,.txt,.doc,.docx,.json,.csv"
-                  disabled={isSending}
+                  disabled={isSending || !currentChat}
                 />
               </div>
               <div className={cn(
@@ -402,7 +508,7 @@ export default function AgentChat() {
                   variant="outline"
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isSending}
+                  disabled={isSending || !currentChat}
                   className={cn(
                     "shrink-0",
                     isMobile ? "h-9 w-9" : "h-10 w-10"
@@ -416,7 +522,7 @@ export default function AgentChat() {
                 <Button
                   onClick={handleSend}
                   size="icon"
-                  disabled={isSending || (!input.trim() && !attachedFile)}
+                  disabled={isSending || (!input.trim() && !attachedFile) || !currentChat}
                   className={cn(
                     "shrink-0",
                     isMobile ? "h-9 w-9" : "h-10 w-10"

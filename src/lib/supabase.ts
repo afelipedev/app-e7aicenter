@@ -133,7 +133,7 @@ export interface Database {
         Row: {
           id: string
           user_id: string
-          assistant_type: 'chat-general' | 'tax-law' | 'civil-law' | 'financial' | 'accounting'
+          assistant_type: string // Aceita tipos fixos e agentIds dos agentes da biblioteca
           title: string
           llm_model: 'gpt-4' | 'gpt-4-turbo' | 'gemini-2.5-flash' | 'claude-sonnet-4.5'
           is_favorite: boolean
@@ -143,7 +143,7 @@ export interface Database {
         Insert: {
           id?: string
           user_id: string
-          assistant_type: 'chat-general' | 'tax-law' | 'civil-law' | 'financial' | 'accounting'
+          assistant_type: string // Aceita tipos fixos e agentIds dos agentes da biblioteca
           title: string
           llm_model?: 'gpt-4' | 'gpt-4-turbo' | 'gemini-2.5-flash' | 'claude-sonnet-4.5'
           is_favorite?: boolean
@@ -153,7 +153,7 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string
-          assistant_type?: 'chat-general' | 'tax-law' | 'civil-law' | 'financial' | 'accounting'
+          assistant_type?: string // Aceita tipos fixos e agentIds dos agentes da biblioteca
           title?: string
           llm_model?: 'gpt-4' | 'gpt-4-turbo' | 'gemini-2.5-flash' | 'claude-sonnet-4.5'
           is_favorite?: boolean

@@ -14,7 +14,8 @@ const withTimeout = <T>(promise: Promise<T>, timeoutMs: number = DEFAULT_TIMEOUT
 };
 
 // Tipos
-export type AssistantType = 'chat-general' | 'tax-law' | 'civil-law' | 'financial' | 'accounting';
+// AssistantType agora aceita tanto os tipos fixos quanto agentIds dos agentes da biblioteca
+export type AssistantType = 'chat-general' | 'tax-law' | 'civil-law' | 'financial' | 'accounting' | string;
 export type LLMModel = 'gpt-4' | 'gpt-4-turbo' | 'gemini-2.5-flash' | 'claude-sonnet-4.5';
 export type MessageRole = 'user' | 'assistant' | 'system';
 
