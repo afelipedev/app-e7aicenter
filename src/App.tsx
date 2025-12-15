@@ -16,6 +16,7 @@ import AILibrary from "./pages/assistants/AILibrary";
 import AgentsByTheme from "./pages/assistants/AgentsByTheme";
 import AgentChat from "./pages/assistants/AgentChat";
 import Payroll from "./pages/documents/Payroll";
+import Sped from "./pages/documents/Sped";
 import Cases from "./pages/documents/Cases";
 import Reports from "./pages/documents/Reports";
 import PowerBI from "./pages/integrations/PowerBI";
@@ -89,6 +90,7 @@ const App = () => (
               
               {/* Documents - accessible to all authenticated users */}
               <Route path="/documents/payroll" element={<Payroll />} />
+              <Route path="/documents/sped" element={<Sped />} />
               <Route path="/documents/cases" element={<Cases />} />
               <Route path="/documents/reports" element={<Reports />} />
               

@@ -64,6 +64,7 @@ const menuItems = [
     color: "text-ai-green",
     items: [
       { title: "Gestão de Holerites", url: "/documents/payroll", icon: FileText },
+      { title: "Gestão de SPEDs", url: "/documents/sped", icon: FileText },
       { title: "Processos", url: "/documents/cases", icon: Briefcase },
       { title: "Relatórios", url: "/documents/reports", icon: BarChart3 },
     ],
