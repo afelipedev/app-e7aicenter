@@ -10,7 +10,6 @@ import {
   Gavel,
   TrendingUp,
   FileCheck,
-  Handshake,
   Briefcase,
 } from "lucide-react";
 
@@ -25,7 +24,6 @@ export type AgentTheme =
   | "audiencia-julgamento"
   | "marketing-juridico-vendas"
   | "contratos"
-  | "negociacao-gestao-conflitos"
   | "areas-direito";
 
 export interface AIAgent {
@@ -93,11 +91,6 @@ export const AGENT_THEMES: Record<AgentTheme, ThemeInfo> = {
     id: "contratos",
     name: "Contratos",
     icon: FileCheck,
-  },
-  "negociacao-gestao-conflitos": {
-    id: "negociacao-gestao-conflitos",
-    name: "Negociação e Gestão de Conflitos",
-    icon: Handshake,
   },
   "areas-direito": {
     id: "areas-direito",
@@ -462,16 +455,6 @@ export const AI_AGENTS: AIAgent[] = [
       "O assistente identificará as cláusulas controversas e arriscadas do ponto de vista da parte já identificada e cria um resumo e relatório detalhado",
     theme: "contratos",
     webhookUrl: `${N8N_BASE_URL}/analise-contratual-parecer`,
-  },
-
-  // Tema: Negociação e Gestão de Conflitos
-  {
-    id: "negociacao-gestao-conflitos",
-    name: "Negociação e Gestão de Conflitos",
-    description:
-      "Assistente especializado em estratégias de negociação e gestão de conflitos jurídicos",
-    theme: "negociacao-gestao-conflitos",
-    webhookUrl: `${N8N_BASE_URL}/negociacao-gestao-conflitos`,
   },
 
   // Tema: Áreas do Direito

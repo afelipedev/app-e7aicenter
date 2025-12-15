@@ -20,6 +20,19 @@ export class N8NAgentService {
   private static readonly MAX_RETRIES = 2;
 
   /**
+   * Obtém a URL do webhook dinâmico do n8n
+   */
+  private static getWebhookUrl(): string {
+    const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_DINAMICO;
+    if (!webhookUrl) {
+      throw new Error(
+        "VITE_N8N_WEBHOOK_DINAMICO não configurado nas variáveis de ambiente"
+      );
+    }
+    return webhookUrl;
+  }
+
+  /**
    * Chama um agente n8n específico
    * @param agentId ID do agente
    * @param input Input do usuário
@@ -29,7 +42,7 @@ export class N8NAgentService {
     agentId: string,
     input: string
   ): Promise<N8NAgentResponse> {
-    // Obter informações do agente
+    // Obter informações do agente para validar que existe
     const agent = getAgentById(agentId);
     if (!agent) {
       throw new Error(`Agente não encontrado: ${agentId}`);
@@ -43,9 +56,13 @@ export class N8NAgentService {
       throw new Error("Usuário não autenticado");
     }
 
-    // Fazer chamada para o webhook n8n
+    // Obter webhook dinâmico
+    const webhookUrl = this.getWebhookUrl();
+
+    // Fazer chamada para o webhook n8n dinâmico
     return this.callWebhook(
-      agent.webhookUrl,
+      webhookUrl,
+      agentId,
       input,
       session.access_token,
       0
@@ -57,6 +74,7 @@ export class N8NAgentService {
    */
   private static async callWebhook(
     webhookUrl: string,
+    agentId: string,
     input: string,
     accessToken: string,
     retryCount: number
@@ -76,6 +94,7 @@ export class N8NAgentService {
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
+          agente: agentId,
           input: input,
         }),
         signal: controller.signal,
@@ -99,6 +118,7 @@ export class N8NAgentService {
           await this.delay(1000 * Math.pow(2, retryCount));
           return this.callWebhook(
             webhookUrl,
+            agentId,
             input,
             accessToken,
             retryCount + 1
@@ -133,6 +153,7 @@ export class N8NAgentService {
           await this.delay(1000 * Math.pow(2, retryCount));
           return this.callWebhook(
             webhookUrl,
+            agentId,
             input,
             accessToken,
             retryCount + 1
