@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { SpedConfig } from '../config/spedConfig';
 import type { 
   SpedFile, 
   CreateSpedFileData, 
@@ -127,6 +128,52 @@ export class SpedService {
   }
 
   // =====================================================
+  // S3 UTILITY METHODS
+  // =====================================================
+
+  /**
+   * Constrói o caminho esperado do arquivo Excel no S3
+   * Baseado na estrutura: e7sped-processados/sped/CNPJ_EMPRESA/MM_AAAA/
+   */
+  static buildExpectedS3Path(
+    cnpj: string, 
+    competencia: string, 
+    spedType: SpedType
+  ): string {
+    const cnpjClean = cnpj.replace(/[.\-\/]/g, '');
+    const competenciaFormatted = competencia.replace('/', '_');
+    const spedTypeFormatted = spedType.replace(/\s+/g, '_').toLowerCase();
+    const timestamp = Date.now();
+    
+    return SpedConfig.buildS3Path(
+      cnpjClean,
+      competenciaFormatted,
+      `sped_${spedTypeFormatted}_${competenciaFormatted}_${timestamp}.xlsx`
+    );
+  }
+
+  /**
+   * Constrói a URL completa do arquivo Excel no S3
+   */
+  static buildS3ExcelUrl(
+    cnpj: string,
+    competencia: string,
+    spedType: SpedType,
+    filename?: string
+  ): string {
+    const cnpjClean = cnpj.replace(/[.\-\/]/g, '');
+    const competenciaFormatted = competencia.replace('/', '_');
+    
+    if (filename) {
+      const s3Path = SpedConfig.buildS3Path(cnpjClean, competenciaFormatted, filename);
+      return SpedConfig.buildS3Url(s3Path);
+    }
+    
+    const s3Path = this.buildExpectedS3Path(cnpj, competencia, spedType);
+    return SpedConfig.buildS3Url(s3Path);
+  }
+
+  // =====================================================
   // BATCH UPLOAD METHODS
   // =====================================================
 
@@ -244,6 +291,20 @@ export class SpedService {
   }
 
   /**
+   * Mapeia o tipo de SPED do formato da aplicação para o formato esperado pelo n8n
+   */
+  private static mapSpedTypeToN8nFormat(spedType: SpedType): 'ICMS_IPI' | 'CONTRIBUICOES' {
+    switch (spedType) {
+      case 'SPED ICMS IPI':
+        return 'ICMS_IPI';
+      case 'SPED Contribuições':
+        return 'CONTRIBUICOES';
+      default:
+        throw new Error(`Tipo de SPED não mapeado: ${spedType}`);
+    }
+  }
+
+  /**
    * Envia arquivos diretamente para o webhook n8n
    */
   private static async sendDirectToWebhook(
@@ -252,6 +313,13 @@ export class SpedService {
     uploadData: SpedUploadData
   ): Promise<void> {
     try {
+      // Obter usuário autenticado
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      // Buscar dados da empresa
       const { data: companyData, error: companyError } = await supabase
         .from('companies')
         .select('id, name, cnpj, status, is_active, created_at, updated_at')
@@ -262,28 +330,58 @@ export class SpedService {
         throw new Error('Erro ao buscar dados da empresa');
       }
 
-      const filesData = processedFiles.map(item => ({
-        file_id: item.spedFile.id,
-        txt_base64: item.base64Data,
-        filename: item.originalFile.name
+      // Validar número de arquivos (máximo 12 conforme validação do n8n)
+      if (processedFiles.length > 12) {
+        throw new Error('Máximo de 12 arquivos por upload');
+      }
+
+      // Mapear tipo de SPED para formato esperado pelo n8n
+      const tipoSpedN8n = this.mapSpedTypeToN8nFormat(uploadData.sped_type);
+
+      // Preparar arquivos no formato esperado pelo n8n
+      const arquivos = processedFiles.map(item => ({
+        filename: item.originalFile.name,
+        fileContent: item.base64Data, // Base64 do arquivo
+        fileSize: item.originalFile.size
       }));
 
+      // Formatar CNPJ para uso no S3 (sem formatação)
+      const cnpjClean = companyData.cnpj.replace(/[.\-\/]/g, '');
+      
+      // Construir estrutura de diretórios S3
+      const s3BasePath = SpedConfig.getS3BasePath();
+      const competenciaFormatted = uploadData.competencia.replace('/', '_');
+      const s3Directory = `${s3BasePath}${cnpjClean}/${competenciaFormatted}/`;
+
+      // Construir caminho esperado do arquivo Excel no S3
+      const expectedExcelPath = this.buildExpectedS3Path(
+        companyData.cnpj,
+        uploadData.competencia,
+        uploadData.sped_type
+      );
+
+      // Construir payload no formato esperado pelo n8n
       const webhookPayload: WebhookPayload = {
+        tipoSped: tipoSpedN8n,
+        empresaId: uploadData.company_id,
+        empresaNome: companyData.name,
+        empresaCnpj: cnpjClean,
+        competencia: uploadData.competencia,
+        arquivos: arquivos,
+        userId: user.id,
+        timestamp: new Date().toISOString(),
+        // Campos opcionais para compatibilidade e rastreamento
         processing_id: processingId,
-        files: filesData,
-        competency: uploadData.competencia,
-        company_id: uploadData.company_id,
-        sped_type: uploadData.sped_type,
         callback_url: `${window.location.origin}/api/webhook/sped-status`,
         metadata: {
-          total_files: processedFiles.length,
-          upload_timestamp: new Date().toISOString(),
-          processing_initiated_at: new Date().toISOString()
+          s3_bucket: SpedConfig.getS3Bucket(),
+          s3_directory: s3Directory,
+          s3_expected_excel_path: expectedExcelPath
         }
       };
 
-      // URL do webhook n8n para SPEDs (ajustar conforme necessário)
-      const webhookUrl = 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-sped';
+      // URL do webhook n8n para SPEDs (configurada via variável de ambiente)
+      const webhookUrl = SpedConfig.getWebhookUrl();
       
       const maxRetries = 3;
       let response: Response | null = null;
@@ -360,57 +458,88 @@ export class SpedService {
           result = JSON.parse(responseText);
         } catch (jsonError) {
           // Resposta não é JSON válido, mas requisição foi bem-sucedida
+          console.warn('Resposta do webhook não é JSON válido:', responseText);
         }
       }
 
-      const excelUrl = result?.data?.arquivo?.urls?.excel_download || result?.data?.arquivos?.excel?.url || null;
+      // Tentar obter URL do Excel de diferentes formatos de resposta do webhook
+      // O n8n pode retornar em diferentes estruturas
+      const excelUrl = result?.data?.arquivo?.urls?.excel_download || 
+                       result?.data?.arquivos?.excel?.url || 
+                       result?.data?.excel_url ||
+                       result?.data?.excelDownloadUrl ||
+                       result?.excelUrl ||
+                       null;
       
-      if (result && result.success && excelUrl) {
-        try {
-          const filename = result.data?.arquivo?.excel_filename || result.data?.arquivos?.excel?.nome || 'sped_processado.xlsx';
-          
-          await this.updateProcessing(processingId, {
-            status: 'processing',
-            progress: 85
-          });
-
-          await this.downloadFile(excelUrl, filename);
-          
-          const { error: rpcError } = await supabase.rpc('receive_sped_processing_result', {
-            p_processing_id: processingId,
-            p_status: 'completed',
-            p_progress: 100,
-            p_result_file_url: excelUrl,
-            p_extracted_data: result.data || null,
-            p_error_message: null,
-            p_webhook_response: result
-          });
-
-          if (rpcError) {
+      // Se o processamento foi aceito pelo n8n, atualizar status
+      if (result && result.success) {
+        // Se já temos URL do Excel, fazer download imediatamente
+        if (excelUrl) {
+          try {
+            // Construir nome do arquivo com base na estrutura S3 ou usar o nome retornado
+            const defaultFilename = result.data?.arquivo?.excel_filename || 
+                                    result.data?.arquivos?.excel?.nome || 
+                                    result.data?.excelFilename ||
+                                    `sped_${tipoSpedN8n.toLowerCase()}_${uploadData.competencia.replace('/', '_')}_${Date.now()}.xlsx`;
+            
             await this.updateProcessing(processingId, {
-              status: 'completed',
-              progress: 100,
+              status: 'processing',
+              progress: 85
+            });
+
+            await this.downloadFile(excelUrl, defaultFilename);
+            
+            // Atualizar como concluído após download bem-sucedido
+            const { error: rpcError } = await supabase.rpc('receive_sped_processing_result', {
+              p_processing_id: processingId,
+              p_status: 'completed',
+              p_progress: 100,
+              p_result_file_url: excelUrl,
+              p_extracted_data: result.data || null,
+              p_error_message: null,
+              p_webhook_response: result
+            });
+
+            if (rpcError) {
+              await this.updateProcessing(processingId, {
+                status: 'completed',
+                progress: 100,
+                webhook_response: result,
+                estimated_time: result?.estimated_time,
+                completed_at: new Date().toISOString()
+              });
+            }
+          } catch (downloadError) {
+            await this.updateProcessing(processingId, {
+              status: 'processing',
+              progress: 70,
               webhook_response: result,
               estimated_time: result?.estimated_time,
-              completed_at: new Date().toISOString()
+              error_message: `Processamento concluído, mas erro no download: ${downloadError instanceof Error ? downloadError.message : 'Erro desconhecido'}`
             });
           }
-
-        } catch (downloadError) {
+        } else {
+          // Processamento aceito mas Excel ainda não disponível (processamento assíncrono)
           await this.updateProcessing(processingId, {
             status: 'processing',
-            progress: 70,
+            progress: 30,
             webhook_response: result,
-            estimated_time: result?.estimated_time,
-            error_message: `Processamento concluído, mas erro no download: ${downloadError instanceof Error ? downloadError.message : 'Erro desconhecido'}`
+            estimated_time: result?.estimated_time
           });
         }
+      } else if (result && !result.success) {
+        // Processamento rejeitado pelo n8n
+        await this.updateProcessing(processingId, {
+          status: 'error',
+          error_message: result.error || result.message || 'Processamento rejeitado pelo webhook n8n',
+          webhook_response: result
+        });
       } else {
+        // Resposta não reconhecida, mas requisição foi bem-sucedida (assumir processamento iniciado)
         await this.updateProcessing(processingId, {
           status: 'processing',
           progress: 30,
-          webhook_response: result || { status: 'accepted', message: 'Webhook processou a requisição com sucesso' },
-          estimated_time: result?.estimated_time
+          webhook_response: { status: 'accepted', message: 'Webhook processou a requisição com sucesso' }
         });
       }
 

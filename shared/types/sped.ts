@@ -186,16 +186,26 @@ export interface CompanyOption {
 }
 
 export interface WebhookPayload {
-  processing_id: string;
-  files: {
-    file_id: string;
-    txt_base64: string;
+  tipoSped: 'ICMS_IPI' | 'CONTRIBUICOES'; // Tipo de SPED no formato esperado pelo n8n
+  empresaId: string;
+  empresaNome: string;
+  empresaCnpj: string;
+  competencia: string; // MM/YYYY
+  arquivos: {
     filename: string;
+    fileContent: string; // Base64 do arquivo
+    fileSize: number;
   }[];
-  competency: string;
-  company_id: string;
-  sped_type: SpedType;
+  userId: string;
+  timestamp: string;
+  // Campos opcionais para compatibilidade
+  processing_id?: string;
   callback_url?: string;
+  metadata?: {
+    s3_bucket?: string;
+    s3_directory?: string;
+    s3_expected_excel_path?: string;
+  };
 }
 
 export interface WebhookResponse {

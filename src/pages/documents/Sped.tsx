@@ -41,7 +41,7 @@ import type {
 } from '../../../shared/types/sped';
 
 // Constants
-const MAX_FILES = 10;
+const MAX_FILES = 12; // Máximo de 12 arquivos conforme validação do n8n
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const ALLOWED_TYPES = ['text/plain'];
 
@@ -371,7 +371,12 @@ export default function Sped() {
       let userFriendlyMessage = errorMessage;
       let toastTitle = "Erro no Upload";
       
-      if (errorMessage.includes('webhook n8n não está ativo')) {
+      // Verificar se é erro de variável de ambiente não configurada
+      if (errorMessage.includes('VITE_N8N_WEBHOOK_SPED não configurado') || 
+          errorMessage.includes('VITE_N8N_WEBHOOK_SPED')) {
+        toastTitle = "Configuração Necessária";
+        userFriendlyMessage = "A variável VITE_N8N_WEBHOOK_SPED não está configurada. Adicione-a ao arquivo .env e reinicie o servidor. Veja CONFIGURAR_SPED_ENV.md para mais detalhes.";
+      } else if (errorMessage.includes('webhook n8n não está ativo')) {
         toastTitle = "Webhook N8N Inativo";
         userFriendlyMessage = "O workflow do N8N não está ativo. Verifique a configuração do workflow no N8N e certifique-se de que está ativo.";
       } else if (errorMessage.includes('Failed to fetch')) {
@@ -383,6 +388,7 @@ export default function Sped() {
         title: toastTitle,
         description: userFriendlyMessage,
         variant: "destructive",
+        duration: 10000, // Mostrar por 10 segundos para erros de configuração
       });
     }
   };
