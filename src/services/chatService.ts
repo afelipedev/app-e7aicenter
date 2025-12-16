@@ -361,4 +361,130 @@ export class ChatService {
       throw new Error(`Erro ao buscar chats recentes: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   }
+
+  /**
+   * Busca o total de chats (todos os usuários)
+   * Para uso em dashboard administrativo
+   */
+  static async getAllChatsCount(): Promise<number> {
+    try {
+      const queryPromise = supabase
+        .from('chats')
+        .select('*', { count: 'exact', head: true });
+
+      const { count, error } = await withTimeout(queryPromise);
+
+      if (error) {
+        throw new Error(`Erro ao buscar total de chats: ${error.message}`);
+      }
+
+      return count || 0;
+    } catch (error) {
+      console.error('Erro ao buscar total de chats:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Calcula a evolução mensal do número de chats criados
+   * Retorna o percentual de evolução comparando o mês atual com o mês anterior
+   */
+  static async getMonthlyEvolution(): Promise<{
+    currentMonthCount: number;
+    previousMonthCount: number;
+    evolutionPercent: number | null;
+    evolutionText: string;
+  }> {
+    try {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth(); // 0-11
+
+      // Primeiro dia do mês atual
+      const firstDayCurrentMonth = new Date(currentYear, currentMonth, 1);
+      // Primeiro dia do próximo mês (fim do mês atual)
+      const firstDayNextMonth = new Date(currentYear, currentMonth + 1, 1);
+
+      // Primeiro dia do mês anterior
+      const firstDayPreviousMonth = new Date(currentYear, currentMonth - 1, 1);
+      // Primeiro dia do mês atual (fim do mês anterior)
+      const firstDayCurrentMonthForPrevious = new Date(currentYear, currentMonth, 1);
+
+      // Buscar chats do mês atual
+      const currentMonthQuery = supabase
+        .from('chats')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', firstDayCurrentMonth.toISOString())
+        .lt('created_at', firstDayNextMonth.toISOString());
+
+      const { count: currentMonthCount, error: currentError } = await withTimeout(
+        currentMonthQuery,
+        DEFAULT_TIMEOUT
+      );
+
+      if (currentError) {
+        console.error('Erro ao buscar chats do mês atual:', currentError);
+        throw new Error(`Erro ao buscar chats do mês atual: ${currentError.message}`);
+      }
+
+      // Buscar chats do mês anterior
+      const previousMonthQuery = supabase
+        .from('chats')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', firstDayPreviousMonth.toISOString())
+        .lt('created_at', firstDayCurrentMonthForPrevious.toISOString());
+
+      const { count: previousMonthCount, error: previousError } = await withTimeout(
+        previousMonthQuery,
+        DEFAULT_TIMEOUT
+      );
+
+      if (previousError) {
+        console.error('Erro ao buscar chats do mês anterior:', previousError);
+        throw new Error(`Erro ao buscar chats do mês anterior: ${previousError.message}`);
+      }
+
+      const current = currentMonthCount || 0;
+      const previous = previousMonthCount || 0;
+
+      // Calcular percentual de evolução
+      let evolutionPercent: number | null = null;
+      let evolutionText = "—";
+
+      if (previous === 0) {
+        // Se não havia chats no mês anterior
+        if (current > 0) {
+          evolutionText = "Novo";
+        } else {
+          evolutionText = "—";
+        }
+      } else {
+        // Calcular percentual: ((atual - anterior) / anterior) * 100
+        evolutionPercent = ((current - previous) / previous) * 100;
+        
+        if (evolutionPercent > 0) {
+          evolutionText = `+${evolutionPercent.toFixed(0)}%`;
+        } else if (evolutionPercent < 0) {
+          evolutionText = `${evolutionPercent.toFixed(0)}%`;
+        } else {
+          evolutionText = "0%";
+        }
+      }
+
+      return {
+        currentMonthCount: current,
+        previousMonthCount: previous,
+        evolutionPercent,
+        evolutionText
+      };
+    } catch (error) {
+      console.error('Erro ao calcular evolução mensal de chats:', error);
+      return {
+        currentMonthCount: 0,
+        previousMonthCount: 0,
+        evolutionPercent: null,
+        evolutionText: "—"
+      };
+    }
+  }
 }

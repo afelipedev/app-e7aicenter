@@ -10,12 +10,15 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { CompanyService } from "@/services/companyService";
+import { ChatService } from "@/services/chatService";
 
-const stats = [
+const getStats = (companiesCount: number, companiesEvolution: string, chatsCount: number, chatsEvolution: string) => [
   {
     title: "Conversas IA",
-    value: "1.234",
-    change: "+12%",
+    value: chatsCount.toLocaleString('pt-BR'),
+    change: chatsEvolution,
     icon: MessageSquare,
     color: "text-ai-blue",
     bg: "bg-ai-blue/10",
@@ -38,8 +41,8 @@ const stats = [
   },
   {
     title: "Empresas",
-    value: "12",
-    change: "—",
+    value: companiesCount.toString(),
+    change: companiesEvolution,
     icon: Building,
     color: "text-ai-orange",
     bg: "bg-ai-orange/10",
@@ -110,10 +113,53 @@ const quickActions = [
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [companiesCount, setCompaniesCount] = useState<number>(0);
+  const [companiesEvolution, setCompaniesEvolution] = useState<string>("—");
+  const [companiesEvolutionPercent, setCompaniesEvolutionPercent] = useState<number | null>(null);
+  const [chatsCount, setChatsCount] = useState<number>(0);
+  const [chatsEvolution, setChatsEvolution] = useState<string>("—");
+  const [chatsEvolutionPercent, setChatsEvolutionPercent] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        // Buscar dados de empresas e chats em paralelo
+        const [companies, companiesEvolutionData, chatsCountData, chatsEvolutionData] = await Promise.all([
+          CompanyService.getAll(),
+          CompanyService.getMonthlyEvolution(),
+          ChatService.getAllChatsCount(),
+          ChatService.getMonthlyEvolution()
+        ]);
+        
+        // Atualizar dados de empresas
+        setCompaniesCount(companies.length);
+        setCompaniesEvolution(companiesEvolutionData.evolutionText);
+        setCompaniesEvolutionPercent(companiesEvolutionData.evolutionPercent);
+        
+        // Atualizar dados de chats
+        setChatsCount(chatsCountData);
+        setChatsEvolution(chatsEvolutionData.evolutionText);
+        setChatsEvolutionPercent(chatsEvolutionData.evolutionPercent);
+      } catch (error) {
+        console.error("Erro ao buscar dados do dashboard:", error);
+        // Em caso de erro, mantém os valores padrão
+        setCompaniesCount(0);
+        setCompaniesEvolution("—");
+        setCompaniesEvolutionPercent(null);
+        setChatsCount(0);
+        setChatsEvolution("—");
+        setChatsEvolutionPercent(null);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
 
   const handleQuickActionClick = (url: string) => {
     navigate(url);
   };
+
+  const stats = getStats(companiesCount, companiesEvolution, chatsCount, chatsEvolution);
 
   return (
     <div className="p-6 space-y-6">
@@ -126,20 +172,48 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <Card key={stat.title} className="p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">{stat.title}</p>
-                <p className="text-3xl font-bold text-foreground">{stat.value}</p>
-                <p className={`text-sm mt-2 ${stat.color}`}>{stat.change}</p>
+        {stats.map((stat) => {
+          // Determinar cor do percentual de evolução para empresas e conversas IA
+          let changeColor = stat.color;
+          if (stat.title === "Empresas") {
+            const evolutionPercent = companiesEvolutionPercent;
+            if (evolutionPercent !== null) {
+              if (evolutionPercent > 0) {
+                changeColor = "text-green-600"; // Verde para crescimento
+              } else if (evolutionPercent < 0) {
+                changeColor = "text-red-600"; // Vermelho para queda
+              } else {
+                changeColor = stat.color; // Cor padrão para sem mudança
+              }
+            }
+          } else if (stat.title === "Conversas IA") {
+            const evolutionPercent = chatsEvolutionPercent;
+            if (evolutionPercent !== null) {
+              if (evolutionPercent > 0) {
+                changeColor = "text-green-600"; // Verde para crescimento
+              } else if (evolutionPercent < 0) {
+                changeColor = "text-red-600"; // Vermelho para queda
+              } else {
+                changeColor = stat.color; // Cor padrão para sem mudança
+              }
+            }
+          }
+          
+          return (
+            <Card key={stat.title} className="p-6 hover:shadow-lg transition-shadow">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">{stat.title}</p>
+                  <p className="text-3xl font-bold text-foreground">{stat.value}</p>
+                  <p className={`text-sm mt-2 ${changeColor}`}>{stat.change}</p>
+                </div>
+                <div className={`p-3 rounded-lg ${stat.bg}`}>
+                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                </div>
               </div>
-              <div className={`p-3 rounded-lg ${stat.bg}`}>
-                <stat.icon className={`w-6 h-6 ${stat.color}`} />
-              </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
 
       {/* Quick Actions */}
