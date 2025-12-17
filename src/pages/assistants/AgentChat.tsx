@@ -94,36 +94,20 @@ export default function AgentChat() {
 
       setAttachedFile(file);
 
-      // Ler conteúdo do arquivo
-      if (file.type.startsWith("text/") || file.type === "application/json") {
-        // Arquivos de texto: ler como texto
-        const text = await file.text();
-        setFileContent(text);
+      // Converter arquivo para base64 (removendo prefixo data:)
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        // Remover o prefixo "data:application/...;base64," do base64
+        const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+        setFileContent(base64);
         toast.success(`Arquivo "${file.name}" anexado`);
-      } else if (file.type === "application/pdf") {
-        // PDF: converter para base64
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64 = reader.result as string;
-          setFileContent(base64);
-          toast.success(`Arquivo PDF "${file.name}" anexado`);
-        };
-        reader.onerror = () => {
-          toast.error("Erro ao ler arquivo");
-          setAttachedFile(null);
-        };
-        reader.readAsDataURL(file);
-      } else {
-        // Outros tipos: tentar ler como texto
-        try {
-          const text = await file.text();
-          setFileContent(text);
-          toast.success(`Arquivo "${file.name}" anexado`);
-        } catch (error) {
-          toast.error("Tipo de arquivo não suportado");
-          setAttachedFile(null);
-        }
-      }
+      };
+      reader.onerror = () => {
+        toast.error("Erro ao ler arquivo");
+        setAttachedFile(null);
+      };
+      reader.readAsDataURL(file);
     } catch (error) {
       console.error("Erro ao processar arquivo:", error);
       toast.error("Erro ao processar arquivo");
@@ -151,30 +135,26 @@ export default function AgentChat() {
   const handleSend = async () => {
     if ((!input.trim() && !attachedFile) || !agent || !currentChat || isSending) return;
 
-    // Preparar mensagem combinando texto e arquivo
-    let userMessage = input.trim();
+    // Preparar mensagem do usuário (apenas texto, sem incluir arquivo)
+    const userMessage = input.trim() || `Arquivo anexado: ${attachedFile?.name}`;
+    const displayMessage = input.trim() || `Arquivo anexado: ${attachedFile?.name}`;
     
+    // Preparar objeto arquivo se houver arquivo anexado
+    let arquivoPayload: { nome: string; tipo: string; base64: string } | undefined;
     if (attachedFile && fileContent) {
-      if (userMessage) {
-        userMessage += "\n\n--- Arquivo anexado ---\n";
-        userMessage += `Nome do arquivo: ${attachedFile.name}\n`;
-        userMessage += `Tipo: ${attachedFile.type}\n`;
-        userMessage += `Tamanho: ${(attachedFile.size / 1024).toFixed(2)} KB\n\n`;
+      // Garantir que o base64 não tenha prefixo (já removido no handleFileSelect)
+      let base64Clean = fileContent;
+      // Se ainda tiver prefixo, remover (fallback de segurança)
+      if (base64Clean.includes(',')) {
+        base64Clean = base64Clean.split(',')[1];
       }
       
-      // Adicionar conteúdo do arquivo
-      if (attachedFile.type.startsWith("text/") || attachedFile.type === "application/json") {
-        userMessage += fileContent;
-      } else if (attachedFile.type === "application/pdf") {
-        // Para PDF, adicionar base64 completo para processamento
-        userMessage += `\n[Conteúdo do arquivo PDF em base64:]\n${fileContent}`;
-      } else {
-        userMessage += fileContent;
-      }
+      arquivoPayload = {
+        nome: attachedFile.name,
+        tipo: attachedFile.type,
+        base64: base64Clean,
+      };
     }
-
-    const finalMessage = userMessage || `[Arquivo anexado: ${attachedFile?.name}]`;
-    const displayMessage = input.trim() || `Arquivo anexado: ${attachedFile?.name}`;
     
     setInput("");
     setAttachedFile(null);
@@ -188,8 +168,12 @@ export default function AgentChat() {
         content: displayMessage,
       });
 
-      // Chamar o agente n8n
-      const response = await N8NAgentService.callAgent(agent.id, finalMessage);
+      // Chamar o agente n8n com arquivo se fornecido
+      const response = await N8NAgentService.callAgent(
+        agent.id,
+        userMessage,
+        arquivoPayload
+      );
 
       // Salvar resposta do assistente no banco de dados
       await addMessage(currentChat.id, {

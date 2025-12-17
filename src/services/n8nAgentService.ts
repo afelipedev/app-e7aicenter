@@ -12,6 +12,12 @@ export interface N8NAgentError {
   status?: number;
 }
 
+export interface ArquivoPayload {
+  nome: string;
+  tipo: string;
+  base64: string; // Base64 SEM o prefixo "data:..."
+}
+
 /**
  * Serviço para comunicação com agentes n8n
  */
@@ -36,11 +42,13 @@ export class N8NAgentService {
    * Chama um agente n8n específico
    * @param agentId ID do agente
    * @param input Input do usuário
+   * @param arquivo Arquivo opcional para anexar (formato: { nome, tipo, base64 })
    * @returns Resposta do agente
    */
   static async callAgent(
     agentId: string,
-    input: string
+    input: string,
+    arquivo?: ArquivoPayload
   ): Promise<N8NAgentResponse> {
     // Obter informações do agente para validar que existe
     const agent = getAgentById(agentId);
@@ -65,7 +73,8 @@ export class N8NAgentService {
       agentId,
       input,
       session.access_token,
-      0
+      0,
+      arquivo
     );
   }
 
@@ -77,7 +86,8 @@ export class N8NAgentService {
     agentId: string,
     input: string,
     accessToken: string,
-    retryCount: number
+    retryCount: number,
+    arquivo?: ArquivoPayload
   ): Promise<N8NAgentResponse> {
     try {
       // Criar AbortController para timeout
@@ -87,16 +97,28 @@ export class N8NAgentService {
         this.REQUEST_TIMEOUT
       );
 
+      // Construir payload no formato esperado pelo n8n
+      const payload: {
+        agente: string;
+        input: string;
+        arquivo?: ArquivoPayload;
+      } = {
+        agente: agentId,
+        input: input,
+      };
+
+      // Adicionar arquivo ao payload se fornecido
+      if (arquivo) {
+        payload.arquivo = arquivo;
+      }
+
       const response = await fetch(webhookUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
-          agente: agentId,
-          input: input,
-        }),
+        body: JSON.stringify(payload),
         signal: controller.signal,
       });
 
@@ -121,7 +143,8 @@ export class N8NAgentService {
             agentId,
             input,
             accessToken,
-            retryCount + 1
+            retryCount + 1,
+            arquivo
           );
         }
 
@@ -156,7 +179,8 @@ export class N8NAgentService {
             agentId,
             input,
             accessToken,
-            retryCount + 1
+            retryCount + 1,
+            arquivo
           );
         }
         throw new Error(
