@@ -44,7 +44,7 @@ export function ChatMessage({ message, metadata, className }: ChatMessageProps) 
   return (
     <div
       className={cn(
-        "flex gap-2 sm:gap-4",
+        "flex gap-2 sm:gap-4 min-w-0 w-full",
         isMobile ? "p-2" : "p-4",
         isUser ? "justify-end" : "justify-start",
         className
@@ -56,7 +56,7 @@ export function ChatMessage({ message, metadata, className }: ChatMessageProps) 
           isMobile ? "w-6 h-6" : "w-8 h-8"
         )}>
           <Bot className={cn(
-            "text-primary",
+            "text-primary shrink-0",
             isMobile ? "w-3 h-3" : "w-4 h-4"
           )} />
         </div>
@@ -64,7 +64,7 @@ export function ChatMessage({ message, metadata, className }: ChatMessageProps) 
       
       <div
         className={cn(
-          "rounded-lg relative group",
+          "rounded-lg relative group min-w-0 overflow-hidden",
           isMobile ? "max-w-[85%] p-3" : "max-w-[80%] p-4",
           isUser
             ? "bg-primary text-primary-foreground"
@@ -73,8 +73,10 @@ export function ChatMessage({ message, metadata, className }: ChatMessageProps) 
       >
         <div className={cn(
           "whitespace-pre-wrap break-words",
-          isMobile ? "text-sm" : ""
-        )}>
+          isMobile ? "text-sm" : "text-base"
+        )}
+        style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+        >
           {formattedContent.split('\n').map((line, index) => (
             <span key={index}>
               {line}
@@ -124,7 +126,7 @@ export function ChatMessage({ message, metadata, className }: ChatMessageProps) 
           isMobile ? "w-6 h-6" : "w-8 h-8"
         )}>
           <User className={cn(
-            "text-primary",
+            "text-primary shrink-0",
             isMobile ? "w-3 h-3" : "w-4 h-4"
           )} />
         </div>

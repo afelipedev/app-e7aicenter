@@ -52,17 +52,6 @@ export default function AgentChat() {
     }
   }, [agentId, agent, navigate]);
 
-  // Criar novo chat automaticamente se não houver nenhum selecionado
-  useEffect(() => {
-    if (agentId && !currentChatId && !chatsLoading && createNewChat) {
-      createNewChat().then((newChat) => {
-        setCurrentChatId(newChat.id);
-      }).catch((error) => {
-        console.error("Erro ao criar novo chat automaticamente:", error);
-      });
-    }
-  }, [agentId, currentChatId, chatsLoading, createNewChat, setCurrentChatId]);
-
   // Carregar mensagens do chat atual
   const messages = currentChat?.messages || [];
 
@@ -260,10 +249,10 @@ export default function AgentChat() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] w-full">
+    <div className="flex h-[calc(100vh-4rem)] w-full max-w-full overflow-hidden">
       {/* Desktop Sidebar */}
       {!isMobile && (
-        <div className="hidden md:block">
+        <div className="hidden md:block shrink-0">
           {sidebarContent}
         </div>
       )}
@@ -277,7 +266,7 @@ export default function AgentChat() {
         </Sheet>
       )}
 
-      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0 max-w-full">
         {/* Header */}
         <div
           className={cn(
@@ -286,8 +275,8 @@ export default function AgentChat() {
           )}
         >
           <div className={cn(
-            "flex items-center gap-3 mb-3 sm:mb-4",
-            isMobile && "flex-wrap"
+            "flex items-center gap-2 mb-3 sm:mb-4",
+            isMobile ? "flex-wrap" : "flex-nowrap"
           )}>
             {isMobile && (
               <Button
@@ -303,17 +292,17 @@ export default function AgentChat() {
               variant="ghost"
               onClick={handleBackClick}
               className={cn(
-                "gap-2",
+                "gap-2 shrink-0",
                 isMobile && "h-9 text-sm px-2"
               )}
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Voltar</span>
+              <ArrowLeft className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">Voltar</span>
             </Button>
           </div>
 
           <div className={cn(
-            "flex items-center gap-2 sm:gap-3"
+            "flex items-start gap-2 sm:gap-3 min-w-0"
           )}>
             <div
               className={cn(
@@ -323,24 +312,24 @@ export default function AgentChat() {
             >
               <ThemeIcon
                 className={cn(
-                  "text-white",
+                  "text-white shrink-0",
                   isMobile ? "w-5 h-5" : "w-6 h-6"
                 )}
               />
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 overflow-hidden">
               <h1
                 className={cn(
-                  "font-bold text-foreground truncate leading-tight",
-                  isMobile ? "text-lg sm:text-xl" : "text-xl sm:text-2xl"
+                  "font-bold text-foreground leading-tight break-words",
+                  isMobile ? "text-base sm:text-lg" : "text-lg sm:text-xl"
                 )}
               >
                 {agent.name}
               </h1>
               <p
                 className={cn(
-                  "text-muted-foreground truncate mt-0.5",
-                  isMobile ? "text-xs sm:text-sm" : "text-sm"
+                  "text-muted-foreground mt-0.5 break-words line-clamp-2",
+                  isMobile ? "text-xs" : "text-sm"
                 )}
               >
                 {agent.description}
@@ -352,15 +341,15 @@ export default function AgentChat() {
         {/* Chat Area */}
         <Card
           className={cn(
-            "flex-1 flex flex-col min-h-0",
+            "flex-1 flex flex-col min-h-0 overflow-hidden",
             isMobile ? "mx-3 mb-3 mt-2" : "mx-4 sm:mx-6 mb-4 sm:mb-6 mt-2 sm:mt-4"
           )}
         >
-          <ScrollArea className="flex-1 min-h-0">
+          <ScrollArea className="flex-1 min-h-0 overflow-y-auto">
             <div
               className={cn(
                 "space-y-3 sm:space-y-4",
-                isMobile ? "p-3 sm:p-4" : "p-4 sm:p-6"
+                isMobile ? "p-3" : "p-4 sm:p-6"
               )}
             >
               {!currentChat && !chatsLoading && (
@@ -412,21 +401,21 @@ export default function AgentChat() {
           {/* Input Area */}
           <div
             className={cn(
-              "border-t border-border flex-shrink-0",
-              isMobile ? "p-2 sm:p-3" : "p-3 sm:p-4"
+              "border-t border-border flex-shrink-0 overflow-hidden",
+              isMobile ? "p-2" : "p-3 sm:p-4"
             )}
           >
             {/* Arquivo anexado */}
             {attachedFile && (
               <div className={cn(
-                "mb-2 flex items-center gap-2 rounded-md bg-muted",
+                "mb-2 flex items-center gap-2 rounded-md bg-muted min-w-0",
                 isMobile ? "p-1.5 text-xs" : "p-2 text-sm"
               )}>
                 <Paperclip className={cn(
                   "text-muted-foreground shrink-0",
                   isMobile ? "h-3.5 w-3.5" : "h-4 w-4"
                 )} />
-                <span className="flex-1 truncate text-foreground">
+                <span className="flex-1 truncate text-foreground min-w-0">
                   {attachedFile.name}
                 </span>
                 <Button
@@ -447,10 +436,10 @@ export default function AgentChat() {
             )}
 
             <div className={cn(
-              "flex gap-2",
+              "flex gap-2 min-w-0",
               isMobile && "gap-1.5"
             )}>
-              <div className="relative flex-1 min-w-0">
+              <div className="relative flex-1 min-w-0 overflow-hidden">
                 <Textarea
                   ref={textareaRef}
                   value={input}
@@ -468,7 +457,7 @@ export default function AgentChat() {
                     : "Digite sua solicitação... (Shift+Enter para nova linha)"
                   }
                   className={cn(
-                    "min-h-[60px] max-h-[200px] resize-none",
+                    "min-h-[60px] max-h-[200px] resize-none w-full",
                     isMobile 
                       ? "text-sm px-3 py-2" 
                       : "px-3 py-2"
