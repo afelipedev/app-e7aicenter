@@ -1,4 +1,9 @@
 import { supabase } from '../lib/supabase';
+
+// Obter URL do Supabase para Edge Functions
+const getSupabaseUrl = () => {
+  return import.meta.env.VITE_SUPABASE_URL || '';
+};
 import { SpedConfig } from '../config/spedConfig';
 import type { 
   SpedFile, 
@@ -471,6 +476,12 @@ export class SpedService {
                        result?.excelUrl ||
                        null;
       
+      // Tentar obter URL do S3 também
+      const s3Url = result?.data?.arquivo?.urls?.s3_url ||
+                    result?.data?.arquivos?.s3?.url ||
+                    result?.data?.s3_url ||
+                    null;
+      
       // Se o processamento foi aceito pelo n8n, atualizar status
       if (result && result.success) {
         // Se já temos URL do Excel, fazer download imediatamente
@@ -489,7 +500,8 @@ export class SpedService {
 
             await this.downloadFile(excelUrl, defaultFilename);
             
-            // Atualizar como concluído após download bem-sucedido
+            // Atualizar como concluído após download bem-sucedido usando função RPC
+            // A função RPC atualiza tanto sped_processing quanto sped_files
             const { error: rpcError } = await supabase.rpc('receive_sped_processing_result', {
               p_processing_id: processingId,
               p_status: 'completed',
@@ -501,6 +513,8 @@ export class SpedService {
             });
 
             if (rpcError) {
+              console.error('Erro ao atualizar status via RPC:', rpcError);
+              // Fallback: atualizar apenas sped_processing
               await this.updateProcessing(processingId, {
                 status: 'completed',
                 progress: 100,
@@ -508,6 +522,20 @@ export class SpedService {
                 estimated_time: result?.estimated_time,
                 completed_at: new Date().toISOString()
               });
+              
+              // Atualizar arquivos manualmente como fallback
+              await this.updateFilesStatusByProcessingId(processingId, 'completed');
+              
+              // Atualizar URLs dos arquivos
+              if (s3Url || excelUrl) {
+                await this.updateFilesUrlsByProcessingId(processingId, s3Url, excelUrl);
+              }
+            } else {
+              // Se a função RPC funcionou, ainda precisamos atualizar URLs se não foram incluídas
+              // A função RPC pode não ter extraído as URLs corretamente do webhook_response
+              if (s3Url || excelUrl) {
+                await this.updateFilesUrlsByProcessingId(processingId, s3Url, excelUrl);
+              }
             }
           } catch (downloadError) {
             await this.updateProcessing(processingId, {
@@ -528,12 +556,28 @@ export class SpedService {
           });
         }
       } else if (result && !result.success) {
-        // Processamento rejeitado pelo n8n
-        await this.updateProcessing(processingId, {
-          status: 'error',
-          error_message: result.error || result.message || 'Processamento rejeitado pelo webhook n8n',
-          webhook_response: result
+        // Processamento rejeitado pelo n8n - usar função RPC para atualizar arquivos também
+        const { error: rpcError } = await supabase.rpc('receive_sped_processing_result', {
+          p_processing_id: processingId,
+          p_status: 'error',
+          p_progress: null,
+          p_result_file_url: null,
+          p_extracted_data: null,
+          p_error_message: result.error || result.message || 'Processamento rejeitado pelo webhook n8n',
+          p_webhook_response: result
         });
+
+        if (rpcError) {
+          // Fallback: atualizar apenas sped_processing
+          await this.updateProcessing(processingId, {
+            status: 'error',
+            error_message: result.error || result.message || 'Processamento rejeitado pelo webhook n8n',
+            webhook_response: result
+          });
+          
+          // Atualizar arquivos manualmente como fallback
+          await this.updateFilesStatusByProcessingId(processingId, 'error');
+        }
       } else {
         // Resposta não reconhecida, mas requisição foi bem-sucedida (assumir processamento iniciado)
         await this.updateProcessing(processingId, {
@@ -646,6 +690,160 @@ export class SpedService {
     }
 
     return data || [];
+  }
+
+  /**
+   * Atualiza status dos arquivos relacionados a um processamento
+   */
+  static async updateFilesStatusByProcessingId(processingId: string, status: 'pending' | 'processing' | 'completed' | 'error'): Promise<void> {
+    // Buscar IDs dos arquivos relacionados
+    const { data: fileIds, error: fileIdsError } = await supabase
+      .from('sped_files_processing')
+      .select('sped_file_id')
+      .eq('processing_id', processingId);
+
+    if (fileIdsError) {
+      throw new Error(`Erro ao buscar IDs dos arquivos: ${fileIdsError.message}`);
+    }
+
+    if (!fileIds || fileIds.length === 0) {
+      return;
+    }
+
+    // Atualizar status dos arquivos
+    const ids = fileIds.map(item => item.sped_file_id);
+    const updateData: any = { 
+      status,
+      processed_at: status === 'completed' ? new Date().toISOString() : undefined
+    };
+    
+    const { error: updateError } = await supabase
+      .from('sped_files')
+      .update(updateData)
+      .in('id', ids);
+
+    if (updateError) {
+      throw new Error(`Erro ao atualizar status dos arquivos: ${updateError.message}`);
+    }
+  }
+
+  /**
+   * Atualiza URLs (s3_url e excel_url) dos arquivos relacionados a um processamento
+   */
+  static async updateFilesUrlsByProcessingId(
+    processingId: string, 
+    s3Url: string | null, 
+    excelUrl: string | null
+  ): Promise<void> {
+    // Buscar IDs dos arquivos relacionados
+    const { data: fileIds, error: fileIdsError } = await supabase
+      .from('sped_files_processing')
+      .select('sped_file_id')
+      .eq('processing_id', processingId);
+
+    if (fileIdsError) {
+      throw new Error(`Erro ao buscar IDs dos arquivos: ${fileIdsError.message}`);
+    }
+
+    if (!fileIds || fileIds.length === 0) {
+      return;
+    }
+
+    // Preparar dados de atualização
+    const updateData: any = {};
+    if (s3Url) {
+      updateData.s3_url = s3Url;
+    }
+    if (excelUrl) {
+      updateData.excel_url = excelUrl;
+    }
+
+    // Se não há nada para atualizar, retornar
+    if (Object.keys(updateData).length === 0) {
+      return;
+    }
+
+    // Atualizar URLs dos arquivos
+    const ids = fileIds.map(item => item.sped_file_id);
+    const { error: updateError } = await supabase
+      .from('sped_files')
+      .update(updateData)
+      .in('id', ids);
+
+    if (updateError) {
+      throw new Error(`Erro ao atualizar URLs dos arquivos: ${updateError.message}`);
+    }
+  }
+
+  /**
+   * Recebe atualização de status do webhook n8n quando o processamento é concluído
+   * Similar ao método receiveWebhookStatusUpdate do PayrollService
+   */
+  static async receiveWebhookStatusUpdate(update: WebhookStatusUpdate): Promise<void> {
+    try {
+      // Se o status for 'completed' ou 'error', usar função RPC que atualiza tanto sped_processing quanto sped_files
+      if (update.status === 'completed' || update.status === 'error') {
+        const { error: rpcError } = await supabase.rpc('receive_sped_processing_result', {
+          p_processing_id: update.processing_id,
+          p_status: update.status,
+          p_progress: update.progress || (update.status === 'completed' ? 100 : null),
+          p_result_file_url: update.result_file_url || null,
+          p_extracted_data: update.extracted_data || null,
+          p_error_message: update.error_message || null,
+          p_webhook_response: null
+        });
+
+        if (rpcError) {
+          console.error('Erro ao atualizar status via RPC:', rpcError);
+          // Fallback: atualizar apenas sped_processing
+          await this.updateProcessing(update.processing_id, {
+            status: update.status,
+            progress: update.progress,
+            result_file_url: update.result_file_url,
+            extracted_data: update.extracted_data,
+            error_message: update.error_message,
+            completed_at: update.status === 'completed' ? new Date().toISOString() : undefined
+          });
+          
+          // Atualizar arquivos manualmente como fallback
+          await this.updateFilesStatusByProcessingId(update.processing_id, update.status);
+        } else if (update.status === 'completed') {
+          // Atualizar s3_url e excel_url nos arquivos relacionados quando completado
+          // Extrair URLs do webhook_response se disponível
+          const webhookResponse = update.extracted_data as any;
+          const s3Url = webhookResponse?.arquivos?.s3?.url || 
+                       webhookResponse?.arquivo?.urls?.s3_url || 
+                       webhookResponse?.s3_url || 
+                       null;
+          const excelUrl = update.result_file_url || 
+                          webhookResponse?.arquivos?.excel?.url ||
+                          webhookResponse?.arquivo?.urls?.excel_download || 
+                          null;
+          
+          if (s3Url || excelUrl) {
+            await this.updateFilesUrlsByProcessingId(
+              update.processing_id,
+              s3Url,
+              excelUrl
+            );
+          }
+        }
+      } else {
+        // Para outros status, atualizar apenas sped_processing
+        await this.updateProcessing(update.processing_id, {
+          status: update.status,
+          progress: update.progress,
+          result_file_url: update.result_file_url,
+          extracted_data: update.extracted_data,
+          error_message: update.error_message,
+          completed_at: update.status === 'completed' ? new Date().toISOString() : undefined
+        });
+      }
+
+    } catch (error) {
+      console.error('Erro ao receber atualização do webhook:', error);
+      throw error;
+    }
   }
 
   // =====================================================
@@ -915,34 +1113,92 @@ export class SpedService {
 
   /**
    * Função auxiliar para download automático de arquivos do S3
+   * Usa Edge Function como proxy para evitar problemas de CORS
    */
   static async downloadFile(url: string, filename: string): Promise<void> {
     const maxRetries = 3;
     let lastError: Error | null = null;
 
+    // Verificar se é uma URL do S3 que precisa de proxy
+    const isS3Url = url.includes('s3.amazonaws.com') || url.includes('amazonaws.com');
+    
+    // Se for URL do S3, SEMPRE usar Edge Function como proxy
+    const supabaseUrl = getSupabaseUrl();
+    let downloadUrl: string;
+    
+    if (isS3Url) {
+      if (!supabaseUrl) {
+        throw new Error('URL do Supabase não configurada. Não é possível fazer download de arquivos do S3.');
+      }
+      downloadUrl = `${supabaseUrl}/functions/v1/download-file?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+      console.log('Usando Edge Function para download do S3:', downloadUrl);
+    } else {
+      downloadUrl = url;
+    }
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 segundos para Edge Function
 
-        const response = await fetch(url, {
+        const headers: HeadersInit = {
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*'
+        };
+
+        // Se estiver usando Edge Function, adicionar autenticação e remover Cache-Control
+        if (isS3Url) {
+          // Não adicionar Cache-Control quando usar Edge Function para evitar problemas de CORS
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+          }
+          // Adicionar apikey (anon key)
+          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+          if (anonKey) {
+            headers['apikey'] = anonKey;
+          }
+        } else {
+          // Apenas adicionar Cache-Control para URLs não-S3
+          headers['Cache-Control'] = 'no-cache';
+        }
+
+        const response = await fetch(downloadUrl, {
           method: 'GET',
           mode: 'cors',
           signal: controller.signal,
-          headers: {
-            'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*',
-            'Cache-Control': 'no-cache'
-          }
+          headers
         });
 
         clearTimeout(timeoutId);
 
         if (!response.ok) {
           let errorMessage = `Erro ${response.status}`;
+          let errorDetails = '';
+          
+          // Tentar obter mensagem de erro do JSON se disponível
+          try {
+            const errorData = await response.json();
+            if (errorData.error) {
+              errorMessage = errorData.error;
+            }
+            if (errorData.details) {
+              errorDetails = errorData.details;
+            }
+            if (errorData.suggestion) {
+              errorDetails += (errorDetails ? ' ' : '') + errorData.suggestion;
+            }
+          } catch {
+            // Se não for JSON, usar mensagem padrão
+          }
           
           switch (response.status) {
             case 403:
-              errorMessage = 'Acesso negado ao arquivo. A URL pode ter expirado ou não ter permissões adequadas.';
+              if (isS3Url) {
+                errorMessage = 'Acesso negado ao arquivo no S3. O bucket pode estar configurado como privado.';
+                errorDetails = 'O arquivo pode precisar de credenciais AWS ou o bucket precisa ser configurado para permitir acesso público de leitura. Verifique as políticas do bucket S3.';
+              } else {
+                errorMessage = 'Acesso negado ao arquivo. A URL pode ter expirado ou não ter permissões adequadas.';
+              }
               break;
             case 404:
               errorMessage = 'Arquivo não encontrado. A URL pode estar incorreta ou o arquivo foi removido.';
@@ -954,12 +1210,17 @@ export class SpedService {
               errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
           }
 
+          // Se for erro 403 do S3, não tentar novamente
+          if (response.status === 403 && isS3Url) {
+            throw new Error(errorDetails ? `${errorMessage} ${errorDetails}` : errorMessage);
+          }
+
           if (response.status >= 500 && response.status < 600 && attempt < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
             continue;
           }
 
-          throw new Error(errorMessage);
+          throw new Error(errorDetails ? `${errorMessage} ${errorDetails}` : errorMessage);
         }
 
         const blob = await response.blob();
@@ -987,10 +1248,101 @@ export class SpedService {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error('Erro desconhecido no download');
         
+        // Se for URL do S3 e ainda não estiver usando proxy, tentar usar proxy
+        if (attempt === 1 && isS3Url && !downloadUrl.includes('/functions/v1/download-file')) {
+          console.warn('Tentando usar Edge Function como fallback para URL do S3');
+          const supabaseUrlFallback = getSupabaseUrl();
+          if (supabaseUrlFallback) {
+            const proxyUrl = `${supabaseUrlFallback}/functions/v1/download-file?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              const headers: HeadersInit = {
+                'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*',
+              };
+              if (session?.access_token) {
+                headers['Authorization'] = `Bearer ${session.access_token}`;
+              }
+              const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+              if (anonKey) {
+                headers['apikey'] = anonKey;
+              }
+              
+              const proxyResponse = await fetch(proxyUrl, {
+                method: 'GET',
+                mode: 'cors',
+                headers
+              });
+              
+              if (proxyResponse.ok) {
+                const blob = await proxyResponse.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = filename;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+                return;
+              }
+            } catch (proxyError) {
+              console.error('Erro ao usar Edge Function como fallback:', proxyError);
+              // Continuar com o fluxo normal de retry
+            }
+          }
+        }
+        
+        // Verificar se é erro de CORS e tentar usar proxy (apenas para URLs não-S3)
+        if (attempt === 1 && !isS3Url && supabaseUrl && (
+          lastError.message.includes('CORS') ||
+          lastError.message.includes('Access-Control-Allow-Origin') ||
+          lastError.message.includes('blocked by CORS')
+        )) {
+          // Tentar novamente com Edge Function
+          const proxyUrl = `${supabaseUrl}/functions/v1/download-file?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const headers: HeadersInit = {
+              'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/octet-stream,*/*',
+            };
+            if (session?.access_token) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+            const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+            if (anonKey) {
+              headers['apikey'] = anonKey;
+            }
+            
+            const proxyResponse = await fetch(proxyUrl, {
+              method: 'GET',
+              mode: 'cors',
+              headers
+            });
+            
+            if (proxyResponse.ok) {
+              const blob = await proxyResponse.blob();
+              const blobUrl = window.URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = blobUrl;
+              link.download = filename;
+              link.style.display = 'none';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+              return;
+            }
+          } catch (proxyError) {
+            // Continuar com o fluxo normal de retry
+          }
+        }
+        
         if (attempt < maxRetries && (
           lastError.message.includes('fetch') ||
           lastError.message.includes('timeout') ||
-          lastError.message.includes('network')
+          lastError.message.includes('network') ||
+          lastError.message.includes('CORS')
         )) {
           await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
           continue;
