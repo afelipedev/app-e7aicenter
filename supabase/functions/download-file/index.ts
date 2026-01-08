@@ -8,6 +8,41 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, OPTIONS",
 };
 
+/**
+ * Segurança (anti-SSRF):
+ * - Só permite baixar arquivos do bucket S3 esperado (por padrão: e7sped-processados)
+ * - Aceita hostnames S3 regionais, ex.: {bucket}.s3.sa-east-1.amazonaws.com
+ * - Aceita também path-style, ex.: s3.sa-east-1.amazonaws.com/{bucket}/...
+ */
+const allowedBuckets = new Set([
+  // Bucket padrão do projeto
+  "e7sped-processados",
+  // Caso existam aliases/homolog, adicione aqui.
+]);
+
+function getBucketFromS3Url(url: URL): string | null {
+  const hostname = url.hostname.toLowerCase();
+
+  // virtual-hosted–style:
+  //   {bucket}.s3.amazonaws.com
+  //   {bucket}.s3.{region}.amazonaws.com
+  const virtualHostedMatch = hostname.match(/^([a-z0-9.\-]+)\.s3(\.[a-z0-9\-]+)?\.amazonaws\.com$/i);
+  if (virtualHostedMatch?.[1]) {
+    return virtualHostedMatch[1];
+  }
+
+  // path-style:
+  //   s3.amazonaws.com/{bucket}/...
+  //   s3.{region}.amazonaws.com/{bucket}/...
+  const pathStyleMatch = hostname.match(/^s3(\.[a-z0-9\-]+)?\.amazonaws\.com$/i);
+  if (pathStyleMatch) {
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    return pathParts[0] ?? null;
+  }
+
+  return null;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -30,21 +65,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate that the URL is from the expected S3 bucket
-    const allowedDomains = [
-      "e7sped-processados.s3.amazonaws.com",
-      "s3.amazonaws.com",
-      "s3.us-east-1.amazonaws.com",
-    ];
-
+    // Validate that the URL is HTTPS and from the expected S3 bucket
     const fileUrlObj = new URL(fileUrl);
-    const isAllowedDomain = allowedDomains.some((domain) =>
-      fileUrlObj.hostname.includes(domain)
-    );
-
-    if (!isAllowedDomain) {
+    if (fileUrlObj.protocol !== "https:") {
       return new Response(
-        JSON.stringify({ error: "Invalid file URL domain" }),
+        JSON.stringify({ error: "Invalid file URL protocol (HTTPS required)" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const bucket = getBucketFromS3Url(fileUrlObj);
+    if (!bucket || !allowedBuckets.has(bucket)) {
+      return new Response(
+        JSON.stringify({
+          error: "Invalid file URL domain",
+          details: `Bucket não permitido ou URL não é S3 válida. hostname=${fileUrlObj.hostname} bucket=${bucket ?? "null"}`,
+          allowedBuckets: Array.from(allowedBuckets),
+        }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

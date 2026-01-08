@@ -36,6 +36,25 @@ export const SpedConfig = {
   },
 
   /**
+   * URL do webhook n8n por tipo de SPED.
+   *
+   * Suporta configuração granular (sem quebrar o comportamento atual):
+   * - VITE_N8N_WEBHOOK_SPED_ICMS_IPI
+   * - VITE_N8N_WEBHOOK_SPED_CONTRIBUICOES
+   *
+   * Fallback: VITE_N8N_WEBHOOK_SPED
+   */
+  getWebhookUrlByType(spedType: 'SPED ICMS IPI' | 'SPED Contribuições'): string {
+    const icmsIpiUrl = import.meta.env.VITE_N8N_WEBHOOK_SPED_ICMS_IPI;
+    const contribUrl = import.meta.env.VITE_N8N_WEBHOOK_SPED_CONTRIBUICOES;
+
+    if (spedType === 'SPED ICMS IPI' && icmsIpiUrl) return icmsIpiUrl;
+    if (spedType === 'SPED Contribuições' && contribUrl) return contribUrl;
+
+    return this.getWebhookUrl();
+  },
+
+  /**
    * Nome do bucket S3 para SPEDs processados
    */
   getS3Bucket(): string {

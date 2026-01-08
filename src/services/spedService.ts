@@ -29,6 +29,13 @@ import type {
 } from '../../shared/types/sped';
 
 export class SpedService {
+  private static normalizeForFilename(value: string): string {
+    // Remove diacríticos (ex.: "Contribuições" -> "Contribuicoes")
+    const withoutDiacritics = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    // Troca qualquer coisa fora de [a-zA-Z0-9] por underscore
+    return withoutDiacritics.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
   // =====================================================
   // FILE METHODS
   // =====================================================
@@ -147,7 +154,8 @@ export class SpedService {
   ): string {
     const cnpjClean = cnpj.replace(/[.\-\/]/g, '');
     const competenciaFormatted = competencia.replace('/', '_');
-    const spedTypeFormatted = spedType.replace(/\s+/g, '_').toLowerCase();
+    // Evitar acentos e caracteres especiais no nome do arquivo (impacta n8n e S3)
+    const spedTypeFormatted = this.normalizeForFilename(spedType).toLowerCase();
     const timestamp = Date.now();
     
     return SpedConfig.buildS3Path(
@@ -368,6 +376,9 @@ export class SpedService {
       // Construir payload no formato esperado pelo n8n
       const webhookPayload: WebhookPayload = {
         tipoSped: tipoSpedN8n,
+        // Campos redundantes (compatibilidade com possíveis mapeamentos no n8n)
+        tipo_sped: tipoSpedN8n as any,
+        sped_type: tipoSpedN8n as any,
         empresaId: uploadData.company_id,
         empresaNome: companyData.name,
         empresaCnpj: cnpjClean,
@@ -386,6 +397,7 @@ export class SpedService {
       };
 
       // URL do webhook n8n para SPEDs (configurada via variável de ambiente)
+      // Mantém webhook ÚNICO para ambos tipos (ICMS_IPI e CONTRIBUICOES)
       const webhookUrl = SpedConfig.getWebhookUrl();
       
       const maxRetries = 3;
@@ -402,7 +414,10 @@ export class SpedService {
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              'User-Agent': 'SpedSystem/1.0'
+              'User-Agent': 'SpedSystem/1.0',
+              // Ajuda a correlacionar no n8n (headers aparecem na execução)
+              'X-Processing-Id': processingId,
+              'X-Sped-Type': tipoSpedN8n,
             },
             body: JSON.stringify(webhookPayload),
             signal: controller.signal
@@ -411,6 +426,11 @@ export class SpedService {
           clearTimeout(timeoutId);
 
           if (response.ok) {
+            break;
+          }
+
+          // 500 geralmente indica falha determinística do workflow; não adianta retry.
+          if (response.status === 500) {
             break;
           }
 
@@ -444,15 +464,22 @@ export class SpedService {
 
       if (!response.ok) {
         let errorDetails = '';
+        let rawBody = '';
         try {
-          const errorResponse = await response.text();
-          const errorData = JSON.parse(errorResponse);
+          rawBody = await response.text();
+          const errorData = JSON.parse(rawBody);
           errorDetails = errorData.message || `${response.status} ${response.statusText}`;
         } catch {
-          errorDetails = `${response.status} ${response.statusText}`;
+          errorDetails = rawBody?.trim()
+            ? `${response.status} ${response.statusText}: ${rawBody.slice(0, 500)}`
+            : `${response.status} ${response.statusText}`;
         }
-        
-        throw new Error(`Erro na requisição para webhook n8n: ${errorDetails}`);
+
+        // Colocar contexto suficiente para diagnóstico (sem logar fileContent/base64)
+        throw new Error(
+          `Erro na requisição para webhook n8n: ${errorDetails} ` +
+          `(status=${response.status} tipoSped=${tipoSpedN8n} spedTypeApp=${uploadData.sped_type})`
+        );
       }
 
       const responseText = await response.text();

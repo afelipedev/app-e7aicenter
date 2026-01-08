@@ -379,6 +379,12 @@ export default function Sped() {
       } else if (errorMessage.includes('webhook n8n não está ativo')) {
         toastTitle = "Webhook N8N Inativo";
         userFriendlyMessage = "O workflow do N8N não está ativo. Verifique a configuração do workflow no N8N e certifique-se de que está ativo.";
+      } else if (errorMessage.includes('There was a problem executing the workflow')) {
+        toastTitle = "Falha no Workflow N8N";
+        userFriendlyMessage =
+          "O N8N recebeu a requisição, mas o workflow falhou ao executar (erro 500). " +
+          "Isso normalmente indica problema em alguma etapa/branch do workflow para o tipo enviado (ex.: CONTRIBUICOES). " +
+          "Abra o N8N → Executions desse webhook e veja o node que falhou. O app agora envia headers X-Processing-Id e X-Sped-Type para facilitar a busca.";
       } else if (errorMessage.includes('Failed to fetch')) {
         toastTitle = "Erro de Conexão";
         userFriendlyMessage = "Erro de conexão com o servidor. Verifique sua conexão de internet e tente novamente.";
