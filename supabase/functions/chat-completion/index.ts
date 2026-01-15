@@ -82,18 +82,39 @@ async function callOpenAI(
     }))
   ];
 
+  const openaiModel =
+    model === 'gpt-4-turbo'
+      ? 'gpt-4-turbo-preview'
+      : model === 'gpt-5.2'
+        ? 'gpt-5.2'
+        : 'gpt-4';
+
+  const requestBody: Record<string, unknown> = {
+    model: openaiModel,
+    messages: formattedMessages,
+  };
+
+  // Parâmetro correto por modelo (OpenAI)
+  // - gpt-5.2: max_completion_tokens (não aceita max_tokens)
+  // - modelos anteriores: max_tokens
+  if (openaiModel === 'gpt-5.2') {
+    requestBody.max_completion_tokens = 2000;
+  } else {
+    requestBody.max_tokens = 2000;
+  }
+
+  // Obs: gpt-5.2 não deve usar temperatura
+  if (openaiModel !== 'gpt-5.2') {
+    requestBody.temperature = 0.7;
+  }
+
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`
     },
-    body: JSON.stringify({
-      model: model === 'gpt-4-turbo' ? 'gpt-4-turbo-preview' : 'gpt-4',
-      messages: formattedMessages,
-      temperature: 0.7,
-      max_tokens: 2000
-    })
+    body: JSON.stringify(requestBody)
   });
 
   if (!response.ok) {

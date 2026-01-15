@@ -36,6 +36,14 @@ const MODEL_INFO: Record<LLMModel, ModelInfo> = {
     speed: "Rápido",
     cost: "Médio",
   },
+  "gpt-5.2": {
+    name: "gpt-5.2",
+    displayName: "GPT-5.2",
+    description: "Modelo avançado da OpenAI (sem temperatura na Edge Function)",
+    icon: <Sparkles className="w-4 h-4" />,
+    speed: "Médio",
+    cost: "Alto",
+  },
   "gemini-2.5-flash": {
     name: "gemini-2.5-flash",
     displayName: "Gemini 2.5 Flash",

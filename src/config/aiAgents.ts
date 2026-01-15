@@ -99,7 +99,7 @@ export const AGENT_THEMES: Record<AgentTheme, ThemeInfo> = {
   },
 };
 
-const N8N_BASE_URL = "https://vieiraaguiaradvogados.app.n8n.cloud/webhook";
+const N8N_BASE_URL = "https://n8n-lab-n8n.bjivvx.easypanel.host/webhook";
 
 export const AI_AGENTS: AIAgent[] = [
   // Tema: Criação de Peças Jurídicas
