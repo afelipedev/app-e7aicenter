@@ -31,7 +31,7 @@ export default function Accounting() {
 
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [currentModel, setCurrentModel] = useState<LLMModel>("gpt-4");
+  const [currentModel, setCurrentModel] = useState<LLMModel>("gpt-5.2");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
   const messagesEndRef = useRef<HTMLDivElement>(null);

@@ -260,7 +260,7 @@ export function useChatHistory(assistantType: string) {
   }, [assistantType, currentChatId, convertSupabaseChat]);
 
   // Criar novo chat
-  const createNewChat = useCallback(async (llmModel: LLMModel = 'gpt-4') => {
+  const createNewChat = useCallback(async (llmModel: LLMModel = 'gpt-5.2') => {
     try {
       const supabaseChat = await ChatService.createChat({
         assistant_type: assistantType as AssistantType,

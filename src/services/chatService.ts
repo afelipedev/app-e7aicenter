@@ -94,7 +94,7 @@ export class ChatService {
         user_id,
         assistant_type: data.assistant_type,
         title: data.title || 'Nova conversa',
-        llm_model: data.llm_model || 'gpt-4',
+        llm_model: data.llm_model || 'gpt-5.2',
         is_favorite: false,
       };
 
