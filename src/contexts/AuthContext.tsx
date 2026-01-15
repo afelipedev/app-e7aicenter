@@ -4,10 +4,21 @@ import { supabase, User, UserRole, validateSupabaseConfig } from '../lib/supabas
 import { FirstAccessService, FirstAccessStatus } from '../services/firstAccessService'
 import { UserSyncService, AuthEventType } from '../services/userSyncService'
 
+// Permission mapping based on roles
+const rolePermissions: Record<UserRole, string[]> = {
+  administrator: ['admin', 'users', 'companies', 'modules', 'all'],
+  it: ['admin', 'users', 'companies', 'modules', 'all'],
+  advogado_adm: ['admin', 'users', 'companies', 'modules', 'all'],
+  advogado: ['modules', 'companies'],
+  contabil: ['modules', 'companies', 'view_companies', 'add_companies'],
+  financeiro: ['modules']
+}
+
 interface AuthContextType {
   user: User | null
   session: Session | null
   loading: boolean
+  authReady: boolean
   firstAccessStatus: FirstAccessStatus | null
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
   signOut: () => Promise<{ error: AuthError | null }>
@@ -32,10 +43,9 @@ interface AuthProviderProps {
   children: React.ReactNode
 }
 
-// Timeout para operações de autenticação (30 segundos)
 const AUTH_TIMEOUT = 30000
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutos
 
-// Função para criar timeout em promises
 const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
   return Promise.race([
     promise,
@@ -46,59 +56,184 @@ const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => 
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  // ===== STATE =====
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [authReady, setAuthReady] = useState(false)
   const [firstAccessStatus, setFirstAccessStatus] = useState<FirstAccessStatus | null>(null)
-  
-  // Refs para acessar valores atuais sem causar re-renders
-  const sessionRef = useRef<Session | null>(null)
-  const userRef = useRef<User | null>(null)
-  const signOutRef = useRef<(() => Promise<{ error: AuthError | null }>) | null>(null)
-  const fetchUserProfileRef = useRef<((authUser: SupabaseUser) => Promise<void>) | null>(null)
-  const fetchingProfileRef = useRef<boolean>(false) // Evitar chamadas simultâneas
-  
-  // Atualizar refs quando estado mudar
+
+  // ===== REFS para controle de fluxo (evitar race conditions) =====
+  const mountedRef = useRef(true)
+  const initCompletedRef = useRef(false)
+  const fetchingProfileForRef = useRef<string | null>(null)
+  const currentUserRef = useRef<User | null>(null)
+  const currentSessionRef = useRef<Session | null>(null)
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Manter refs sincronizadas com state
   useEffect(() => {
-    sessionRef.current = session
-  }, [session])
-  
-  useEffect(() => {
-    userRef.current = user
+    currentUserRef.current = user
   }, [user])
 
-  // Validar configuração do Supabase na inicialização
   useEffect(() => {
-    if (!validateSupabaseConfig()) {
-      console.error('Configuração do Supabase inválida')
-      setLoading(false)
+    currentSessionRef.current = session
+  }, [session])
+
+  // ===== CALLBACKS ESTÁVEIS =====
+
+  const hasPermission = useCallback((permission: string): boolean => {
+    if (!user) return false
+    const userPermissions = rolePermissions[user.role] || []
+    return userPermissions.includes(permission) || userPermissions.includes('all')
+  }, [user])
+
+  // Função para buscar perfil do usuário (com proteção contra chamadas duplicadas)
+  const fetchUserProfile = useCallback(async (authUser: SupabaseUser): Promise<User | null> => {
+    // Evitar chamadas duplicadas para o mesmo usuário
+    if (fetchingProfileForRef.current === authUser.id) {
+      console.log('[Auth] fetchUserProfile já em execução para este usuário, ignorando')
+      return currentUserRef.current
+    }
+
+    // Se já temos o perfil deste usuário carregado, retornar
+    if (currentUserRef.current?.auth_user_id === authUser.id) {
+      console.log('[Auth] Perfil já carregado para este usuário')
+      return currentUserRef.current
+    }
+
+    fetchingProfileForRef.current = authUser.id
+    console.log('[Auth] fetchUserProfile iniciado para:', authUser.id)
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('auth_user_id', authUser.id)
+        .maybeSingle()
+
+      if (error) {
+        console.error('[Auth] Erro ao buscar perfil:', error)
+
+        if (error.code === 'PGRST116' || error.message?.includes('row-level security')) {
+          // Usuário não existe, tentar criar
+          const { data: newUser, error: createError } = await supabase
+            .from('users')
+            .insert({
+              auth_user_id: authUser.id,
+              email: authUser.email || '',
+              name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Usuário',
+              role: authUser.user_metadata?.role || 'advogado',
+              status: 'ativo'
+            })
+            .select()
+            .maybeSingle()
+
+          if (createError) {
+            console.error('[Auth] Erro ao criar usuário:', createError)
+            return null
+          }
+
+          if (newUser) {
+            console.log('[Auth] Novo usuário criado:', newUser.email)
+            return newUser
+          }
+        }
+        return null
+      }
+
+      if (!data) {
+        console.log('[Auth] Usuário não encontrado na tabela public.users')
+        return null
+      }
+
+      // Verificar se usuário está ativo
+      if (data.status !== 'ativo') {
+        console.log('[Auth] Usuário inativo, fazendo logout')
+        await supabase.auth.signOut()
+        return null
+      }
+
+      console.log('[Auth] Perfil carregado:', data.email)
+      return data
+    } catch (err) {
+      console.error('[Auth] Erro inesperado em fetchUserProfile:', err)
+      return null
+    } finally {
+      fetchingProfileForRef.current = null
     }
   }, [])
 
-  // Permission mapping based on roles
-  const rolePermissions: Record<UserRole, string[]> = {
-    administrator: ['admin', 'users', 'companies', 'modules', 'all'],
-    it: ['admin', 'users', 'companies', 'modules', 'all'],
-    advogado_adm: ['admin', 'users', 'companies', 'modules', 'all'],
-    advogado: ['modules', 'companies'],
-    contabil: ['modules', 'companies', 'view_companies', 'add_companies'],
-    financeiro: ['modules']
-  }
+  // Função para processar sessão (unifica lógica de init e onAuthStateChange)
+  const processSession = useCallback(async (newSession: Session | null, source: string) => {
+    if (!mountedRef.current) return
 
-  const hasPermission = useCallback((permission: string): boolean => {
-    console.log('hasPermission chamado:', { permission, user: user?.role, userPermissions: user ? rolePermissions[user.role] : null });
-    if (!user) return false
-    const userPermissions = rolePermissions[user.role] || []
-    const hasAccess = userPermissions.includes(permission) || userPermissions.includes('all')
-    console.log('hasPermission resultado:', hasAccess);
-    return hasAccess
-  }, [user, rolePermissions])
+    console.log(`[Auth] processSession chamado de: ${source}`, { hasSession: !!newSession })
+
+    if (newSession?.user) {
+      // Verificar se é a mesma sessão (evita reprocessamento)
+      const isSameSession = currentSessionRef.current?.access_token === newSession.access_token
+      const isSameUser = currentUserRef.current?.auth_user_id === newSession.user.id
+
+      if (isSameSession && isSameUser && currentUserRef.current) {
+        console.log('[Auth] Mesma sessão e usuário, ignorando')
+        return
+      }
+
+      // Atualizar sessão
+      setSession(newSession)
+
+      // Buscar perfil se necessário
+      if (!isSameUser || !currentUserRef.current) {
+        const profile = await fetchUserProfile(newSession.user)
+        if (mountedRef.current && profile) {
+          setUser(profile)
+
+          // Verificar primeiro acesso
+          try {
+            const faStatus = await FirstAccessService.checkFirstAccessStatus(profile.email)
+            if (mountedRef.current) {
+              setFirstAccessStatus(faStatus)
+            }
+          } catch (e) {
+            console.warn('[Auth] Erro ao verificar primeiro acesso:', e)
+          }
+        }
+      }
+    } else {
+      // Sem sessão - limpar estado
+      setSession(null)
+      setUser(null)
+      setFirstAccessStatus(null)
+    }
+  }, [fetchUserProfile])
+
+  // ===== INACTIVITY TIMER =====
+
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current)
+    }
+
+    if (!currentSessionRef.current) return
+
+    inactivityTimerRef.current = setTimeout(async () => {
+      console.log('[Auth] Timeout de inatividade - fazendo logout')
+      if (mountedRef.current) {
+        await supabase.auth.signOut()
+        setUser(null)
+        setSession(null)
+        setFirstAccessStatus(null)
+      }
+    }, SESSION_TIMEOUT_MS)
+  }, [])
+
+  // ===== AUTH METHODS =====
 
   const signIn = async (email: string, password: string): Promise<{ error: AuthError | null }> => {
     try {
       setLoading(true)
-      
-      // Validar entrada
+
       if (!email || !password) {
         await UserSyncService.logAuthEvent(undefined, AuthEventType.LOGIN_FAILED, {
           userEmail: email,
@@ -110,22 +245,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const normalizedEmail = email.trim().toLowerCase()
 
-      // Registrar tentativa de login
       await UserSyncService.logAuthEvent(undefined, AuthEventType.LOGIN_ATTEMPT, {
         userEmail: normalizedEmail,
         additionalData: { timestamp: new Date().toISOString() }
       })
 
-      // Fazer login com timeout
-      const authPromise = supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password: password
-      })
-
-      const { data, error } = await withTimeout(authPromise, AUTH_TIMEOUT)
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email: normalizedEmail, password }),
+        AUTH_TIMEOUT
+      )
 
       if (error) {
-        console.error('Erro no login:', error.message)
+        console.error('[Auth] Erro no login:', error.message)
         await UserSyncService.logAuthEvent(undefined, AuthEventType.LOGIN_FAILED, {
           userEmail: normalizedEmail,
           errorMessage: error.message,
@@ -143,65 +274,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { error: new Error('Falha na autenticação') as AuthError }
       }
 
-      // Verificar status do usuário na tabela public.users
+      // Verificar status do usuário
       try {
-        const { data: userDataArray, error: userError } = await supabase
+        const { data: userData, error: userError } = await supabase
           .from('users')
           .select('status')
           .eq('auth_user_id', data.user.id)
-          .limit(1)
+          .maybeSingle()
 
-        if (userError) {
-          console.error('Erro ao verificar status do usuário:', userError)
-          // NÃO fazer logout automático - pode ser erro de RLS temporário
-          console.warn('Continuando login apesar do erro de verificação de status')
-          // return { error: new Error('Erro ao verificar permissões do usuário') as AuthError }
-        } else if (userDataArray && userDataArray.length > 0) {
-          // Verificar se o usuário está ativo (apenas se conseguiu buscar os dados)
-          const userData = userDataArray[0]
-          if (userData.status !== 'ativo') {
-            console.log('Usuário com status inativo tentou fazer login')
-            // Fazer logout imediatamente apenas se confirmado que está inativo
-            await supabase.auth.signOut()
-            return { error: new Error('Sua conta está inativa. Entre em contato com o administrador.') as AuthError }
-          }
+        if (!userError && userData?.status !== 'ativo') {
+          console.log('[Auth] Usuário inativo tentou fazer login')
+          await supabase.auth.signOut()
+          return { error: new Error('Sua conta está inativa. Entre em contato com o administrador.') as AuthError }
+        }
 
-          // Atualizar last_access apenas se o usuário estiver ativo
+        // Atualizar last_access
+        if (!userError && userData) {
           await supabase
             .from('users')
             .update({ last_access: new Date().toISOString() })
             .eq('auth_user_id', data.user.id)
         }
-
       } catch (statusError) {
-        console.error('Erro ao verificar status:', statusError)
-        // NÃO fazer logout automático - pode ser erro temporário
-        console.warn('Continuando login apesar do erro de verificação de status')
-        // return { error: new Error('Erro ao verificar permissões do usuário') as AuthError }
+        console.warn('[Auth] Erro ao verificar status (continuando):', statusError)
       }
 
-      // Registrar sucesso do login
       await UserSyncService.logAuthEvent(undefined, AuthEventType.LOGIN_SUCCESS, {
         userEmail: normalizedEmail,
         additionalData: { timestamp: new Date().toISOString() }
       })
 
-      // Verificar status de primeiro acesso após login bem-sucedido
-      try {
-        const firstAccessResult = await FirstAccessService.checkFirstAccessStatus(normalizedEmail)
-        setFirstAccessStatus(firstAccessResult)
-        console.log('Status de primeiro acesso verificado:', firstAccessResult)
-      } catch (firstAccessError) {
-        console.warn('Erro ao verificar primeiro acesso (não crítico):', firstAccessError)
-      }
-
+      // onAuthStateChange vai processar a sessão
       return { error: null }
     } catch (error) {
-      console.error('Erro inesperado no signIn:', error)
-      return { 
-        error: error instanceof Error 
-          ? error as AuthError 
-          : new Error('Erro inesperado na autenticação') as AuthError 
+      console.error('[Auth] Erro inesperado no signIn:', error)
+      return {
+        error: error instanceof Error
+          ? error as AuthError
+          : new Error('Erro inesperado na autenticação') as AuthError
       }
     } finally {
       setLoading(false)
@@ -211,165 +321,101 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = useCallback(async (): Promise<{ error: AuthError | null }> => {
     try {
       setLoading(true)
-      
-      const currentUserEmail = user?.email
-      const currentSession = session
-      
-      console.log('🔐 Iniciando processo de logout...', { 
-        hasUser: !!user, 
-        hasSession: !!currentSession,
-        userEmail: currentUserEmail 
-      })
-      
-      // Registrar tentativa de logout
+
+      const currentUserEmail = currentUserRef.current?.email
+
+      console.log('[Auth] Iniciando logout...')
+
       if (currentUserEmail) {
         try {
-          await UserSyncService.logAuthEvent(user?.id, AuthEventType.LOGOUT_ATTEMPTED, {
+          await UserSyncService.logAuthEvent(currentUserRef.current?.id, AuthEventType.LOGOUT_ATTEMPTED, {
             userEmail: currentUserEmail,
             additionalData: { timestamp: new Date().toISOString() }
           })
-        } catch (logError) {
-          console.warn('Falha ao registrar tentativa de logout (não crítico):', logError)
+        } catch (e) {
+          console.warn('[Auth] Erro ao registrar tentativa de logout:', e)
         }
       }
-      
-      // Verificar se há uma sessão válida antes de tentar logout no servidor
-      let shouldAttemptServerLogout = false
-      
-      if (currentSession) {
-        try {
-          // Verificar se a sessão ainda é válida
-          const { data: { session: validSession }, error: sessionError } = await supabase.auth.getSession()
-          
-          if (!sessionError && validSession) {
-            console.log('✅ Sessão válida encontrada, tentando logout no servidor')
-            shouldAttemptServerLogout = true
-          } else {
-            console.log('⚠️ Sessão local existe mas não é válida no servidor:', sessionError?.message || 'Sessão expirada')
-          }
-        } catch (sessionCheckError) {
-          console.warn('Erro ao verificar sessão (continuando com logout local):', sessionCheckError)
+
+      // Tentar logout no servidor
+      try {
+        const { error } = await withTimeout(supabase.auth.signOut(), AUTH_TIMEOUT)
+        if (error && !error.message?.includes('session_not_found')) {
+          console.warn('[Auth] Erro no logout do servidor:', error.message)
         }
-      } else {
-        console.log('ℹ️ Nenhuma sessão local encontrada, fazendo apenas limpeza local')
+      } catch (e) {
+        console.warn('[Auth] Erro ao fazer logout no servidor:', e)
       }
-      
-      let serverLogoutError: AuthError | null = null
-      
-      // Tentar logout no servidor apenas se a sessão for válida
-      if (shouldAttemptServerLogout) {
-        try {
-          console.log('🌐 Tentando logout no servidor Supabase...')
-          const logoutPromise = supabase.auth.signOut()
-          const { error } = await withTimeout(logoutPromise, AUTH_TIMEOUT)
-          
-          if (error) {
-            console.warn('⚠️ Erro no logout do servidor:', error.message, error.code)
-            
-            // Verificar se é erro de sessão não encontrada (comum e não crítico)
-            if (error.message?.includes('session_not_found') || 
-                error.message?.includes('Session from session_id claim in JWT does not exist') ||
-                error.message?.includes('Auth session missing')) {
-              console.log('ℹ️ Sessão já expirada no servidor - continuando com limpeza local')
-            } else {
-              // Outros erros podem ser mais críticos
-              serverLogoutError = error
-            }
-          } else {
-            console.log('✅ Logout no servidor realizado com sucesso')
-          }
-        } catch (logoutError) {
-          console.warn('⚠️ Erro inesperado no logout do servidor:', logoutError)
-          // Não impedir a limpeza local mesmo com erro no servidor
-        }
-      }
-      
-      // SEMPRE limpar estado local, independente do resultado do logout no servidor
-      console.log('🧹 Limpando estado local...')
+
+      // Sempre limpar estado local
       setUser(null)
       setSession(null)
       setFirstAccessStatus(null)
-      
-      // Registrar sucesso do logout (limpeza local sempre é bem-sucedida)
+
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current)
+        inactivityTimerRef.current = null
+      }
+
       if (currentUserEmail) {
         try {
-          await UserSyncService.logAuthEvent(user?.id, AuthEventType.LOGOUT_SUCCESS, {
+          await UserSyncService.logAuthEvent(undefined, AuthEventType.LOGOUT_SUCCESS, {
             userEmail: currentUserEmail,
-            additionalData: { 
-              timestamp: new Date().toISOString(),
-              serverLogoutAttempted: shouldAttemptServerLogout,
-              serverLogoutSuccess: !serverLogoutError
-            }
+            additionalData: { timestamp: new Date().toISOString() }
           })
-        } catch (logError) {
-          console.warn('Falha ao registrar log de logout bem-sucedido (não crítico):', logError)
+        } catch (e) {
+          console.warn('[Auth] Erro ao registrar logout:', e)
         }
       }
-      
-      console.log('✅ Processo de logout concluído')
-      
-      // Retornar erro apenas se for crítico (não incluir session_not_found)
-      return { error: serverLogoutError }
-      
+
+      console.log('[Auth] Logout concluído')
+      return { error: null }
     } catch (error) {
-      console.error('❌ Erro inesperado no signOut:', error)
-      
-      // SEMPRE limpar estado local mesmo em caso de erro
-      console.log('🧹 Limpando estado local devido a erro...')
+      console.error('[Auth] Erro no signOut:', error)
+      // Sempre limpar estado mesmo com erro
       setUser(null)
       setSession(null)
       setFirstAccessStatus(null)
-      
-      return { 
-        error: error instanceof Error 
-          ? error as AuthError 
-          : new Error('Erro inesperado no logout') as AuthError 
+      return {
+        error: error instanceof Error
+          ? error as AuthError
+          : new Error('Erro inesperado no logout') as AuthError
       }
     } finally {
       setLoading(false)
     }
-  }, [user, session])
+  }, [])
 
-  // Método de logout simplificado para uso interno
   const logout = async (): Promise<void> => {
-    try {
-      await signOut()
-    } catch (error) {
-      console.error('Erro no logout interno:', error)
-    }
+    await signOut()
   }
 
   const refreshSession = async (): Promise<void> => {
     try {
       const { data, error } = await supabase.auth.refreshSession()
       if (error) {
-        console.error('Erro ao renovar sessão:', error)
+        console.error('[Auth] Erro ao renovar sessão:', error)
         return
       }
-      
       if (data.session) {
-        setSession(data.session)
-        if (data.user) {
-          await fetchUserProfile(data.user)
-        }
+        await processSession(data.session, 'refreshSession')
       }
     } catch (error) {
-      console.error('Erro inesperado ao renovar sessão:', error)
+      console.error('[Auth] Erro inesperado ao renovar sessão:', error)
     }
   }
 
   const checkFirstAccessStatus = async (): Promise<FirstAccessStatus | null> => {
     try {
       if (!user?.email) {
-        console.warn('Usuário não autenticado para verificar primeiro acesso')
+        console.warn('[Auth] Usuário não autenticado para verificar primeiro acesso')
         return null
       }
-
       const status = await FirstAccessService.checkFirstAccessStatus(user.email)
       setFirstAccessStatus(status)
       return status
     } catch (error) {
-      console.error('Erro ao verificar status de primeiro acesso:', error)
+      console.error('[Auth] Erro ao verificar status de primeiro acesso:', error)
       return null
     }
   }
@@ -377,316 +423,158 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const completeFirstAccess = async (newPassword: string): Promise<boolean> => {
     try {
       if (!user?.email) {
-        console.error('Usuário não autenticado para completar primeiro acesso')
+        console.error('[Auth] Usuário não autenticado para completar primeiro acesso')
         return false
       }
 
       const result = await FirstAccessService.completeFirstAccess(user.email, newPassword)
-      
+
       if (result.success) {
-        // Atualizar status local
         setFirstAccessStatus({
           needsFirstAccess: false,
           firstAccessAt: new Date().toISOString()
         })
-        
-        console.log('Primeiro acesso completado com sucesso')
+        console.log('[Auth] Primeiro acesso completado')
         return true
       } else {
-        console.error('Falha ao completar primeiro acesso:', result.error)
+        console.error('[Auth] Falha ao completar primeiro acesso:', result.error)
         return false
       }
     } catch (error) {
-      console.error('Erro ao completar primeiro acesso:', error)
+      console.error('[Auth] Erro ao completar primeiro acesso:', error)
       return false
     }
   }
 
-  const fetchUserProfile = useCallback(async (authUser: SupabaseUser) => {
-    // Evitar chamadas simultâneas para o mesmo usuário
-    if (fetchingProfileRef.current) {
-      console.log('fetchUserProfile já em execução, ignorando chamada duplicada')
+  // ===== INITIALIZATION EFFECT =====
+  useEffect(() => {
+    mountedRef.current = true
+
+    // Validar configuração
+    if (!validateSupabaseConfig()) {
+      console.error('[Auth] Configuração do Supabase inválida')
+      setAuthReady(true)
       return
     }
-    
-    // Verificar se já temos o perfil deste usuário
-    // Comparar pelo auth_user_id que corresponde ao authUser.id
-    if (userRef.current?.auth_user_id === authUser.id) {
-      console.log('Perfil do usuário já carregado, ignorando')
-      fetchingProfileRef.current = false
-      return
-    }
-    
-    console.log('fetchUserProfile iniciado para:', authUser.id)
-    fetchingProfileRef.current = true
-    
-    try {
-      console.log('Fazendo query para buscar usuário...')
-      
-      // Query simplificada sem timeout artificial - Supabase gerencia timeout internamente
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('auth_user_id', authUser.id)
-        .maybeSingle() // Retorna objeto único ou null, não array
 
-      console.log('Query concluída:', { data, error })
+    let activityListeners: (() => void)[] = []
 
-      if (error) {
-        console.error('Erro ao buscar perfil do usuário:', error)
-        // Se for erro de RLS ou não encontrado, tentar criar usuário
-        if (error.code === 'PGRST116' || error.message?.includes('row-level security')) {
-          console.log('Usuário não encontrado ou bloqueado por RLS, tentando criar perfil...')
-          // Continuar para criar usuário abaixo
-        } else {
-          // NÃO fazer logout automático em caso de erro de RLS - apenas log
-          console.warn('Continuando sem fazer logout automático devido a erro:', error.message)
-          setLoading(false)
-          return
-        }
-      }
-
-      // Verificar se encontrou usuário (data é objeto único com maybeSingle, não array)
-      if (!data) {
-        console.log('Usuário não encontrado, criando perfil na tabela public.users')
-        
-        const { data: newUserData, error: createError } = await supabase
-          .from('users')
-          .insert({
-            auth_user_id: authUser.id,
-            email: authUser.email || '',
-            name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Usuário',
-            role: authUser.user_metadata?.role || 'advogado',
-            status: 'ativo'
-          })
-          .select()
-          .maybeSingle() // Usar maybeSingle aqui também
-      
-        console.log('Resultado da criação:', { newUserData, createError })
-        
-        if (createError) {
-          console.error('Erro ao criar usuário na tabela public.users:', createError)
-          // NÃO fazer logout automático - apenas log do erro
-          setLoading(false)
-          return
-        }
-        
-        if (newUserData) {
-          console.log('Usuário criado com sucesso:', newUserData)
-          setUser(newUserData)
-        }
-        setLoading(false)
-        return
-      }
-
-      // Usuário encontrado - data já é o objeto, não precisa de [0]
-      const userData = data
-
-      // Verificar se o usuário está ativo
-      if (userData.status !== 'ativo') {
-        console.log('Usuário com status inativo detectado, fazendo logout')
-        // APENAS neste caso fazer logout (usuário inativo)
-        await supabase.auth.signOut()
-        setUser(null)
-        setSession(null)
-        setLoading(false)
-        return
-      }
-
-      console.log('Usuário encontrado e ativo:', userData)
-      setUser(userData)
-      
-      // Verificar status de primeiro acesso para usuário ativo
-      try {
-        if (userData.email) {
-          const firstAccessResult = await FirstAccessService.checkFirstAccessStatus(userData.email)
-          setFirstAccessStatus(firstAccessResult)
-          console.log('Status de primeiro acesso verificado para usuário ativo:', firstAccessResult)
-        }
-      } catch (firstAccessError) {
-        console.warn('Erro ao verificar primeiro acesso (não crítico):', firstAccessError)
-      }
-      
-      setLoading(false)
-    } catch (err) {
-      console.error('Erro inesperado ao buscar perfil do usuário:', err)
-      // NÃO fazer logout automático em caso de erro inesperado
-      console.warn('Continuando sem fazer logout automático devido a erro inesperado')
-      setLoading(false)
-    } finally {
-      fetchingProfileRef.current = false
-    }
-  }, [])
-
-  // Atualizar refs das funções quando mudarem
-  useEffect(() => {
-    signOutRef.current = signOut
-  }, [signOut])
-  
-  useEffect(() => {
-    fetchUserProfileRef.current = fetchUserProfile
-  }, [fetchUserProfile])
-
-  useEffect(() => {
-    let mounted = true
-    let inactivityTimer: NodeJS.Timeout | null = null
-    let listenersAdded = false
-    
-    // Configuração de timeout de sessão (30 minutos de inatividade)
-    const SESSION_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutos
-
-    const resetInactivityTimer = () => {
-      if (inactivityTimer) {
-        clearTimeout(inactivityTimer)
-      }
-      
-      if (!sessionRef.current) return
-      
-      inactivityTimer = setTimeout(async () => {
-        console.log('⏰ Timeout de sessão detectado por inatividade')
-        if (mounted && signOutRef.current) {
-          await signOutRef.current()
-        }
-      }, SESSION_TIMEOUT_MS)
-    }
-
-    // Event listeners para detectar atividade do usuário
-    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
-    const handleActivity = () => {
-      resetInactivityTimer()
-    }
-
-    const addActivityListeners = () => {
-      if (listenersAdded) return
-      listenersAdded = true
-      activityEvents.forEach(event => {
-        window.addEventListener(event, handleActivity, { passive: true })
-      })
-    }
-
-    const removeActivityListeners = () => {
-      if (!listenersAdded) return
-      listenersAdded = false
-      activityEvents.forEach(event => {
-        window.removeEventListener(event, handleActivity)
+    const setupActivityListeners = () => {
+      const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
+      events.forEach(event => {
+        const handler = () => resetInactivityTimer()
+        window.addEventListener(event, handler, { passive: true })
+        activityListeners.push(() => window.removeEventListener(event, handler))
       })
     }
 
     const initializeAuth = async () => {
+      if (initCompletedRef.current) {
+        console.log('[Auth] Init já completado, ignorando')
+        return
+      }
+
+      console.log('[Auth] Inicializando autenticação...')
+
       try {
-        // Get initial session
-        const { data: { session }, error } = await supabase.auth.getSession()
-        
-        if (error) {
-          console.error('Erro ao obter sessão inicial:', error)
-          if (mounted) {
-            setLoading(false)
+        // IMPORTANTE: Primeiro configurar o listener ANTES de chamar getSession
+        // Isso segue o padrão oficial do Supabase para evitar race conditions
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+          if (!mountedRef.current) return
+
+          console.log('[Auth] onAuthStateChange:', event)
+
+          // Ignorar eventos durante a inicialização (getSession vai processar)
+          if (!initCompletedRef.current && event === 'INITIAL_SESSION') {
+            console.log('[Auth] Evento INITIAL_SESSION ignorado (init vai processar)')
+            return
           }
-          return
+
+          // Ignorar TOKEN_REFRESHED se a sessão não mudou
+          if (event === 'TOKEN_REFRESHED') {
+            if (currentSessionRef.current?.access_token === newSession?.access_token) {
+              console.log('[Auth] TOKEN_REFRESHED ignorado - mesmo token')
+              return
+            }
+          }
+
+          // Processar mudança de sessão
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            // Só processar SIGNED_IN se vier de um login real (não da restauração)
+            if (event === 'SIGNED_IN' && initCompletedRef.current) {
+              await processSession(newSession, 'onAuthStateChange:SIGNED_IN')
+              resetInactivityTimer()
+              setupActivityListeners()
+            }
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null)
+            setSession(null)
+            setFirstAccessStatus(null)
+            if (inactivityTimerRef.current) {
+              clearTimeout(inactivityTimerRef.current)
+            }
+            activityListeners.forEach(cleanup => cleanup())
+            activityListeners = []
+          }
+        })
+
+        // Agora buscar sessão existente
+        const { data: { session: existingSession }, error } = await supabase.auth.getSession()
+
+        if (error) {
+          console.error('[Auth] Erro ao obter sessão inicial:', error)
+        } else if (existingSession) {
+          console.log('[Auth] Sessão existente encontrada')
+          await processSession(existingSession, 'getSession')
+          resetInactivityTimer()
+          setupActivityListeners()
+        } else {
+          console.log('[Auth] Nenhuma sessão existente')
         }
 
-        if (mounted) {
-          setSession(session)
-          if (session?.user) {
-            if (fetchUserProfileRef.current) {
-              await fetchUserProfileRef.current(session.user)
-            }
-            resetInactivityTimer()
-            addActivityListeners()
-          }
-          setLoading(false)
+        // Marcar inicialização como completa
+        initCompletedRef.current = true
+        if (mountedRef.current) {
+          setAuthReady(true)
         }
-      } catch (error) {
-        console.error('Erro na inicialização da autenticação:', error)
-        if (mounted) {
-          setLoading(false)
+
+        console.log('[Auth] Inicialização completa')
+
+        // Retornar cleanup
+        return () => {
+          subscription.unsubscribe()
+        }
+      } catch (err) {
+        console.error('[Auth] Erro na inicialização:', err)
+        initCompletedRef.current = true
+        if (mountedRef.current) {
+          setAuthReady(true)
         }
       }
     }
 
-    initializeAuth()
+    let cleanupSubscription: (() => void) | undefined
 
-    // Listen for auth changes
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (!mounted) return
-
-      console.log('Auth state changed:', event)
-      
-      // Evitar atualizar se a sessão não mudou realmente
-      const currentSession = sessionRef.current
-      const currentAccessToken = currentSession?.access_token
-      const newAccessToken = newSession?.access_token
-      
-      // Ignorar eventos de TOKEN_REFRESHED se o token não mudou realmente
-      if (event === 'TOKEN_REFRESHED' && currentAccessToken === newAccessToken) {
-        console.log('Token refresh ignorado - token não mudou')
-        return
-      }
-      
-      // Evitar atualizar se a sessão não mudou realmente (exceto para eventos importantes)
-      if (currentAccessToken === newAccessToken && event !== 'SIGNED_OUT' && event !== 'SIGNED_IN') {
-        console.log('Sessão não mudou, ignorando atualização')
-        return
-      }
-      
-      // Evitar loops: não atualizar se já está processando
-      if (mounted) {
-        setSession(newSession)
-        
-        if (newSession?.user) {
-          // Verificar se o usuário já é o mesmo para evitar chamadas desnecessárias
-          const currentUserId = userRef.current?.id
-          const newUserId = newSession.user.id
-          
-          if (currentUserId !== newUserId && fetchUserProfileRef.current) {
-            await fetchUserProfileRef.current(newSession.user)
-          } else if (!currentUserId && fetchUserProfileRef.current) {
-            // Se não há usuário atual, sempre buscar perfil
-            await fetchUserProfileRef.current(newSession.user)
-          }
-          
-          resetInactivityTimer()
-          addActivityListeners()
-        } else {
-          setUser(null)
-          setFirstAccessStatus(null)
-          
-          // Limpar timers e listeners quando usuário faz logout
-          if (inactivityTimer) {
-            clearTimeout(inactivityTimer)
-            inactivityTimer = null
-          }
-          
-          removeActivityListeners()
-          
-          // Redirecionar para login se não estiver já lá
-          if (window.location.pathname !== '/login') {
-            window.location.href = '/login'
-          }
-        }
-        
-        setLoading(false)
-      }
+    initializeAuth().then(cleanup => {
+      cleanupSubscription = cleanup
     })
 
     return () => {
-      mounted = false
-      subscription.unsubscribe()
-      
-      if (inactivityTimer) {
-        clearTimeout(inactivityTimer)
+      mountedRef.current = false
+      cleanupSubscription?.()
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current)
       }
-      
-      removeActivityListeners()
+      activityListeners.forEach(cleanup => cleanup())
     }
-  }, []) // Sem dependências para evitar loops
+  }, [processSession, resetInactivityTimer])
 
+  // ===== CONTEXT VALUE =====
   const value: AuthContextType = {
     user,
     session,
     loading,
+    authReady,
     firstAccessStatus,
     signIn,
     signOut,

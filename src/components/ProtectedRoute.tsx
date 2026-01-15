@@ -15,28 +15,23 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiredPermission,
   fallbackPath = '/'
 }) => {
-  const { user, loading, hasPermission } = useAuth()
+  const { user, authReady, hasPermission } = useAuth()
   const location = useLocation()
-  
-  console.log('ProtectedRoute renderizado:', { 
-    path: location.pathname, 
-    requiredPermission, 
-    user: user?.email, 
-    userRole: user?.role, 
-    loading 
-  });
 
-  // Show loading spinner while checking authentication
-  if (loading) {
+  // CRÍTICO: Aguardar authReady antes de qualquer decisão de redirecionamento
+  // Isso evita redirecionamentos prematuros durante a restauração da sessão
+  if (!authReady) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <p className="text-gray-600">Carregando...</p>
+          <p className="text-gray-600">Verificando autenticação...</p>
         </div>
       </div>
     )
   }
+
+  // Após authReady=true, podemos tomar decisões seguras
 
   // Redirect to login if not authenticated
   if (!user) {
@@ -45,12 +40,20 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Redirect to login if user is inactive
   if (user.status !== 'ativo') {
-    return <Navigate to="/login" state={{ from: location, error: 'Sua conta está inativa. Entre em contato com o administrador.' }} replace />
+    return (
+      <Navigate
+        to="/login"
+        state={{
+          from: location,
+          error: 'Sua conta está inativa. Entre em contato com o administrador.'
+        }}
+        replace
+      />
+    )
   }
 
   // Check if user has required permission
   if (requiredPermission && !hasPermission(requiredPermission)) {
-    console.log('Acesso negado - usuário sem permissão:', { requiredPermission, userRole: user?.role });
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
