@@ -25,6 +25,26 @@ export class N8NAgentService {
   private static readonly REQUEST_TIMEOUT = 30000; // 30 segundos
   private static readonly MAX_RETRIES = 2;
 
+  private static normalizeWebhookUrl(rawUrl: string): string {
+    // remove espaços e aspas comuns de .env (ex: "https://..." ou 'https://...')
+    return rawUrl.trim().replace(/^['"]|['"]$/g, "");
+  }
+
+  private static async readBody(response: Response): Promise<{
+    text: string;
+    json: unknown | null;
+  }> {
+    const text = await response.text().catch(() => "");
+    const trimmed = text.trim();
+    if (!trimmed) return { text, json: null };
+
+    try {
+      return { text, json: JSON.parse(trimmed) as unknown };
+    } catch {
+      return { text, json: null };
+    }
+  }
+
   /**
    * Obtém a URL do webhook dinâmico do n8n
    */
@@ -35,7 +55,7 @@ export class N8NAgentService {
         "VITE_N8N_WEBHOOK_DINAMICO não configurado nas variáveis de ambiente"
       );
     }
-    return webhookUrl;
+    return this.normalizeWebhookUrl(webhookUrl);
   }
 
   /**
@@ -125,11 +145,19 @@ export class N8NAgentService {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const { text, json } = await this.readBody(response);
+        const jsonObj: Record<string, unknown> | null =
+          json && typeof json === "object" && json !== null
+            ? (json as Record<string, unknown>)
+            : null;
+
+        const errorMessageFromBody =
+          (typeof jsonObj?.error === "string" && jsonObj.error) ||
+          (typeof jsonObj?.message === "string" && jsonObj.message) ||
+          (text?.trim() ? text.trim().slice(0, 500) : "");
+
         const errorMessage =
-          errorData.error ||
-          errorData.message ||
-          `Erro ${response.status}: ${response.statusText}`;
+          errorMessageFromBody || `Erro ${response.status}: ${response.statusText}`;
 
         // Retry em caso de erro 5xx ou timeout
         if (
@@ -151,7 +179,30 @@ export class N8NAgentService {
         throw new Error(errorMessage);
       }
 
-      const data = await response.json();
+      // 204 = sem conteúdo (muito comum quando o workflow não retorna nada)
+      if (response.status === 204) {
+        throw new Error(
+          "O webhook do n8n respondeu 204 (sem conteúdo). Configure o workflow para retornar JSON (ex: nó 'Respond to Webhook')."
+        );
+      }
+
+      const { text, json } = await this.readBody(response);
+      const trimmed = text.trim();
+
+      if (!trimmed) {
+        throw new Error(
+          "O webhook do n8n respondeu com corpo vazio. Verifique se o workflow está retornando uma resposta (JSON) no final."
+        );
+      }
+
+      // Se o endpoint devolveu HTML (ex: página de erro/proxy), não faz sentido jogar no chat.
+      if (/^</.test(trimmed) && /<html[\s>]/i.test(trimmed)) {
+        throw new Error(
+          "O webhook do n8n retornou HTML (não JSON). Verifique se a URL do webhook está correta e se o endpoint está acessível."
+        );
+      }
+
+      const data = json ?? trimmed;
 
       // Verificar se a resposta tem o formato esperado
       if (typeof data === "string") {
