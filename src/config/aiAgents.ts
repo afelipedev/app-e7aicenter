@@ -185,20 +185,20 @@ export const AI_AGENTS: AIAgent[] = [
 
   // Tema: Revisão de Peças Jurídicas
   {
-    id: "sugestao-melhorias-pecas-processuais",
+    id: "sugestao-melhorias-processuais",
     name: "Sugestão de melhorias de peças processuais",
     description:
       "Ao inserir a peça processual, o assistente irá revisar e sugerir melhorias relacionadas a aspectos formais, substanciais, estratégia jurídica adotada, a clareza argumentativa, aderência a normas processuais.",
     theme: "revisao-pecas-juridicas",
-    webhookUrl: `${N8N_BASE_URL}/sugestao-melhorias-pecas-processuais`,
+    webhookUrl: `${N8N_BASE_URL}/sugestao-melhorias-processuais`,
   },
   {
-    id: "revisar-sugerir-melhorias-peticao",
+    id: "revisar-melhorias-peticao",
     name: "Revisar e sugerir melhorias na petição",
     description:
       "Ao inserir a petição, o assistente irá analisar e fornecer sugestões de melhoria tanto ortográficas quanto jurídicas, com foco em identificar contradições, lacunas, interpretações equivocadas e erros gramaticais ou de concordância",
     theme: "revisao-pecas-juridicas",
-    webhookUrl: `${N8N_BASE_URL}/revisar-sugerir-melhorias-peticao`,
+    webhookUrl: `${N8N_BASE_URL}/revisar-melhorias-peticao`,
   },
 
   // Tema: Extração de Dados
