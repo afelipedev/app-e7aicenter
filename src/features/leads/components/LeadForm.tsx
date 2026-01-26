@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import type { LeadType } from "../types";
-import { useCreateLead } from "../hooks/useLeads";
+import type { LeadType, Lead } from "../types";
+import { useCreateLead, useUpdateLead, useLead } from "../hooks/useLeads";
 import PhonesFieldArray from "./PhonesFieldArray";
 import EmailsFieldArray from "./EmailsFieldArray";
 import { formatCnpj, formatCurrencyBR } from "../utils/masks";
@@ -58,7 +58,16 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export default function LeadForm({ leadType }: { leadType: Exclude<LeadType, null> }) {
+export default function LeadForm({
+  leadType,
+  leadId,
+  onSaved,
+}: {
+  leadType: Exclude<LeadType, null>;
+  leadId?: string | null;
+  onSaved?: () => void;
+}) {
+  const { data: leadToEdit } = useLead(leadId ?? null);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -75,7 +84,50 @@ export default function LeadForm({ leadType }: { leadType: Exclude<LeadType, nul
     },
   });
 
-  const { mutateAsync: createLead, isPending } = useCreateLead({ leadType });
+  const { mutateAsync: createLead, isPending: isCreating } = useCreateLead({ leadType });
+  const { mutateAsync: updateLead, isPending: isUpdating } = useUpdateLead({ leadType });
+  const isPending = isCreating || isUpdating;
+  const isEditing = !!leadId && !!leadToEdit;
+
+  // Carregar dados do lead quando estiver editando
+  useEffect(() => {
+    if (leadToEdit) {
+      form.reset({
+        company_name: leadToEdit.company_name,
+        cnpj: leadToEdit.cnpj,
+        address: leadToEdit.address,
+        cnae_or_activity: leadToEdit.cnae_or_activity,
+        avg_revenue: leadToEdit.avg_revenue,
+        avg_employees: leadToEdit.avg_employees,
+        partners: leadToEdit.partners,
+        decision_makers: leadToEdit.decision_makers,
+        phones:
+          leadToEdit.lead_phones?.map((p) => ({
+            phone: p.phone,
+            is_primary: p.is_primary,
+          })) || [],
+        emails:
+          leadToEdit.lead_emails?.map((e) => ({
+            email: e.email,
+            is_primary: e.is_primary,
+          })) || [],
+      });
+    } else if (!leadId) {
+      // Reset quando não há leadId (modo criação)
+      form.reset({
+        company_name: null,
+        cnpj: null,
+        address: null,
+        cnae_or_activity: null,
+        avg_revenue: null,
+        avg_employees: null,
+        partners: null,
+        decision_makers: null,
+        phones: [],
+        emails: [],
+      });
+    }
+  }, [leadToEdit, leadId, form]);
 
   useEffect(() => {
     // quando alterna Cliente/Fornecedor, não apaga o formulário — só ajusta o tipo no submit.
@@ -91,7 +143,7 @@ export default function LeadForm({ leadType }: { leadType: Exclude<LeadType, nul
         .map((e) => ({ email: e.email?.trim() || "", is_primary: !!e.is_primary }))
         .filter((e) => e.email.length > 0);
 
-      await createLead({
+      const leadData = {
         lead: {
           lead_type: leadType,
           company_name: values.company_name ?? null,
@@ -105,20 +157,31 @@ export default function LeadForm({ leadType }: { leadType: Exclude<LeadType, nul
         },
         phones,
         emails,
-      });
-      toast.success("Lead cadastrado");
+      };
+
+      if (isEditing && leadId) {
+        await updateLead({ id: leadId, input: leadData });
+        toast.success("Lead atualizado");
+      } else {
+        await createLead(leadData);
+        toast.success("Lead cadastrado");
+      }
+
       form.reset();
+      onSaved?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao cadastrar lead");
+      toast.error(err instanceof Error ? err.message : "Erro ao salvar lead");
     }
   };
 
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">Cadastro de Lead</h2>
+        <h2 className="text-lg font-semibold">{isEditing ? "Editar Lead" : "Cadastro de Lead"}</h2>
         <p className="text-sm text-muted-foreground">
-          Todos os campos são opcionais. Selecione o tipo no topo (Cliente/Fornecedor).
+          {isEditing
+            ? "Edite os dados do lead abaixo."
+            : "Todos os campos são opcionais. Selecione o tipo no topo (Cliente/Fornecedor)."}
         </p>
       </div>
 
@@ -264,7 +327,7 @@ export default function LeadForm({ leadType }: { leadType: Exclude<LeadType, nul
               Limpar
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? "Salvando..." : "Salvar Lead"}
+              {isPending ? "Salvando..." : isEditing ? "Atualizar Lead" : "Salvar Lead"}
             </Button>
           </div>
         </form>

@@ -1,17 +1,24 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useLeads, useSetLeadActive } from "../hooks/useLeads";
 import { LeadsService } from "../services/leadsService";
-import type { LeadType } from "../types";
+import type { LeadType, Lead } from "../types";
 import { toast } from "sonner";
 import { useImportLeadsCsv, exportLeadsToCsvFile } from "../hooks/useLeadImportExport";
-import { Upload, Download } from "lucide-react";
+import { Upload, Download, Edit, Ban } from "lucide-react";
 
-export default function LeadsTable({ leadType }: { leadType: Exclude<LeadType, null> }) {
+export default function LeadsTable({
+  leadType,
+  onEditLead,
+}: {
+  leadType: Exclude<LeadType, null>;
+  onEditLead?: (leadId: string) => void;
+}) {
   const [search, setSearch] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: leads = [], isLoading, refetch } = useLeads({ leadType, search });
   const { mutateAsync: setActive, isPending: changingStatus } = useSetLeadActive({
     leadType,
@@ -83,23 +90,27 @@ export default function LeadsTable({ leadType }: { leadType: Exclude<LeadType, n
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <div className="flex items-center gap-2">
-            <label className="inline-flex">
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] || null;
-                  // reset para permitir reimportar o mesmo arquivo
-                  e.currentTarget.value = "";
-                  handleImport(f);
-                }}
-              />
-              <Button variant="outline" size="sm" disabled={importing}>
-                <Upload className="w-4 h-4 mr-2" />
-                {importing ? "Importando..." : "Importar Cadastro"}
-              </Button>
-            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                // reset para permitir reimportar o mesmo arquivo
+                e.currentTarget.value = "";
+                handleImport(f);
+              }}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={importing}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              {importing ? "Importando..." : "Importar Cadastro"}
+            </Button>
             <Button variant="outline" size="sm" onClick={handleExport} disabled={leads.length === 0}>
               <Download className="w-4 h-4 mr-2" />
               Exportar Cadastro
@@ -146,13 +157,26 @@ export default function LeadsTable({ leadType }: { leadType: Exclude<LeadType, n
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
+                    {onEditLead && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onEditLead(r.id)}
+                        title="Editar lead"
+                        className="h-8 w-8"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
                       onClick={() => handleToggleActive(r.id, !r.active)}
                       disabled={changingStatus}
+                      title={r.active ? "Desativar lead" : "Ativar lead"}
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
                     >
-                      {r.active ? "Desativar" : "Ativar"}
+                      <Ban className="h-4 w-4" />
                     </Button>
                   </div>
                 </TableCell>

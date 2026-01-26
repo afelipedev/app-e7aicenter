@@ -14,10 +14,20 @@ export default function LeadsPage() {
   const isMobile = useIsMobile();
   const [leadType, setLeadType] = useState<Exclude<LeadType, null>>("cliente");
   const [tab, setTab] = useState<"cadastro" | "lista">("cadastro");
+  const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
 
   const headerSubtitle = useMemo(() => {
     return leadType === "cliente" ? "Clientes" : "Fornecedores";
   }, [leadType]);
+
+  const handleEditLead = (leadId: string) => {
+    setEditingLeadId(leadId);
+    setTab("cadastro");
+  };
+
+  const handleLeadSaved = () => {
+    setEditingLeadId(null);
+  };
 
   return (
     <div className="space-y-4">
@@ -54,7 +64,7 @@ export default function LeadsPage() {
         <TabsContent value="cadastro">
           <div className={isMobile ? "space-y-4" : "grid grid-cols-1 lg:grid-cols-2 gap-6"}>
             <Card className="p-4">
-              <LeadForm leadType={leadType} />
+              <LeadForm leadType={leadType} leadId={editingLeadId} onSaved={handleLeadSaved} />
             </Card>
 
             <div className="space-y-4">
@@ -71,7 +81,7 @@ export default function LeadsPage() {
 
         <TabsContent value="lista">
           <Card className="p-4">
-            <LeadsTable leadType={leadType} />
+            <LeadsTable leadType={leadType} onEditLead={handleEditLead} />
           </Card>
         </TabsContent>
       </Tabs>
