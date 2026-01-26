@@ -30,6 +30,8 @@ import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import { TestPage } from "./pages/TestPage";
 import { TestPayrollWorkflow } from "./pages/TestPayrollWorkflow";
+import Leads from "./pages/leads/Leads";
+import LeadTemplates from "./pages/leads/Templates";
 
 // Configuração do QueryClient com cache otimizado
 const queryClient = new QueryClient({
@@ -101,6 +103,10 @@ const App = () => (
               <Route path="/integrations/powerbi" element={<PowerBI />} />
               <Route path="/integrations/trello" element={<Trello />} />
               <Route path="/integrations/calendar" element={<CalendarIntegration />} />
+
+              {/* Leads - accessible to all authenticated users */}
+              <Route path="/leads" element={<Leads />} />
+              <Route path="/leads/templates" element={<LeadTemplates />} />
               
               {/* Company Management - require companies permission */}
               <Route path="/companies" element={

@@ -40,6 +40,12 @@ const menuItems = [
     color: "text-ai-blue",
   },
   {
+    title: "Leads",
+    icon: Users,
+    url: "/leads",
+    color: "text-ai-cyan",
+  },
+  {
     title: "Gestão de Empresas",
     icon: Building2,
     url: "/companies",

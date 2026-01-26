@@ -518,6 +518,16 @@ export const AI_AGENTS: AIAgent[] = [
     theme: "areas-direito",
     webhookUrl: `${N8N_BASE_URL}/compliance-elaboracao-codigo-conduta`,
   },
+
+  // Tema: Atendimento e Comunicação com o Cliente (Leads)
+  {
+    id: "agente-e7-leads",
+    name: "Agente E7 (Leads) - Redator de mensagens e prompts",
+    description:
+      "Auxilia na criação de mensagens e prompts para WhatsApp e Email (templates e variações).",
+    theme: "atendimento-comunicacao-cliente",
+    webhookUrl: `${N8N_BASE_URL}/agente-e7-leads`,
+  },
 ];
 
 /**
