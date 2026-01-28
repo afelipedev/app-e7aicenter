@@ -104,8 +104,12 @@ export function AppSidebar() {
       <SidebarContent>
         <div className="px-4 py-6">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-blue flex items-center justify-center">
-              <Scale className="w-5 h-5 text-white" />
+            <div className={`${isCollapsed ? 'w-8 h-8' : 'w-10 h-10'} rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0`}>
+              <img 
+                src="/logo-e7-login-modal.png" 
+                alt="Logo E7" 
+                className="w-full h-full object-contain"
+              />
             </div>
             {!isCollapsed && (
               <div>

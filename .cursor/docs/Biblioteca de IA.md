@@ -7,6 +7,7 @@
 3. [Integrações](#integrações)
 4. [Fluxo de Funcionamento](#fluxo-de-funcionamento)
 5. [Envio de Mensagens e Arquivos para o n8n](#envio-de-mensagens-e-arquivos-para-o-n8n)
+   - [Gerenciamento de Sessão (sessionId)](#gerenciamento-de-sessão-sessionid)
 6. [Configuração e Variáveis de Ambiente](#configuração-e-variáveis-de-ambiente)
 7. [Estrutura de Dados](#estrutura-de-dados)
 
@@ -22,6 +23,7 @@ A **Biblioteca de IA** é um módulo do E7AI Center que permite aos usuários in
 - **Organização por Temas**: 11 categorias temáticas para fácil navegação
 - **Suporte a Arquivos**: Upload e processamento de documentos (PDF, TXT, DOC, DOCX, JSON, CSV)
 - **Histórico de Conversas**: Persistência completa de chats e mensagens no Supabase
+- **Memória de Conversas**: `sessionId` enviado ao n8n para continuidade de contexto entre mensagens
 - **Interface Responsiva**: Suporte completo para desktop e mobile
 
 ---
@@ -116,7 +118,7 @@ const [fileContent, setFileContent] = useState<string>("");  // Conteúdo Base64
 **Classe Principal**: `N8NAgentService`
 
 **Métodos Públicos**:
-- `callAgent(agentId, input, arquivo?)`: Chama um agente específico via webhook
+- `callAgent(agentId, input, arquivo?, sessionId?)`: Chama um agente específico via webhook com suporte a memória de conversa
 
 **Métodos Privados**:
 - `getWebhookUrl()`: Obtém URL do webhook dinâmico das variáveis de ambiente
@@ -179,6 +181,7 @@ const [fileContent, setFileContent] = useState<string>("");  // Conteúdo Base64
 {
   "agente": "minuta-peticao-inicial",
   "input": "Texto da mensagem do usuário",
+  "sessionId": "uuid-do-chat",
   "arquivo": {
     "nome": "documento.pdf",
     "tipo": "application/pdf",
@@ -186,6 +189,8 @@ const [fileContent, setFileContent] = useState<string>("");  // Conteúdo Base64
   }
 }
 ```
+
+**Observação sobre `sessionId`**: O campo `sessionId` contém o ID único do chat e deve ser utilizado pelo fluxo n8n para manter memória das mensagens anteriores, permitindo que os agentes deem continuidade ao contexto da conversa.
 
 **Headers**:
 ```
@@ -392,14 +397,15 @@ const handleSend = async () => {
     role: "user",
     content: displayMessage,
   });
-  
-  // Chamar agente n8n
+
+  // Chamar agente n8n com sessionId para memória da conversa
   const response = await N8NAgentService.callAgent(
     agent.id,
     userMessage,
-    arquivoPayload
+    arquivoPayload,
+    String(currentChat.id)  // sessionId para memória no n8n
   );
-  
+
   // Salvar resposta do assistente
   await addMessage(currentChat.id, {
     role: "assistant",
@@ -410,13 +416,14 @@ const handleSend = async () => {
 
 #### Etapa 3: Chamada ao Webhook n8n
 
-**Arquivo**: `src/services/n8nAgentService.ts` (linhas 68-99)
+**Arquivo**: `src/services/n8nAgentService.ts` (linhas 68-100)
 
 ```typescript
 static async callAgent(
   agentId: string,
   input: string,
-  arquivo?: ArquivoPayload
+  arquivo?: ArquivoPayload,
+  sessionId?: string  // ID da sessão para memória de conversa
 ): Promise<N8NAgentResponse> {
   // 1. Validar que o agente existe
   const agent = getAgentById(agentId);
@@ -440,14 +447,15 @@ static async callAgent(
     input,
     session.access_token,
     0, // retryCount inicial
-    arquivo
+    arquivo,
+    sessionId
   );
 }
 ```
 
 #### Etapa 4: Execução da Requisição HTTP
 
-**Arquivo**: `src/services/n8nAgentService.ts` (linhas 104-248)
+**Arquivo**: `src/services/n8nAgentService.ts` (linhas 105-260)
 
 ```typescript
 private static async callWebhook(
@@ -456,7 +464,8 @@ private static async callWebhook(
   input: string,
   accessToken: string,
   retryCount: number,
-  arquivo?: ArquivoPayload
+  arquivo?: ArquivoPayload,
+  sessionId?: string  // ID da sessão para memória no n8n
 ): Promise<N8NAgentResponse> {
   // 1. Criar AbortController para timeout (30s)
   const controller = new AbortController();
@@ -467,6 +476,7 @@ private static async callWebhook(
     agente: string;
     input: string;
     arquivo?: ArquivoPayload;
+    sessionId?: string;
   } = {
     agente: agentId,
     input: input,
@@ -477,7 +487,12 @@ private static async callWebhook(
     payload.arquivo = arquivo;
   }
 
-  // 4. Fazer requisição HTTP POST
+  // 4. Adicionar sessionId se fornecido (para memória de conversa)
+  if (sessionId) {
+    payload.sessionId = sessionId;
+  }
+
+  // 5. Fazer requisição HTTP POST
   const response = await fetch(webhookUrl, {
     method: "POST",
     headers: {
@@ -488,11 +503,11 @@ private static async callWebhook(
     signal: controller.signal,
   });
 
-  // 5. Processar resposta
+  // 6. Processar resposta
   // - Validar status HTTP
   // - Parsear JSON
   // - Extrair campo "output" ou "response"
-  // - Retry em caso de erro 5xx ou timeout
+  // - Retry em caso de erro 5xx ou timeout (preservando sessionId)
 }
 ```
 
@@ -508,6 +523,7 @@ O payload enviado para o webhook n8n segue esta estrutura:
 interface Payload {
   agente: string;        // ID do agente (ex: "minuta-peticao-inicial")
   input: string;         // Mensagem de texto do usuário
+  sessionId?: string;    // ID do chat para memória de conversa no n8n
   arquivo?: {            // Opcional: presente apenas se arquivo foi anexado
     nome: string;        // Nome original do arquivo
     tipo: string;        // MIME type (ex: "application/pdf")
@@ -522,6 +538,7 @@ interface Payload {
 {
   "agente": "extracao-dados-resumo-processo-juridico",
   "input": "Extraia os dados principais deste processo",
+  "sessionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "arquivo": {
     "nome": "processo_12345.pdf",
     "tipo": "application/pdf",
@@ -547,6 +564,60 @@ O webhook n8n recebe o payload e pode:
 2. **Processar conteúdo**: Usar bibliotecas de parsing (PDF, DOCX, etc.)
 3. **Enviar para IA**: Incluir conteúdo do arquivo no contexto do LLM
 4. **Retornar resposta**: JSON com campo `output` contendo a resposta
+
+### Gerenciamento de Sessão (sessionId)
+
+O `sessionId` é enviado em todas as requisições para permitir que os agentes no n8n mantenham memória das conversas anteriores.
+
+**Como funciona**:
+
+1. **Frontend**: O `AgentChat.tsx` envia `String(currentChat.id)` como `sessionId`
+2. **Backend (n8n)**: O workflow recebe o `sessionId` e pode:
+   - Armazenar histórico de mensagens associado a este ID
+   - Recuperar contexto de mensagens anteriores
+   - Dar continuidade ao assunto da conversa
+
+**Benefícios**:
+- Cada conversa tem seu próprio contexto isolado
+- O agente "lembra" das mensagens anteriores do mesmo chat
+- Permite referências a informações discutidas anteriormente
+- Melhora a experiência de conversação contínua
+
+**Implementação no n8n**:
+O fluxo do n8n pode utilizar o `sessionId` para:
+```
+1. Receber sessionId no payload
+2. Buscar histórico de mensagens com esse sessionId (ex: Redis, banco de dados)
+3. Incluir histórico no contexto do prompt
+4. Salvar nova mensagem associada ao sessionId
+5. Retornar resposta contextualizada
+```
+
+**Exemplo de uso no n8n** (pseudocódigo):
+```javascript
+// No nó de processamento do n8n
+const { agente, input, sessionId } = $input.all()[0].json;
+
+// Recuperar histórico (se sessionId fornecido)
+let conversationHistory = [];
+if (sessionId) {
+  conversationHistory = await getConversationHistory(sessionId);
+}
+
+// Adicionar nova mensagem ao histórico
+conversationHistory.push({ role: 'user', content: input });
+
+// Chamar LLM com histórico
+const response = await callLLM(agente, conversationHistory);
+
+// Salvar resposta no histórico
+if (sessionId) {
+  conversationHistory.push({ role: 'assistant', content: response });
+  await saveConversationHistory(sessionId, conversationHistory);
+}
+
+return { output: response };
+```
 
 ### Tratamento de Respostas
 
@@ -689,7 +760,7 @@ export interface ChatMessage {
 **Estratégia**:
 - Máximo de 2 tentativas adicionais (total de 3 tentativas)
 - Backoff exponencial: 1s, 2s entre tentativas
-- Mantém os mesmos parâmetros (agentId, input, arquivo)
+- Mantém os mesmos parâmetros (agentId, input, arquivo, sessionId)
 
 ### Timeout
 
@@ -761,4 +832,11 @@ A Biblioteca de IA funciona de forma diferente dos outros 5 chats (Chat Geral, J
 ---
 
 **Última Atualização**: Janeiro 2025
-**Versão**: 1.0
+**Versão**: 1.1
+
+### Changelog
+
+#### v1.1 (Janeiro 2025)
+- Adicionado suporte a `sessionId` para memória de conversas no n8n
+- O `currentChat.id` é enviado como `sessionId` em todas as requisições
+- Permite que os agentes mantenham contexto entre mensagens do mesmo chat
