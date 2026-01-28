@@ -63,12 +63,14 @@ export class N8NAgentService {
    * @param agentId ID do agente
    * @param input Input do usuário
    * @param arquivo Arquivo opcional para anexar (formato: { nome, tipo, base64 })
+   * @param sessionId ID da sessão/conversa para memória do agente
    * @returns Resposta do agente
    */
   static async callAgent(
     agentId: string,
     input: string,
-    arquivo?: ArquivoPayload
+    arquivo?: ArquivoPayload,
+    sessionId?: string
   ): Promise<N8NAgentResponse> {
     // Obter informações do agente para validar que existe
     const agent = getAgentById(agentId);
@@ -94,7 +96,8 @@ export class N8NAgentService {
       input,
       session.access_token,
       0,
-      arquivo
+      arquivo,
+      sessionId
     );
   }
 
@@ -107,7 +110,8 @@ export class N8NAgentService {
     input: string,
     accessToken: string,
     retryCount: number,
-    arquivo?: ArquivoPayload
+    arquivo?: ArquivoPayload,
+    sessionId?: string
   ): Promise<N8NAgentResponse> {
     try {
       // Criar AbortController para timeout
@@ -122,6 +126,7 @@ export class N8NAgentService {
         agente: string;
         input: string;
         arquivo?: ArquivoPayload;
+        sessionId?: string;
       } = {
         agente: agentId,
         input: input,
@@ -130,6 +135,11 @@ export class N8NAgentService {
       // Adicionar arquivo ao payload se fornecido
       if (arquivo) {
         payload.arquivo = arquivo;
+      }
+
+      // Adicionar sessionId ao payload se fornecido
+      if (sessionId) {
+        payload.sessionId = sessionId;
       }
 
       const response = await fetch(webhookUrl, {
@@ -172,7 +182,8 @@ export class N8NAgentService {
             input,
             accessToken,
             retryCount + 1,
-            arquivo
+            arquivo,
+            sessionId
           );
         }
 
@@ -231,7 +242,8 @@ export class N8NAgentService {
             input,
             accessToken,
             retryCount + 1,
-            arquivo
+            arquivo,
+            sessionId
           );
         }
         throw new Error(

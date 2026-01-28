@@ -157,11 +157,12 @@ export default function AgentChat() {
         content: displayMessage,
       });
 
-      // Chamar o agente n8n com arquivo se fornecido
+      // Chamar o agente n8n com arquivo e sessionId para memória da conversa
       const response = await N8NAgentService.callAgent(
         agent.id,
         userMessage,
-        arquivoPayload
+        arquivoPayload,
+        String(currentChat.id)
       );
 
       // Salvar resposta do assistente no banco de dados
