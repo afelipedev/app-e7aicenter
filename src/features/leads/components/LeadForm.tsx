@@ -102,7 +102,10 @@ export default function LeadForm({
         avg_employees: leadToEdit.avg_employees,
         partners: leadToEdit.partners,
         decision_makers: leadToEdit.decision_makers
-          ? leadToEdit.decision_makers.split(/\r?\n/).filter(Boolean)
+          ? leadToEdit.decision_makers
+              .split(/\r?\n|\s*\|\s*/)
+              .map((s) => s.trim())
+              .filter(Boolean)
           : [],
         phones:
           leadToEdit.lead_phones?.map((p) => ({

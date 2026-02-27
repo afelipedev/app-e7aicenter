@@ -158,6 +158,13 @@ export function exportLeadsToCsvFile(params: {
     const primaryPhone = (l.lead_phones || []).find((p) => p.is_primary)?.phone || phones[0] || "";
     const primaryEmail = (l.lead_emails || []).find((e) => e.is_primary)?.email || emails[0] || "";
 
+    // decision_makers: unir com " | " para evitar quebras de linha no CSV (que fariam Excel exibir só o primeiro)
+    const decisionMakers = (l.decision_makers || "")
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(" | ");
+
     return {
       id: l.id,
       lead_type: l.lead_type || "",
@@ -168,7 +175,7 @@ export function exportLeadsToCsvFile(params: {
       avg_revenue: l.avg_revenue === null || l.avg_revenue === undefined ? "" : String(l.avg_revenue),
       avg_employees: l.avg_employees === null || l.avg_employees === undefined ? "" : String(l.avg_employees),
       partners: l.partners || "",
-      decision_makers: l.decision_makers || "",
+      decision_makers: decisionMakers,
       phones: phones.join(" | "),
       phone_primary: primaryPhone,
       emails: emails.join(" | "),
