@@ -11,6 +11,7 @@ import type { LeadType, Lead } from "../types";
 import { useCreateLead, useUpdateLead, useLead } from "../hooks/useLeads";
 import PhonesFieldArray from "./PhonesFieldArray";
 import EmailsFieldArray from "./EmailsFieldArray";
+import DecisionMakersFieldArray from "./DecisionMakersFieldArray";
 import { formatCnpj, formatCurrencyBR } from "../utils/masks";
 
 const schema = z.object({
@@ -37,7 +38,7 @@ const schema = z.object({
     .nullable()
     .optional(),
   partners: z.string().trim().optional().nullable(),
-  decision_makers: z.string().trim().optional().nullable(),
+  decision_makers: z.array(z.string().trim()).default([]),
   phones: z
     .array(
       z.object({
@@ -78,7 +79,7 @@ export default function LeadForm({
       avg_revenue: null,
       avg_employees: null,
       partners: null,
-      decision_makers: null,
+      decision_makers: [],
       phones: [],
       emails: [],
     },
@@ -100,7 +101,9 @@ export default function LeadForm({
         avg_revenue: leadToEdit.avg_revenue,
         avg_employees: leadToEdit.avg_employees,
         partners: leadToEdit.partners,
-        decision_makers: leadToEdit.decision_makers,
+        decision_makers: leadToEdit.decision_makers
+          ? leadToEdit.decision_makers.split(/\r?\n/).filter(Boolean)
+          : [],
         phones:
           leadToEdit.lead_phones?.map((p) => ({
             phone: p.phone,
@@ -122,7 +125,7 @@ export default function LeadForm({
         avg_revenue: null,
         avg_employees: null,
         partners: null,
-        decision_makers: null,
+        decision_makers: [],
         phones: [],
         emails: [],
       });
@@ -143,6 +146,14 @@ export default function LeadForm({
         .map((e) => ({ email: e.email?.trim() || "", is_primary: !!e.is_primary }))
         .filter((e) => e.email.length > 0);
 
+      const decisionMakersStr =
+        Array.isArray(values.decision_makers) && values.decision_makers.length > 0
+          ? values.decision_makers
+              .map((s) => (s || "").trim())
+              .filter(Boolean)
+              .join("\n")
+          : null;
+
       const leadData = {
         lead: {
           lead_type: leadType,
@@ -153,7 +164,7 @@ export default function LeadForm({
           avg_revenue: (values.avg_revenue as number | null) ?? null,
           avg_employees: (values.avg_employees as number | null) ?? null,
           partners: values.partners ?? null,
-          decision_makers: values.decision_makers ?? null,
+          decision_makers: decisionMakersStr,
         },
         phones,
         emails,
@@ -304,19 +315,7 @@ export default function LeadForm({
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="decision_makers"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tomadores de decisão</FormLabel>
-                <FormControl>
-                  <Textarea {...field} value={field.value ?? ""} placeholder="Nomes, cargos, etc." />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <DecisionMakersFieldArray form={form} name={"decision_makers" as any} />
 
           <PhonesFieldArray form={form} name={"phones" as any} />
 
