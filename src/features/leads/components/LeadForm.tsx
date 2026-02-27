@@ -136,7 +136,7 @@ export default function LeadForm({
   }, [leadToEdit, leadId, form]);
 
   useEffect(() => {
-    // quando alterna Cliente/Fornecedor, não apaga o formulário — só ajusta o tipo no submit.
+    // quando alterna Cliente/Parceiro, não apaga o formulário — só ajusta o tipo no submit.
   }, [leadType]);
 
   const onSubmit = async (values: FormValues) => {
@@ -195,7 +195,7 @@ export default function LeadForm({
         <p className="text-sm text-muted-foreground">
           {isEditing
             ? "Edite os dados do lead abaixo."
-            : "Todos os campos são opcionais. Selecione o tipo no topo (Cliente/Fornecedor)."}
+            : "Todos os campos são opcionais. Selecione o tipo no topo (Cliente/Parceiro)."}
         </p>
       </div>
 

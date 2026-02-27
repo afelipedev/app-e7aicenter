@@ -17,7 +17,7 @@ export default function LeadsPage() {
   const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
 
   const headerSubtitle = useMemo(() => {
-    return leadType === "cliente" ? "Clientes" : "Fornecedores";
+    return leadType === "cliente" ? "Clientes" : "Parceiros";
   }, [leadType]);
 
   const handleEditLead = (leadId: string) => {
@@ -47,10 +47,10 @@ export default function LeadsPage() {
             Clientes
           </Button>
           <Button
-            variant={leadType === "fornecedor" ? "default" : "outline"}
-            onClick={() => setLeadType("fornecedor")}
+            variant={leadType === "parceiro" ? "default" : "outline"}
+            onClick={() => setLeadType("parceiro")}
           >
-            Fornecedores
+            Parceiros
           </Button>
         </div>
       </div>

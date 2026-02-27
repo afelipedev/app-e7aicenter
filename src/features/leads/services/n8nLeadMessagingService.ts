@@ -6,7 +6,7 @@ export type LeadMessageAction = "send_whatsapp" | "send_email";
 
 export interface LeadMessagePayload {
   action: LeadMessageAction;
-  lead_type: "cliente" | "fornecedor";
+  lead_type: "cliente" | "parceiro";
   message: {
     content_json: Record<string, unknown>;
     content_text: string;
@@ -83,7 +83,7 @@ export class N8NLeadMessagingService {
 
   static async sendToAllActiveLeads(params: {
     action: LeadMessageAction;
-    leadType: "cliente" | "fornecedor";
+    leadType: "cliente" | "parceiro";
     messageJson: Record<string, unknown>;
     messageText: string;
   }): Promise<void> {

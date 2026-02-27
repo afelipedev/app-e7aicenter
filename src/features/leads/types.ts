@@ -1,4 +1,4 @@
-export type LeadType = "cliente" | "fornecedor" | null;
+export type LeadType = "cliente" | "parceiro" | null;
 
 export interface LeadPhone {
   id?: string;

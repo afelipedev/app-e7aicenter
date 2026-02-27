@@ -52,9 +52,10 @@ function dedupe(list: string[]): string[] {
   return out;
 }
 
-function guessLeadType(row: CsvRow, fallback: "cliente" | "fornecedor"): "cliente" | "fornecedor" {
+function guessLeadType(row: CsvRow, fallback: "cliente" | "parceiro"): "cliente" | "parceiro" {
   const t = (row["lead_type"] || row["tipo_lead"] || "").trim().toLowerCase();
-  if (t === "cliente" || t === "fornecedor") return t;
+  if (t === "cliente" || t === "parceiro") return t;
+  if (t === "fornecedor") return "parceiro"; // compatibilidade com CSV antigo
   return fallback;
 }
 
