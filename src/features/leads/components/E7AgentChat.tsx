@@ -6,6 +6,7 @@ import { ChatMessage } from "@/components/assistants/ChatMessage";
 import { N8NAgentService } from "@/services/n8nAgentService";
 import { toast } from "sonner";
 import { Send, Bot } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 type LocalMessage = {
   id: string;
@@ -63,9 +64,12 @@ export default function E7AgentChat() {
   return (
     <div className="space-y-3">
       <div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <h2 className="text-lg font-semibold">Agente E7</h2>
           <Bot className="w-5 h-5 text-blue-600" />
+          <Badge variant="outline" className="text-amber-600 border-amber-500">
+            Em Manutenção
+          </Badge>
         </div>
         <p className="text-sm text-muted-foreground">
           Use o chat para gerar prompts, mensagens e variações para WhatsApp/Email.

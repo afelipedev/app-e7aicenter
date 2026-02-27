@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { MessageSquare, Mail, Send, Copy, Save, Tags, Trash2 } from "lucide-react";
@@ -121,7 +122,12 @@ export default function LeadMessagePanel({ leadType }: { leadType: Exclude<LeadT
   return (
     <div className="space-y-3">
       <div>
-        <h2 className="text-lg font-semibold">Mensagens</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">Mensagens</h2>
+          <Badge variant="outline" className="text-amber-600 border-amber-500">
+            Em Manutenção
+          </Badge>
+        </div>
         <p className="text-sm text-muted-foreground">
           Editor + templates + botões de disparo (WhatsApp/Email). Tipo atual:{" "}
           <span className="font-medium">{leadType}</span>
