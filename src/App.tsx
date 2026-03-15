@@ -19,6 +19,11 @@ import Payroll from "./pages/documents/Payroll";
 import Sped from "./pages/documents/Sped";
 import Cases from "./pages/documents/Cases";
 import Reports from "./pages/documents/Reports";
+import ProcessQueriesPage from "./features/processes/pages/ProcessQueriesPage";
+import ProcessHistoryPage from "./features/processes/pages/ProcessHistoryPage";
+import ProcessMonitoringPage from "./features/processes/pages/ProcessMonitoringPage";
+import ProcessApiConsumptionPage from "./features/processes/pages/ProcessApiConsumptionPage";
+import ProcessDetailsPage from "./features/processes/pages/ProcessDetailsPage";
 import PowerBI from "./pages/integrations/PowerBI";
 import Trello from "./pages/integrations/Trello";
 import CalendarIntegration from "./pages/integrations/CalendarIntegration";
@@ -94,6 +99,11 @@ const App = () => (
               <Route path="/documents/payroll" element={<Payroll />} />
               <Route path="/documents/sped" element={<Sped />} />
               <Route path="/documents/cases" element={<Cases />} />
+              <Route path="/documents/cases/queries" element={<ProcessQueriesPage />} />
+              <Route path="/documents/cases/history" element={<ProcessHistoryPage />} />
+              <Route path="/documents/cases/monitoring" element={<ProcessMonitoringPage />} />
+              <Route path="/documents/cases/api-consumption" element={<ProcessApiConsumptionPage />} />
+              <Route path="/documents/cases/:caseId" element={<ProcessDetailsPage />} />
               <Route path="/documents/reports" element={<Reports />} />
               
               {/* Payroll Processing Details */}

@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   MessageSquare,
@@ -12,16 +12,16 @@ import {
   Calendar,
   Trello,
   Users,
-  Building,
   ChevronDown,
   BookOpen,
+  DatabaseZap,
+  History,
+  Bell,
 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -31,8 +31,17 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 
-const menuItems = [
+type SidebarEntry = {
+  title: string;
+  icon: any;
+  url?: string;
+  color?: string;
+  items?: SidebarEntry[];
+};
+
+const menuItems: SidebarEntry[] = [
   {
     title: "Dashboard",
     icon: LayoutDashboard,
@@ -71,7 +80,18 @@ const menuItems = [
     items: [
       { title: "Gestão de Holerites", url: "/documents/payroll", icon: FileText },
       { title: "Gestão de SPEDs", url: "/documents/sped", icon: FileText },
-      { title: "Processos", url: "/documents/cases", icon: Briefcase },
+      {
+        title: "Processos",
+        url: "/documents/cases",
+        icon: Briefcase,
+        items: [
+          { title: "Dashboard", url: "/documents/cases", icon: Briefcase },
+          { title: "Consultas Processuais", url: "/documents/cases/queries", icon: Scale },
+          { title: "Consultas Históricas", url: "/documents/cases/history", icon: History },
+          { title: "Monitoramentos", url: "/documents/cases/monitoring", icon: Bell },
+          { title: "Consumo API", url: "/documents/cases/api-consumption", icon: DatabaseZap },
+        ],
+      },
       { title: "Relatórios", url: "/documents/reports", icon: BarChart3 },
     ],
   },
@@ -97,7 +117,77 @@ const menuItems = [
 
 export function AppSidebar() {
   const { state } = useSidebar();
+  const location = useLocation();
   const isCollapsed = state === "collapsed";
+
+  const isEntryActive = (entry: SidebarEntry) => {
+    if (entry.url) {
+      if (entry.url === "/documents/cases") {
+        return location.pathname === entry.url || location.pathname.startsWith("/documents/cases/");
+      }
+
+      if (entry.url !== "/" && location.pathname.startsWith(`${entry.url}/`)) {
+        return true;
+      }
+
+      if (location.pathname === entry.url) {
+        return true;
+      }
+    }
+
+    return entry.items?.some((item) => isEntryActive(item)) ?? false;
+  };
+
+  const renderSubEntry = (entry: SidebarEntry) => {
+    if (entry.items) {
+      return (
+        <Collapsible key={entry.title} defaultOpen={isEntryActive(entry)} className="group/subcollapsible">
+          <SidebarMenuSubItem>
+            <CollapsibleTrigger asChild>
+              <SidebarMenuSubButton className={cn(isEntryActive(entry) && "bg-sidebar-accent")}>
+                <entry.icon className="h-4 w-4" />
+                <span>{entry.title}</span>
+                <ChevronDown className="ml-auto transition-transform group-data-[state=open]/subcollapsible:rotate-180" />
+              </SidebarMenuSubButton>
+            </CollapsibleTrigger>
+          </SidebarMenuSubItem>
+          <CollapsibleContent>
+            <div className="ml-6 mt-1 space-y-1 border-l border-sidebar-border/70 pl-3">
+              {entry.items.map((child) => (
+                <NavLink
+                  key={child.title}
+                  to={child.url || "#"}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
+                      isActive && "bg-sidebar-accent text-foreground",
+                    )
+                  }
+                >
+                  <child.icon className="h-4 w-4" />
+                  <span>{child.title}</span>
+                </NavLink>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      );
+    }
+
+    return (
+      <SidebarMenuSubItem key={entry.title}>
+        <SidebarMenuSubButton asChild>
+          <NavLink
+            to={entry.url || "#"}
+            className={({ isActive }) => (isActive ? "bg-sidebar-accent" : "")}
+          >
+            <entry.icon className="w-4 h-4" />
+            <span>{entry.title}</span>
+          </NavLink>
+        </SidebarMenuSubButton>
+      </SidebarMenuSubItem>
+    );
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -125,9 +215,9 @@ export function AppSidebar() {
             {menuItems.map((item) => (
               <SidebarMenuItem key={item.title}>
                 {item.items ? (
-                  <Collapsible className="group/collapsible">
+                  <Collapsible defaultOpen={isEntryActive(item)} className="group/collapsible">
                     <CollapsibleTrigger asChild>
-                      <SidebarMenuButton className="w-full">
+                      <SidebarMenuButton className={cn("w-full", isEntryActive(item) && "bg-sidebar-accent")}>
                         <item.icon className={`${item.color}`} />
                         <span>{item.title}</span>
                         <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
@@ -135,21 +225,7 @@ export function AppSidebar() {
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenuSub>
-                        {item.items.map((subItem) => (
-                          <SidebarMenuSubItem key={subItem.title}>
-                            <SidebarMenuSubButton asChild>
-                              <NavLink
-                                to={subItem.url}
-                                className={({ isActive }) =>
-                                  isActive ? "bg-sidebar-accent" : ""
-                                }
-                              >
-                                <subItem.icon className="w-4 h-4" />
-                                <span>{subItem.title}</span>
-                              </NavLink>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
+                        {item.items.map((subItem) => renderSubEntry(subItem))}
                       </SidebarMenuSub>
                     </CollapsibleContent>
                   </Collapsible>
