@@ -150,23 +150,136 @@ export interface MonitoringData {
   feed: MonitoringFeedItem[];
 }
 
-export interface ApiConsumptionMetric {
-  label: string;
-  value: string;
-  helper: string;
+export type ApiConsumptionBillingStatus = "within_plan" | "additional_billing" | "threshold_reached";
+
+export type ApiConsumptionCostConfidence = "exact" | "estimated" | "pending_enrichment" | "unknown";
+
+export type ApiConsumptionCostType = "included" | "overage" | "mixed" | "estimated";
+
+export type ApiConsumptionSyncStatus = "running" | "completed" | "error";
+
+export interface ApiConsumptionFilterState {
+  origin: string[];
+  status: string[];
+  searchType: string[];
+  productName: string[];
+  withAttachments: boolean | null;
+  onDemand: boolean | null;
+}
+
+export interface ApiConsumptionQueryParams {
+  startDate: string;
+  endDate: string;
+  page: number;
+  pageSize: number;
+  forceSync?: boolean;
+  filters: ApiConsumptionFilterState;
 }
 
 export interface ApiConsumptionEntry {
   id: string;
-  endpoint: string;
+  requestId: string;
   createdAt: string;
-  status: "Sucesso" | "Processando" | "Falha";
-  credits: number;
+  updatedAt: string | null;
+  origin: string;
+  status: string;
+  searchType: string | null;
+  responseType: string | null;
+  searchKeyMasked: string | null;
+  withAttachments: boolean;
+  onDemand: boolean;
+  publicSearch: boolean;
+  planConfigType: string | null;
+  productName: string;
+  costBrl: number;
+  costType: ApiConsumptionCostType;
+  costConfidence: ApiConsumptionCostConfidence;
+  hasOverage: boolean;
+  returnedItemsCount: number | null;
+  pricingMetadata: Record<string, unknown>;
+}
+
+export interface ApiConsumptionSummary {
+  totalRequests: number;
+  completedRequests: number;
+  pendingRequests: number;
+  attachmentRequests: number;
+  apiRequests: number;
+  trackingRequests: number;
+  consumedAmountBrl: number;
+  includedPlanBrl: number;
+  remainingIncludedAmountBrl: number;
+  overageAmountBrl: number;
+  remainingUntilBlockAmountBrl: number;
+  maxMonthlyAmountBrl: number;
+  billingStatus: ApiConsumptionBillingStatus;
+}
+
+export interface ApiConsumptionBreakdownItem {
+  label: string;
+  totalCostBrl: number;
+  totalRequests: number;
+  averageCostBrl?: number;
+  key?: string;
+}
+
+export interface ApiConsumptionSeriesItem {
+  date: string;
+  totalRequests: number;
+  totalCostBrl: number;
+}
+
+export interface ApiConsumptionMonthlySeriesItem {
+  billing_reference_month: string;
+  total_requests: number;
+  completed_requests: number;
+  non_completed_requests: number;
+  api_requests: number;
+  tracking_requests: number;
+  attachment_requests: number;
+  consumed_amount_brl: number;
+  included_amount_brl: number;
+  max_monthly_amount_brl: number;
+  remaining_included_amount_brl: number;
+  overage_amount_brl: number;
+  remaining_until_block_amount_brl: number;
+}
+
+export interface ApiConsumptionPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ApiConsumptionSyncInfo {
+  id: string;
+  status: ApiConsumptionSyncStatus;
+  started_at: string;
+  finished_at: string | null;
+  request_start_date: string;
+  request_end_date: string;
+  requests_imported: number;
+  pages_fetched: number;
+  force_sync: boolean;
+  error_message: string | null;
 }
 
 export interface ApiConsumptionData {
-  metrics: ApiConsumptionMetric[];
+  summary: ApiConsumptionSummary;
+  breakdownByProduct: ApiConsumptionBreakdownItem[];
+  breakdownByOrigin: ApiConsumptionBreakdownItem[];
+  dailySeries: ApiConsumptionSeriesItem[];
+  monthlySeries: ApiConsumptionMonthlySeriesItem[];
   entries: ApiConsumptionEntry[];
+  pagination: ApiConsumptionPagination;
+  filtersApplied: ApiConsumptionFilterState;
+  sync: ApiConsumptionSyncInfo | null;
+  period: {
+    startDate: string;
+    endDate: string;
+  };
+  pricingVersion: string;
 }
 
 export const emptyProcessFilters: ProcessFilters = {
@@ -179,4 +292,13 @@ export const emptyProcessFilters: ProcessFilters = {
   distributedTo: "",
   classesProcessuais: [],
   assuntos: [],
+};
+
+export const emptyApiConsumptionFilters: ApiConsumptionFilterState = {
+  origin: [],
+  status: [],
+  searchType: [],
+  productName: [],
+  withAttachments: null,
+  onDemand: null,
 };

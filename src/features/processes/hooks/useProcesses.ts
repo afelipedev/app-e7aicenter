@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { processesService } from "../services/processesService";
-import type { HistoricalListParams, ProcessListParams } from "../types";
+import type { ApiConsumptionQueryParams, HistoricalListParams, ProcessListParams } from "../types";
 
 const processKeys = {
   all: ["processes"] as const,
@@ -9,7 +9,7 @@ const processKeys = {
   history: (params: HistoricalListParams) => [...processKeys.all, "history", params] as const,
   details: (caseId: string) => [...processKeys.all, "details", caseId] as const,
   monitoring: () => [...processKeys.all, "monitoring"] as const,
-  apiConsumption: () => [...processKeys.all, "api-consumption"] as const,
+  apiConsumption: (params: ApiConsumptionQueryParams) => [...processKeys.all, "api-consumption", params] as const,
 };
 
 export function useProcessesDashboard() {
@@ -48,10 +48,10 @@ export function useProcessMonitoring() {
   });
 }
 
-export function useProcessApiConsumption() {
+export function useProcessApiConsumption(params: ApiConsumptionQueryParams) {
   return useQuery({
-    queryKey: processKeys.apiConsumption(),
-    queryFn: () => processesService.getApiConsumptionData(),
+    queryKey: processKeys.apiConsumption(params),
+    queryFn: () => processesService.getApiConsumptionData(params),
   });
 }
 

@@ -1,5 +1,4 @@
 import {
-  apiConsumptionMock,
   defaultFavoriteIds,
   defaultMonitoredProcessIds,
   documentMonitoringsMock,
@@ -8,6 +7,7 @@ import {
 } from "../mocks/processesMockData";
 import type {
   ApiConsumptionData,
+  ApiConsumptionQueryParams,
   DashboardData,
   DocumentMonitoringItem,
   HistoricalListParams,
@@ -20,6 +20,7 @@ import type {
   ProcessSummary,
 } from "../types";
 import type { ProcessProvider } from "../adapters/processProvider";
+import { JuditConsumptionService } from "./juditConsumptionService";
 
 const FAVORITES_STORAGE_KEY = "processes:favorites";
 const DELETED_STORAGE_KEY = "processes:deleted";
@@ -345,9 +346,8 @@ export const processesService: ProcessProvider = {
     };
   },
 
-  async getApiConsumptionData(): Promise<ApiConsumptionData> {
-    await delay();
-    return apiConsumptionMock;
+  async getApiConsumptionData(params: ApiConsumptionQueryParams): Promise<ApiConsumptionData> {
+    return JuditConsumptionService.getConsumptionReport(params);
   },
 
   async toggleFavorite(processId: string) {

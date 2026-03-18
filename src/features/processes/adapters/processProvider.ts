@@ -1,11 +1,13 @@
 import type {
   ApiConsumptionData,
+  ApiConsumptionQueryParams,
   DashboardData,
   DocumentSearchType,
   HistoricalListParams,
   MonitoringData,
   PaginatedProcesses,
   ProcessDetail,
+  ProcessFilterOptions,
   ProcessListParams,
 } from "../types";
 
@@ -15,7 +17,8 @@ export interface ProcessProvider {
   listHistoricalQueries(params: HistoricalListParams): Promise<PaginatedProcesses>;
   getProcessDetails(caseId: string): Promise<ProcessDetail | null>;
   getMonitoringData(): Promise<MonitoringData>;
-  getApiConsumptionData(): Promise<ApiConsumptionData>;
+  getApiConsumptionData(params: ApiConsumptionQueryParams): Promise<ApiConsumptionData>;
+  getFilterOptions(): Promise<ProcessFilterOptions>;
   toggleFavorite(processId: string): Promise<void>;
   deleteProcess(processId: string): Promise<void>;
   toggleProcessMonitoring(processId: string): Promise<void>;
