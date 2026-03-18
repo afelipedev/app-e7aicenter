@@ -40,17 +40,43 @@ export interface ListLeadsParams {
   search?: string;
   includeInactive?: boolean;
   limit?: number;
+  /** Página atual (1-based). Usado com pageSize para paginação. */
+  page?: number;
+  /** Itens por página (padrão 10). Usado com page para paginação. */
+  pageSize?: number;
+}
+
+export interface ListLeadsResult {
+  data: Lead[];
+  total: number;
 }
 
 export class LeadsService {
-  static async list(params: ListLeadsParams = {}): Promise<Lead[]> {
-    const { leadType, search, includeInactive = false, limit = 200 } = params;
+  static async list(params: ListLeadsParams = {}): Promise<ListLeadsResult> {
+    const {
+      leadType,
+      search,
+      includeInactive = false,
+      limit = 200,
+      page,
+      pageSize,
+    } = params;
+
+    const usePagination =
+      page !== undefined && pageSize !== undefined && page >= 1 && pageSize >= 1;
+    const offset = usePagination ? (page! - 1) * pageSize! : 0;
+    const effectiveLimit = usePagination ? pageSize! : limit;
 
     let query = supabase
       .from("leads")
-      .select("*, lead_phones(*), lead_emails(*)")
-      .order("created_at", { ascending: false })
-      .limit(limit);
+      .select("*, lead_phones(*), lead_emails(*)", usePagination ? { count: "exact" } : undefined)
+      .order("created_at", { ascending: false });
+
+    if (usePagination) {
+      query = query.range(offset, offset + effectiveLimit - 1);
+    } else {
+      query = query.limit(effectiveLimit);
+    }
 
     if (!includeInactive) {
       query = query.eq("is_active", true);
@@ -60,13 +86,14 @@ export class LeadsService {
     }
     if (search && search.trim()) {
       const s = search.trim();
-      // busca simples (nome/cnpj). KISS: sem trigram por enquanto.
       query = query.or(`company_name.ilike.%${s}%,cnpj.ilike.%${s}%`);
     }
 
-    const { data, error } = await withTimeout(query);
+    const { data, error, count } = await withTimeout(query);
     if (error) throw new Error(`Erro ao listar leads: ${error.message}`);
-    return (data || []) as Lead[];
+    const leads = (data || []) as Lead[];
+    const total = usePagination && typeof count === "number" ? count : leads.length;
+    return { data: leads, total };
   }
 
   static async getById(id: string): Promise<Lead | null> {

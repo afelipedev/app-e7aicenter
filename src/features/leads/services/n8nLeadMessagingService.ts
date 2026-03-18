@@ -94,7 +94,11 @@ export class N8NLeadMessagingService {
 
     if (sessionError || !session) throw new Error("Usuário não autenticado");
 
-    const leads = await LeadsService.list({ leadType, includeInactive: false, limit: 2000 });
+    const { data: leads } = await LeadsService.list({
+      leadType,
+      includeInactive: false,
+      limit: 2000,
+    });
 
     const leadsMapped: LeadMessagePayload["leads"] = leads.map((l: Lead) => ({
       id: l.id,

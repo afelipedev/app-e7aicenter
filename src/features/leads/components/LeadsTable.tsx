@@ -1,14 +1,25 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 import { useLeads, useSetLeadActive } from "../hooks/useLeads";
 import { LeadsService } from "../services/leadsService";
-import type { LeadType, Lead } from "../types";
+import type { LeadType } from "../types";
 import { toast } from "sonner";
 import { useImportLeadsCsv, exportLeadsToCsvFile } from "../hooks/useLeadImportExport";
 import { Upload, Download, Edit, Ban } from "lucide-react";
+
+const PAGE_SIZE = 10;
 
 export default function LeadsTable({
   leadType,
@@ -18,12 +29,26 @@ export default function LeadsTable({
   onEditLead?: (leadId: string) => void;
 }) {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { data: leads = [], isLoading, refetch } = useLeads({ leadType, search });
-  const { mutateAsync: setActive, isPending: changingStatus } = useSetLeadActive({
-    leadType,
-    search,
-  });
+
+  const listParams = useMemo(
+    () => ({ leadType, search, page, pageSize: PAGE_SIZE }),
+    [leadType, search, page]
+  );
+  const { data, isLoading, refetch } = useLeads(listParams);
+  const leads = data?.data ?? [];
+  const total = data?.total ?? 0;
+
+  const { mutateAsync: setActive, isPending: changingStatus } = useSetLeadActive(listParams);
+
+  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+  const startItem = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const endItem = Math.min(page * PAGE_SIZE, total);
+
+  useEffect(() => {
+    setPage(1);
+  }, [leadType, search]);
   const { mutateAsync: importCsv, isPending: importing } = useImportLeadsCsv();
 
   const rows = useMemo(() => {
@@ -201,6 +226,72 @@ export default function LeadsTable({
           </TableBody>
         </Table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4">
+          <p className="text-sm text-muted-foreground">
+            Exibindo {startItem} - {endItem} de {total} lead{total !== 1 ? "s" : ""}
+          </p>
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page > 1) setPage(page - 1);
+                  }}
+                  className={page <= 1 ? "pointer-events-none opacity-50" : ""}
+                  aria-disabled={page <= 1}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => {
+                  if (totalPages <= 7) return true;
+                  if (p === 1 || p === totalPages) return true;
+                  if (Math.abs(p - page) <= 1) return true;
+                  return false;
+                })
+                .reduce<number[]>((acc, p, idx, arr) => {
+                  if (idx > 0 && arr[idx - 1]! < p - 1) acc.push(-1);
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, idx) =>
+                  p === -1 ? (
+                    <PaginationItem key={`ellipsis-${idx}`}>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  ) : (
+                    <PaginationItem key={p}>
+                      <PaginationLink
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setPage(p);
+                        }}
+                        isActive={page === p}
+                      >
+                        {p}
+                      </PaginationLink>
+                    </PaginationItem>
+                  )
+                )}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (page < totalPages) setPage(page + 1);
+                  }}
+                  className={page >= totalPages ? "pointer-events-none opacity-50" : ""}
+                  aria-disabled={page >= totalPages}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   );
 }
