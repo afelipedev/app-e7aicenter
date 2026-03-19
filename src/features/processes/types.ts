@@ -1,4 +1,4 @@
-export type ProcessStatus = "Concluída" | "Em andamento" | "Aguardando" | "Monitorado";
+export type ProcessStatus = "Concluída" | "Em andamento" | "Aguardando" | "Monitorado" | "Ativo";
 
 export type ProcessGrade = "1ª instância" | "2ª instância" | "Tribunal superior";
 
@@ -13,6 +13,9 @@ export interface ProcessParty {
   side: ProcessPartySide;
   document: string;
   documentType: DocumentSearchType | "OUTRO";
+  role?: string;
+  counsel?: string;
+  groupLabel?: "Polo ativo" | "Polo passivo" | "Outras partes";
 }
 
 export interface ProcessMovement {
@@ -35,6 +38,8 @@ export interface RelatedProcess {
   cnj: string;
   title: string;
   relationship: string;
+  grade?: string;
+  classProcessual?: string;
 }
 
 export interface AgentInsight {
@@ -74,6 +79,14 @@ export interface ProcessDetail extends ProcessSummary {
   attachments: ProcessAttachment[];
   relatedProcesses: RelatedProcess[];
   agentInsights: AgentInsight[];
+  originTribunal?: string;
+  comarca?: string;
+  city?: string;
+  state?: string;
+  justiceSegment?: string;
+  phase?: string;
+  judgeRelator?: string;
+  aiDisclaimer?: string;
 }
 
 export interface ProcessFilters {
