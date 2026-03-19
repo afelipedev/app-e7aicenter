@@ -2,7 +2,6 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-const supabaseServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 
 // Validação mais robusta das variáveis de ambiente
 if (!supabaseUrl) {
@@ -18,7 +17,7 @@ if (!supabaseAnonKey) {
 console.log('Supabase configuration loaded:', {
   url: supabaseUrl,
   hasAnonKey: !!supabaseAnonKey,
-  hasServiceKey: !!supabaseServiceRoleKey
+  browserAdminDisabled: true
 })
 
 // Configuração segura do cliente Supabase
@@ -46,20 +45,19 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
-// Cliente admin para operações privilegiadas (apenas para backend)
-export const supabaseAdmin = supabaseServiceRoleKey 
-  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-      global: {
-        headers: {
-          'X-Client-Info': 'e7ai-center-admin',
-        },
-      },
-    })
-  : null
+// O service role nunca deve ser inicializado no browser.
+// Mantemos um proxy para preservar imports legados e falhar
+// com mensagem explícita caso algum fluxo administrativo tente usá-lo.
+export const supabaseAdmin = new Proxy(
+  {},
+  {
+    get() {
+      throw new Error(
+        'supabaseAdmin não está disponível no frontend. Use uma Edge Function autenticada para operações administrativas.'
+      )
+    },
+  }
+) as any
 
 // Database types
 export interface Database {

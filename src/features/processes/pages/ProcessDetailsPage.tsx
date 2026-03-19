@@ -47,7 +47,12 @@ import { toast } from "@/hooks/use-toast";
 import { ProcessBreadcrumbs } from "../components/ProcessBreadcrumbs";
 import { ProcessStatusBadge } from "../components/ProcessStatusBadge";
 import { processRoutes } from "../constants";
-import { useDeleteProcess, useProcessDetails, useToggleProcessMonitoring } from "../hooks/useProcesses";
+import {
+  useDeleteProcess,
+  useProcessAgentSummary,
+  useProcessDetails,
+  useToggleProcessMonitoring,
+} from "../hooks/useProcesses";
 import type { ProcessDetail, ProcessParty } from "../types";
 
 type ProcessDetailsTab = "movements" | "information" | "attachments" | "related" | "agent";
@@ -159,6 +164,12 @@ export default function ProcessDetailsPage() {
   const [pendingScrollTarget, setPendingScrollTarget] = useState<"other-parties" | null>(null);
   const otherPartiesRef = useRef<HTMLDivElement | null>(null);
   const { data: process, isLoading, isFetching, refetch } = useProcessDetails(caseId);
+  const {
+    data: agentSummary,
+    isLoading: isAgentLoading,
+    isFetching: isAgentFetching,
+    refetch: refetchAgentSummary,
+  } = useProcessAgentSummary(caseId, activeTab === "agent");
   const deleteProcess = useDeleteProcess();
   const toggleMonitoring = useToggleProcessMonitoring();
   const partyGroups = useMemo(() => groupParties(process?.parties ?? []), [process?.parties]);
@@ -684,7 +695,7 @@ export default function ProcessDetailsPage() {
         <TabsContent value="attachments">
           <Card className="rounded-[24px] border-border/70 bg-card/95 p-6 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.55)]">
             <div className="space-y-3">
-              {process.attachments.map((attachment) => (
+              {process.attachments.length > 0 ? process.attachments.map((attachment) => (
                 <div
                   key={attachment.id}
                   className="flex flex-col gap-3 rounded-[20px] border border-border/70 bg-muted/[0.16] p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -703,7 +714,11 @@ export default function ProcessDetailsPage() {
                     Baixar
                   </Button>
                 </div>
-              ))}
+              )) : (
+                <div className="rounded-[20px] border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground">
+                  Nenhum anexo foi disponibilizado pela consulta atual da Judit para este processo.
+                </div>
+              )}
             </div>
           </Card>
         </TabsContent>
@@ -767,24 +782,62 @@ export default function ProcessDetailsPage() {
                   {process.aiDisclaimer ??
                     "O E7 Agente Processual consolida as informações processuais mais recentes para apoiar leitura e tomada de decisão."}
                 </p>
+
+                <Button
+                  variant="secondary"
+                  className="w-full justify-center"
+                  onClick={async () => {
+                    await refetchAgentSummary();
+                    toast({ title: "Resumo do agente atualizado" });
+                  }}
+                  disabled={isAgentFetching}
+                >
+                  <RefreshCcw className={cn("mr-2 h-4 w-4", isAgentFetching && "animate-spin")} />
+                  {isAgentFetching ? "Atualizando análise..." : "Atualizar análise"}
+                </Button>
               </div>
             </Card>
 
             <div className="space-y-4">
-              {process.agentInsights.map((insight, index) => (
-                <Card
-                  key={insight.title}
-                  className={cn(
-                    "rounded-[24px] border-border/70 bg-card/95 p-6 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.55)]",
-                    index === 0 && "border-emerald-100 bg-emerald-50/45",
-                  )}
-                >
-                  <div className="space-y-2">
-                    <p className="text-lg font-semibold">{insight.title}</p>
-                    <p className="text-sm leading-6 text-muted-foreground">{insight.description}</p>
-                  </div>
+              {isAgentLoading ? (
+                <Card className="rounded-[24px] border-border/70 bg-card/95 p-6 text-sm text-muted-foreground shadow-[0_18px_40px_-34px_rgba(15,23,42,0.55)]">
+                  Gerando análise processual...
                 </Card>
-              ))}
+              ) : agentSummary ? (
+                <>
+                  {[
+                    ["Sobre o resumo do processo", agentSummary.sections.summary],
+                    ["Sobre partes envolvidas", agentSummary.sections.parties],
+                    ["Sobre classificação", agentSummary.sections.classification],
+                    ["Sobre assuntos", agentSummary.sections.subjects],
+                    ["Sobre movimentações", agentSummary.sections.movements],
+                  ].map(([title, description], index) => (
+                    <Card
+                      key={title}
+                      className={cn(
+                        "rounded-[24px] border-border/70 bg-card/95 p-6 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.55)]",
+                        index === 0 && "border-emerald-100 bg-emerald-50/45",
+                      )}
+                    >
+                      <div className="space-y-2">
+                        <p className="text-lg font-semibold">{title}</p>
+                        <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+                      </div>
+                    </Card>
+                  ))}
+
+                  <Card className="rounded-[24px] border-border/70 bg-card/95 p-6 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.55)]">
+                    <div className="space-y-2">
+                      <p className="text-lg font-semibold">Observação do agente</p>
+                      <p className="text-sm leading-6 text-muted-foreground">{agentSummary.sections.disclaimer}</p>
+                    </div>
+                  </Card>
+                </>
+              ) : (
+                <Card className="rounded-[24px] border-border/70 bg-card/95 p-6 text-sm text-muted-foreground shadow-[0_18px_40px_-34px_rgba(15,23,42,0.55)]">
+                  Nenhuma análise automatizada está disponível para este processo.
+                </Card>
+              )}
             </div>
           </div>
         </TabsContent>

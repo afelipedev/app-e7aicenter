@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { processesService } from "../services/processesService";
-import type { ApiConsumptionQueryParams, HistoricalListParams, ProcessListParams } from "../types";
+import type {
+  ApiConsumptionQueryParams,
+  HistoricalListParams,
+  ProcessListParams,
+} from "../types";
 
 const processKeys = {
   all: ["processes"] as const,
@@ -8,6 +12,7 @@ const processKeys = {
   queries: (params: ProcessListParams) => [...processKeys.all, "queries", params] as const,
   history: (params: HistoricalListParams) => [...processKeys.all, "history", params] as const,
   details: (caseId: string) => [...processKeys.all, "details", caseId] as const,
+  agent: (caseId: string) => [...processKeys.all, "agent", caseId] as const,
   monitoring: () => [...processKeys.all, "monitoring"] as const,
   apiConsumption: (params: ApiConsumptionQueryParams) => [...processKeys.all, "api-consumption", params] as const,
 };
@@ -38,6 +43,15 @@ export function useProcessDetails(caseId: string) {
     queryKey: processKeys.details(caseId),
     queryFn: () => processesService.getProcessDetails(caseId),
     enabled: Boolean(caseId),
+  });
+}
+
+export function useProcessAgentSummary(caseId: string, enabled = true) {
+  return useQuery({
+    queryKey: processKeys.agent(caseId),
+    queryFn: () => processesService.getProcessAgentSummary(caseId),
+    enabled: Boolean(caseId) && enabled,
+    staleTime: 1000 * 60 * 5,
   });
 }
 
@@ -73,6 +87,34 @@ export function useToggleFavorite() {
   });
 }
 
+export function useSearchProcessByCnj() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (cnj: string) => processesService.searchProcessByCnj(cnj),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: processKeys.all });
+    },
+  });
+}
+
+export function useSearchHistoricalProcesses() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      documentType,
+      documentValue,
+    }: {
+      documentType: HistoricalListParams["documentType"];
+      documentValue: string;
+    }) => processesService.searchHistoricalProcesses(documentType, documentValue),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: processKeys.all });
+    },
+  });
+}
+
 export function useDeleteProcess() {
   const queryClient = useQueryClient();
 
@@ -100,6 +142,23 @@ export function useToggleDocumentMonitoring() {
 
   return useMutation({
     mutationFn: (monitoringId: string) => processesService.toggleDocumentMonitoring(monitoringId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: processKeys.all });
+    },
+  });
+}
+
+export function useToggleDocumentSearchMonitoring() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      documentType,
+      documentValue,
+    }: {
+      documentType: HistoricalListParams["documentType"];
+      documentValue: string;
+    }) => processesService.toggleDocumentSearchMonitoring(documentType, documentValue),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: processKeys.all });
     },

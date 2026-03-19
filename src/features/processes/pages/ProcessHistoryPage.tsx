@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Filter, History, Search } from "lucide-react";
+import { Bell, Filter, History, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,7 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { documentSearchOptions, processRoutes } from "../constants";
-import { useDeleteProcess, useFilterOptions, useHistoricalQueries, useToggleFavorite } from "../hooks/useProcesses";
+import {
+  useDeleteProcess,
+  useFilterOptions,
+  useHistoricalQueries,
+  useSearchHistoricalProcesses,
+  useToggleDocumentSearchMonitoring,
+  useToggleFavorite,
+} from "../hooks/useProcesses";
 import { emptyProcessFilters, type DocumentSearchType } from "../types";
 import { ProcessFiltersSheet } from "../components/ProcessFiltersSheet";
 import { ProcessResultsTable } from "../components/ProcessResultsTable";
@@ -17,6 +24,7 @@ const PAGE_SIZE = 10;
 export default function ProcessHistoryPage() {
   const navigate = useNavigate();
   const [documentType, setDocumentType] = useState<DocumentSearchType>("CPF");
+  const [appliedDocumentType, setAppliedDocumentType] = useState<DocumentSearchType>("CPF");
   const [documentInput, setDocumentInput] = useState("");
   const [appliedDocumentValue, setAppliedDocumentValue] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -32,21 +40,60 @@ export default function ProcessHistoryPage() {
       pageSize: PAGE_SIZE,
       search: appliedSearch,
       filters: appliedFilters,
-      documentType,
+      documentType: appliedDocumentType,
       documentValue: appliedDocumentValue,
     }),
-    [appliedDocumentValue, appliedFilters, appliedSearch, documentType, page],
+    [appliedDocumentType, appliedDocumentValue, appliedFilters, appliedSearch, page],
   );
 
   const { data, isLoading } = useHistoricalQueries(queryParams);
   const { data: filterOptions } = useFilterOptions();
+  const searchHistory = useSearchHistoricalProcesses();
+  const toggleDocumentSearchMonitoring = useToggleDocumentSearchMonitoring();
   const toggleFavorite = useToggleFavorite();
   const deleteProcess = useDeleteProcess();
 
   const handleSearch = () => {
+    if (!documentInput.trim()) {
+      toast({ title: `Informe um ${documentType} para pesquisar` });
+      return;
+    }
+
     setPage(1);
+    setAppliedDocumentType(documentType);
     setAppliedDocumentValue(documentInput);
     setAppliedSearch(searchInput);
+
+    searchHistory.mutate(
+      {
+        documentType,
+        documentValue: documentInput.trim(),
+      },
+      {
+        onSuccess: (result) => {
+          if (result.status === "completed") {
+            toast({ title: "Consulta histórica concluída" });
+            return;
+          }
+
+          if (result.status === "processing" || result.status === "pending") {
+            toast({
+              title: "Consulta histórica iniciada",
+              description: "A Judit ainda está consolidando os resultados do documento.",
+            });
+            return;
+          }
+
+          toast({ title: "A consulta histórica retornou com erro" });
+        },
+        onError: (error) => {
+          toast({
+            title: "Não foi possível consultar o histórico",
+            description: error instanceof Error ? error.message : "Erro inesperado",
+          });
+        },
+      },
+    );
   };
 
   return (
@@ -104,8 +151,8 @@ export default function ProcessHistoryPage() {
             </div>
           </div>
 
-          <Button className="mt-auto w-full xl:w-auto" onClick={handleSearch}>
-            Buscar histórico
+          <Button className="mt-auto w-full xl:w-auto" onClick={handleSearch} disabled={searchHistory.isPending}>
+            {searchHistory.isPending ? "Buscando..." : "Buscar histórico"}
           </Button>
 
           <Button className="mt-auto w-full gap-2 xl:w-auto" variant="outline" onClick={() => setFiltersOpen(true)}>
@@ -128,6 +175,39 @@ export default function ProcessHistoryPage() {
             As consultas históricas são atualizadas com dados oficiais e permitem localizar processos por documento, cruzar resultados e preparar segmentações futuras.
           </Card>
         </div>
+
+        {appliedDocumentValue ? (
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              className="gap-2"
+              disabled={toggleDocumentSearchMonitoring.isPending}
+              onClick={() =>
+                toggleDocumentSearchMonitoring.mutate(
+                  {
+                    documentType: appliedDocumentType,
+                    documentValue: appliedDocumentValue,
+                  },
+                  {
+                    onSuccess: () =>
+                      toast({
+                        title: "Monitoramento do documento atualizado",
+                        description: `${appliedDocumentType} ${appliedDocumentValue}`,
+                      }),
+                    onError: (error) =>
+                      toast({
+                        title: "Não foi possível atualizar o monitoramento",
+                        description: error instanceof Error ? error.message : "Erro inesperado",
+                      }),
+                  },
+                )
+              }
+            >
+              <Bell className="h-4 w-4" />
+              {toggleDocumentSearchMonitoring.isPending ? "Atualizando monitoramento..." : "Ativar/Pausar monitoramento do documento"}
+            </Button>
+          </div>
+        ) : null}
       </Card>
 
       <ProcessResultsTable
@@ -151,6 +231,7 @@ export default function ProcessHistoryPage() {
         }
         emptyMessage={
           isLoading
+            || searchHistory.isPending
             ? "Carregando histórico..."
             : "Nenhum processo encontrado para o documento e filtros informados."
         }

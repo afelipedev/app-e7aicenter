@@ -11,6 +11,7 @@ import {
   useDeleteProcess,
   useFilterOptions,
   useProcessQueries,
+  useSearchProcessByCnj,
   useToggleFavorite,
   useToggleProcessMonitoring,
 } from "../hooks/useProcesses";
@@ -40,13 +41,41 @@ export default function ProcessQueriesPage() {
 
   const { data, isLoading } = useProcessQueries(queryParams);
   const { data: filterOptions } = useFilterOptions();
+  const searchProcess = useSearchProcessByCnj();
   const toggleFavorite = useToggleFavorite();
   const deleteProcess = useDeleteProcess();
   const toggleMonitoring = useToggleProcessMonitoring();
 
   const handleSearch = () => {
+    if (!searchInput.trim()) {
+      toast({ title: "Informe um CNJ para consultar" });
+      return;
+    }
+
     setPage(1);
     setAppliedSearch(searchInput);
+
+    searchProcess.mutate(searchInput.trim(), {
+      onSuccess: (result) => {
+        if (result.status === "completed") {
+          toast({ title: "Consulta processual concluída" });
+          return;
+        }
+
+        if (result.status === "processing" || result.status === "pending") {
+          toast({ title: "Consulta iniciada", description: "A Judit ainda está processando a requisição." });
+          return;
+        }
+
+        toast({ title: "A consulta retornou com erro" });
+      },
+      onError: (error) => {
+        toast({
+          title: "Não foi possível consultar o processo",
+          description: error instanceof Error ? error.message : "Erro inesperado",
+        });
+      },
+    });
   };
 
   return (
@@ -76,8 +105,12 @@ export default function ProcessQueriesPage() {
             </div>
           </div>
 
-          <Button className="mt-auto w-full lg:w-auto" onClick={handleSearch}>
-            Realizar consulta
+          <Button
+            className="mt-auto w-full lg:w-auto"
+            onClick={handleSearch}
+            disabled={searchProcess.isPending}
+          >
+            {searchProcess.isPending ? "Consultando..." : "Realizar consulta"}
           </Button>
 
           <Button className="mt-auto w-full gap-2 lg:w-auto" variant="outline" onClick={() => setFiltersOpen(true)}>
@@ -117,7 +150,11 @@ export default function ProcessQueriesPage() {
             onSuccess: () => toast({ title: "Monitoramento atualizado" }),
           })
         }
-        emptyMessage={isLoading ? "Carregando consultas..." : "Nenhum processo encontrado com os filtros aplicados."}
+        emptyMessage={
+          isLoading || searchProcess.isPending
+            ? "Carregando consultas..."
+            : "Nenhum processo encontrado com os filtros aplicados."
+        }
       />
 
       <ProcessFiltersSheet

@@ -6,9 +6,11 @@ import type {
   HistoricalListParams,
   MonitoringData,
   PaginatedProcesses,
+  ProcessAgentSummary,
   ProcessDetail,
   ProcessFilterOptions,
   ProcessListParams,
+  ProcessSearchResult,
 } from "../types";
 
 export interface ProcessProvider {
@@ -19,10 +21,14 @@ export interface ProcessProvider {
   getMonitoringData(): Promise<MonitoringData>;
   getApiConsumptionData(params: ApiConsumptionQueryParams): Promise<ApiConsumptionData>;
   getFilterOptions(): Promise<ProcessFilterOptions>;
+  searchProcessByCnj(cnj: string): Promise<ProcessSearchResult>;
+  searchHistoricalProcesses(documentType: DocumentSearchType, documentValue: string): Promise<ProcessSearchResult>;
+  getProcessAgentSummary(caseId: string, forceRefresh?: boolean): Promise<ProcessAgentSummary>;
   toggleFavorite(processId: string): Promise<void>;
   deleteProcess(processId: string): Promise<void>;
   toggleProcessMonitoring(processId: string): Promise<void>;
   toggleDocumentMonitoring(monitoringId: string): Promise<void>;
+  toggleDocumentSearchMonitoring(documentType: DocumentSearchType, documentValue: string): Promise<void>;
 }
 
 export interface ProviderQueryPayload {

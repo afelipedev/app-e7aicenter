@@ -31,6 +31,12 @@ export interface ProcessAttachment {
   type: string;
   createdAt: string;
   size: string;
+  metadata?: {
+    attachmentId?: string | null;
+    lawsuitInstance?: string | number | null;
+    private?: boolean;
+    status?: string | null;
+  };
 }
 
 export interface RelatedProcess {
@@ -45,6 +51,31 @@ export interface RelatedProcess {
 export interface AgentInsight {
   title: string;
   description: string;
+}
+
+export interface ProcessAgentSummarySections {
+  summary: string;
+  parties: string;
+  classification: string;
+  subjects: string;
+  movements: string;
+  disclaimer: string;
+}
+
+export interface ProcessAgentSummary {
+  cached: boolean;
+  model: string;
+  sections: ProcessAgentSummarySections;
+  generatedAt: string;
+}
+
+export type ProcessAsyncStatus = "pending" | "processing" | "completed" | "error";
+
+export interface ProcessSearchResult {
+  status: ProcessAsyncStatus;
+  requestId: string;
+  juditRequestId?: string | null;
+  process?: ProcessSummary | null;
 }
 
 export interface ProcessSummary {
@@ -79,6 +110,7 @@ export interface ProcessDetail extends ProcessSummary {
   attachments: ProcessAttachment[];
   relatedProcesses: RelatedProcess[];
   agentInsights: AgentInsight[];
+  agentSummary?: ProcessAgentSummarySections;
   originTribunal?: string;
   comarca?: string;
   city?: string;

@@ -29,20 +29,6 @@ CREATE TRIGGER update_judit_provider_secrets_updated_at
     BEFORE UPDATE ON public.judit_provider_secrets
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-INSERT INTO public.judit_provider_secrets (
-    provider_name,
-    api_key,
-    base_url,
-    is_active
-)
-SELECT
-    'Judit',
-    '609d3625-1671-4890-b101-971305fefe55',
-    'https://requests.prod.judit.io',
-    true
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM public.judit_provider_secrets
-    WHERE provider_name = 'Judit'
-      AND is_active = true
-);
+-- Nao versionar credenciais em migrations.
+-- Configure `JUDIT_API_KEY` como secret da Edge Function ou insira
+-- manualmente na tabela em ambiente seguro, se realmente precisar do fallback.
