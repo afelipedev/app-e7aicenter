@@ -55,6 +55,17 @@ export function useProcessAgentSummary(caseId: string, enabled = true) {
   });
 }
 
+export function useRefreshProcessAgentSummary(caseId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => processesService.getProcessAgentSummary(caseId, true),
+    onSuccess: (data) => {
+      queryClient.setQueryData(processKeys.agent(caseId), data);
+    },
+  });
+}
+
 export function useProcessMonitoring() {
   return useQuery({
     queryKey: processKeys.monitoring(),
@@ -93,7 +104,10 @@ export function useSearchProcessByCnj() {
   return useMutation({
     mutationFn: (cnj: string) => processesService.searchProcessByCnj(cnj),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: processKeys.all });
+      queryClient.invalidateQueries({ queryKey: processKeys.dashboard() });
+      queryClient.invalidateQueries({ queryKey: [...processKeys.all, "filter-options"] });
+      queryClient.invalidateQueries({ queryKey: [...processKeys.all, "queries"] });
+      queryClient.invalidateQueries({ queryKey: [...processKeys.all, "api-consumption"] });
     },
   });
 }
@@ -110,7 +124,10 @@ export function useSearchHistoricalProcesses() {
       documentValue: string;
     }) => processesService.searchHistoricalProcesses(documentType, documentValue),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: processKeys.all });
+      queryClient.invalidateQueries({ queryKey: processKeys.dashboard() });
+      queryClient.invalidateQueries({ queryKey: [...processKeys.all, "filter-options"] });
+      queryClient.invalidateQueries({ queryKey: [...processKeys.all, "history"] });
+      queryClient.invalidateQueries({ queryKey: [...processKeys.all, "api-consumption"] });
     },
   });
 }

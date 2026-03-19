@@ -19,6 +19,9 @@ const MAX_WAIT_MS = 45000;
 const POLL_INTERVAL_MS = 3000;
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
+const INITIAL_REQUEST_WAIT_MS = 8000;
+const BATCH_SIZE = 200;
+const JUDIT_PRICING_VERSION = "2026-03-17-v1";
 
 type JsonRecord = Record<string, unknown>;
 type SearchType = "lawsuit_cnj" | "cpf" | "cnpj" | "oab";
@@ -55,6 +58,30 @@ interface ListParams {
   };
 }
 
+interface ConsumptionProduct {
+  code: string;
+  label: string;
+  priceBrl: number;
+}
+
+const CONSUMPTION_PRODUCTS = {
+  processConsultation: {
+    code: "process_consultation",
+    label: "Consulta processual",
+    priceBrl: 0.25,
+  },
+  historicalDatalake: {
+    code: "historical_datalake",
+    label: "Consulta historica (Data Lake)",
+    priceBrl: 1.5,
+  },
+  attachments: {
+    code: "attachments",
+    label: "Autos processuais (Anexos)",
+    priceBrl: 3.5,
+  },
+} satisfies Record<string, ConsumptionProduct>;
+
 const buildJsonResponse = (status: number, payload: unknown) =>
   new Response(JSON.stringify(payload), {
     status,
@@ -74,6 +101,14 @@ const normalize = (value: string) =>
 const normalizeDocument = (value: string) => value.replace(/\D/g, "");
 
 const safeArray = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+
+const chunkArray = <T>(items: T[], size = BATCH_SIZE) => {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+};
 
 const toPageSize = (pageSize?: number) =>
   Math.min(MAX_PAGE_SIZE, Math.max(1, pageSize ?? DEFAULT_PAGE_SIZE));
@@ -133,6 +168,11 @@ const sha256 = async (value: string) => {
     .join("");
 };
 
+const toDateOnly = (value: Date) => value.toISOString().slice(0, 10);
+
+const getMonthStart = (value: Date) =>
+  toDateOnly(new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1)));
+
 const isTerminalRequestStatus = (status?: string | null) => {
   const normalized = normalize(status ?? "");
   return ["completed", "error", "failed", "cancelled", "canceled"].includes(normalized);
@@ -170,6 +210,105 @@ const loadJuditConfig = async (admin: AdminClient): Promise<JuditConfig> => {
     trackingBaseUrl: JUDIT_TRACKING_BASE_URL,
     lawsuitsBaseUrl: JUDIT_LAWSUITS_BASE_URL,
   };
+};
+
+const inferConsumptionProduct = (
+  requestKind: "cnj" | "history" | "detail_refresh",
+  searchType: SearchType,
+  responseType: string,
+) => {
+  if (requestKind === "history" && responseType === "lawsuits") {
+    return CONSUMPTION_PRODUCTS.historicalDatalake;
+  }
+
+  if (searchType === "lawsuit_cnj" || responseType === "lawsuit") {
+    return CONSUMPTION_PRODUCTS.processConsultation;
+  }
+
+  return null;
+};
+
+const upsertConsumptionEntry = async ({
+  admin,
+  juditRequestId,
+  requestKind,
+  searchType,
+  searchValue,
+  responseType,
+  requestedWithAttachments,
+  status,
+  payload,
+  createdAt,
+  updatedAt,
+}: {
+  admin: AdminClient;
+  juditRequestId?: string | null;
+  requestKind: "cnj" | "history" | "detail_refresh";
+  searchType: SearchType;
+  searchValue: string;
+  responseType: string;
+  requestedWithAttachments: boolean;
+  status: string;
+  payload: JsonRecord;
+  createdAt?: string;
+  updatedAt?: string;
+}) => {
+  if (!juditRequestId) return;
+
+  const product = inferConsumptionProduct(requestKind, searchType, responseType);
+  const attachmentAddOnBrl = requestedWithAttachments ? CONSUMPTION_PRODUCTS.attachments.priceBrl : 0;
+  const createdAtIso = createdAt ?? new Date().toISOString();
+  const createdAtDate = new Date(createdAtIso);
+  const normalizedCreatedAt = Number.isNaN(createdAtDate.getTime())
+    ? new Date()
+    : createdAtDate;
+  const costBrl = Number(((product?.priceBrl ?? 0) + attachmentAddOnBrl).toFixed(2));
+  const costConfidence = product ? "exact" : requestedWithAttachments ? "estimated" : "unknown";
+
+  const { error } = await admin.from("judit_requests").upsert({
+    request_id: juditRequestId,
+    origin: "api",
+    origin_id: juditRequestId,
+    status,
+    created_at_judit: createdAtIso,
+    updated_at_judit: updatedAt ?? new Date().toISOString(),
+    billing_reference_month: getMonthStart(normalizedCreatedAt),
+    search_type: searchType,
+    response_type: responseType,
+    search_key_masked: maskSearchKey(searchValue),
+    on_demand: false,
+    with_attachments: requestedWithAttachments,
+    public_search: false,
+    plan_config_type: null,
+    filters_count: null,
+    product_name: product?.label ?? "Nao classificado",
+    cost_brl: costBrl,
+    cost_type: "estimated",
+    cost_confidence: costConfidence,
+    returned_items_count: null,
+    returned_batches: null,
+    has_overage: false,
+    pricing_version: JUDIT_PRICING_VERSION,
+    raw_payload: payload,
+    pricing_metadata: {
+      product_code: product?.code ?? null,
+      attachment_add_on_brl: attachmentAddOnBrl,
+      source_module: "processes",
+      request_kind: requestKind,
+      classification_source: {
+        search_type: searchType,
+        response_type: responseType,
+        on_demand: false,
+      },
+    },
+    sync_run_id: null,
+  }, {
+    onConflict: "request_id",
+  });
+
+  if (error) {
+    console.error("Erro ao sincronizar judit_requests em tempo real:", error);
+  }
 };
 
 const juditRequest = async <T>(
@@ -617,37 +756,90 @@ const upsertSnapshots = async ({
   return snapshots;
 };
 
-const getUserStateMaps = async (admin: AdminClient, userId: string, snapshotIds: string[]) => {
-  const [userStateResult, monitoringResult] = await Promise.all([
-    admin
-      .from("process_user_state")
-      .select("*")
-      .eq("auth_user_id", userId)
-      .in("process_snapshot_id", snapshotIds),
-    admin
-      .from("process_monitorings")
-      .select("*")
-      .eq("auth_user_id", userId)
-      .in("process_snapshot_id", snapshotIds)
-      .is("deleted_at", null),
-  ]);
+const getRequestResultsByRequestIds = async (admin: AdminClient, requestIds: string[]) => {
+  const links: JsonRecord[] = [];
 
-  if (userStateResult.error) {
-    throw new Error(`Erro ao carregar process_user_state: ${userStateResult.error.message}`);
+  for (const batch of chunkArray(requestIds)) {
+    const { data, error } = await admin
+      .from("process_request_results")
+      .select("*")
+      .in("process_query_request_id", batch);
+
+    if (error) {
+      throw new Error(`Erro ao carregar process_request_results: ${error.message}`);
+    }
+
+    links.push(...safeArray<JsonRecord>(data));
   }
 
-  if (monitoringResult.error) {
-    throw new Error(`Erro ao carregar process_monitorings: ${monitoringResult.error.message}`);
+  return links;
+};
+
+const getSnapshotsByIds = async (admin: AdminClient, snapshotIds: string[]) => {
+  const snapshots: JsonRecord[] = [];
+
+  for (const batch of chunkArray(snapshotIds)) {
+    const { data, error } = await admin
+      .from("process_snapshots")
+      .select("*")
+      .in("id", batch);
+
+    if (error) {
+      throw new Error(`Erro ao carregar process_snapshots: ${error.message}`);
+    }
+
+    snapshots.push(...safeArray<JsonRecord>(data));
+  }
+
+  return snapshots;
+};
+
+const getUserStateMaps = async (admin: AdminClient, userId: string, snapshotIds: string[]) => {
+  if (!snapshotIds.length) {
+    return {
+      stateBySnapshot: new Map<string, JsonRecord>(),
+      monitoringBySnapshot: new Map<string, JsonRecord>(),
+    };
+  }
+
+  const userStateRows: JsonRecord[] = [];
+  const monitoringRows: JsonRecord[] = [];
+
+  for (const batch of chunkArray(snapshotIds)) {
+    const [userStateResult, monitoringResult] = await Promise.all([
+      admin
+        .from("process_user_state")
+        .select("*")
+        .eq("auth_user_id", userId)
+        .in("process_snapshot_id", batch),
+      admin
+        .from("process_monitorings")
+        .select("*")
+        .eq("auth_user_id", userId)
+        .in("process_snapshot_id", batch)
+        .is("deleted_at", null),
+    ]);
+
+    if (userStateResult.error) {
+      throw new Error(`Erro ao carregar process_user_state: ${userStateResult.error.message}`);
+    }
+
+    if (monitoringResult.error) {
+      throw new Error(`Erro ao carregar process_monitorings: ${monitoringResult.error.message}`);
+    }
+
+    userStateRows.push(...safeArray<JsonRecord>(userStateResult.data));
+    monitoringRows.push(...safeArray<JsonRecord>(monitoringResult.data));
   }
 
   const stateBySnapshot = new Map<string, JsonRecord>();
   const monitoringBySnapshot = new Map<string, JsonRecord>();
 
-  safeArray<JsonRecord>(userStateResult.data).forEach((row) => {
+  userStateRows.forEach((row) => {
     stateBySnapshot.set(String(row.process_snapshot_id), row);
   });
 
-  safeArray<JsonRecord>(monitoringResult.data).forEach((row) => {
+  monitoringRows.forEach((row) => {
     if (
       row.process_snapshot_id &&
       !monitoringBySnapshot.has(String(row.process_snapshot_id))
@@ -849,19 +1041,12 @@ const listProcessSummaries = async ({
     return paginate([], params.page ?? 1, toPageSize(params.pageSize));
   }
 
-  const { data: links, error: linksError } = await admin
-    .from("process_request_results")
-    .select("*")
-    .in("process_query_request_id", requestIds);
-
-  if (linksError) {
-    throw new Error(`Erro ao carregar process_request_results: ${linksError.message}`);
-  }
+  const links = await getRequestResultsByRequestIds(admin, requestIds);
 
   const requestById = new Map(requestIds.map((id) => [id, safeArray<JsonRecord>(requests).find((row) => String(row.id) === id)!]));
   const latestLinkBySnapshot = new Map<string, JsonRecord>();
 
-  safeArray<JsonRecord>(links).forEach((link) => {
+  links.forEach((link) => {
     const snapshotId = String(link.process_snapshot_id);
     const request = requestById.get(String(link.process_query_request_id));
     if (!request) return;
@@ -880,17 +1065,10 @@ const listProcessSummaries = async ({
   });
 
   const snapshotIds = Array.from(latestLinkBySnapshot.keys());
-  const { data: snapshots, error: snapshotsError } = await admin
-    .from("process_snapshots")
-    .select("*")
-    .in("id", snapshotIds);
-
-  if (snapshotsError) {
-    throw new Error(`Erro ao carregar process_snapshots: ${snapshotsError.message}`);
-  }
+  const snapshots = await getSnapshotsByIds(admin, snapshotIds);
 
   const snapshotById = new Map(
-    safeArray<JsonRecord>(snapshots).map((snapshot) => [String(snapshot.id), snapshot]),
+    snapshots.map((snapshot) => [String(snapshot.id), snapshot]),
   );
 
   const { stateBySnapshot, monitoringBySnapshot } = await getUserStateMaps(admin, userId, snapshotIds);
@@ -1078,15 +1256,41 @@ const runCnjRefresh = async ({
     initialStatus: String(juditRequestResponse.status ?? "processing"),
     initialResponsePayload: juditRequestResponse,
   });
+  await upsertConsumptionEntry({
+    admin,
+    juditRequestId: String(juditRequestResponse.request_id ?? ""),
+    requestKind,
+    searchType: "lawsuit_cnj",
+    searchValue: cnj,
+    responseType: "lawsuit",
+    requestedWithAttachments: withAttachments,
+    status: String(juditRequestResponse.status ?? "processing"),
+    payload: juditRequestResponse,
+    createdAt: String(requestRow.started_at ?? new Date().toISOString()),
+  });
   const requestStatus = await waitForJuditRequestCompletion(
     config,
     String(juditRequestResponse.request_id),
+    INITIAL_REQUEST_WAIT_MS,
   );
 
   await updateProcessQueryRequest(admin, String(requestRow.id), {
     status: requestStatus?.status ?? "processing",
     response_payload: requestStatus ?? {},
     finished_at: isTerminalRequestStatus(String(requestStatus?.status ?? "")) ? new Date().toISOString() : null,
+  });
+  await upsertConsumptionEntry({
+    admin,
+    juditRequestId: String(juditRequestResponse.request_id ?? ""),
+    requestKind,
+    searchType: "lawsuit_cnj",
+    searchValue: cnj,
+    responseType: "lawsuit",
+    requestedWithAttachments: withAttachments,
+    status: String(requestStatus?.status ?? juditRequestResponse.status ?? "processing"),
+    payload: requestStatus ?? juditRequestResponse,
+    createdAt: String(requestRow.started_at ?? new Date().toISOString()),
+    updatedAt: new Date().toISOString(),
   });
 
   if (normalize(String(requestStatus?.status ?? "")) !== "completed") {
@@ -1168,15 +1372,41 @@ const handleSearchHistory = async (admin: AdminClient, userId: string, config: J
     initialStatus: String(juditRequestResponse.status ?? "processing"),
     initialResponsePayload: juditRequestResponse,
   });
+  await upsertConsumptionEntry({
+    admin,
+    juditRequestId: String(juditRequestResponse.request_id ?? ""),
+    requestKind: "history",
+    searchType,
+    searchValue: documentValue,
+    responseType: "lawsuits",
+    requestedWithAttachments: false,
+    status: String(juditRequestResponse.status ?? "processing"),
+    payload: juditRequestResponse,
+    createdAt: String(requestRow.started_at ?? new Date().toISOString()),
+  });
   const requestStatus = await waitForJuditRequestCompletion(
     config,
     String(juditRequestResponse.request_id),
+    INITIAL_REQUEST_WAIT_MS,
   );
 
   await updateProcessQueryRequest(admin, String(requestRow.id), {
     status: requestStatus?.status ?? "processing",
     response_payload: requestStatus ?? {},
     finished_at: isTerminalRequestStatus(String(requestStatus?.status ?? "")) ? new Date().toISOString() : null,
+  });
+  await upsertConsumptionEntry({
+    admin,
+    juditRequestId: String(juditRequestResponse.request_id ?? ""),
+    requestKind: "history",
+    searchType,
+    searchValue: documentValue,
+    responseType: "lawsuits",
+    requestedWithAttachments: false,
+    status: String(requestStatus?.status ?? juditRequestResponse.status ?? "processing"),
+    payload: requestStatus ?? juditRequestResponse,
+    createdAt: String(requestRow.started_at ?? new Date().toISOString()),
+    updatedAt: new Date().toISOString(),
   });
 
   if (normalize(String(requestStatus?.status ?? "")) !== "completed") {
@@ -1560,15 +1790,11 @@ const handleGetMonitoringData = async (admin: AdminClient, userId: string) => {
     .filter(Boolean);
 
   const snapshots = snapshotIds.length
-    ? await admin.from("process_snapshots").select("*").in("id", snapshotIds)
-    : { data: [], error: null };
-
-  if (snapshots.error) {
-    throw new Error(`Erro ao carregar snapshots monitorados: ${snapshots.error.message}`);
-  }
+    ? await getSnapshotsByIds(admin, snapshotIds)
+    : [];
 
   const snapshotById = new Map(
-    safeArray<JsonRecord>(snapshots.data).map((snapshot) => [String(snapshot.id), snapshot]),
+    snapshots.map((snapshot) => [String(snapshot.id), snapshot]),
   );
   const { stateBySnapshot } = await getUserStateMaps(admin, userId, snapshotIds);
 
@@ -1643,6 +1869,19 @@ const handleGetRequestStatus = async (admin: AdminClient, userId: string, config
     status: latestStatus?.status ?? requestRow.status,
     response_payload: latestStatus ?? requestRow.response_payload,
     finished_at: isTerminalRequestStatus(String(latestStatus?.status ?? "")) ? new Date().toISOString() : null,
+  });
+  await upsertConsumptionEntry({
+    admin,
+    juditRequestId: String(requestRow.judit_request_id),
+    requestKind: requestRow.request_kind as "cnj" | "history" | "detail_refresh",
+    searchType: requestRow.search_type as SearchType,
+    searchValue: String(requestRow.search_value_label ?? ""),
+    responseType: String(requestRow.response_type ?? ""),
+    requestedWithAttachments: Boolean(requestRow.requested_with_attachments),
+    status: String(latestStatus?.status ?? requestRow.status ?? "processing"),
+    payload: (latestStatus ?? requestRow.response_payload ?? {}) as JsonRecord,
+    createdAt: String(requestRow.started_at ?? requestRow.created_at ?? new Date().toISOString()),
+    updatedAt: new Date().toISOString(),
   });
 
   if (normalize(String(latestStatus?.status ?? "")) === "completed") {

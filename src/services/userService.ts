@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin, User, UserRole, UserStatus } from '../lib/supabase'
+import { supabase, User, UserRole, UserStatus } from '../lib/supabase'
 import { UserSyncService, AuthEventType } from './userSyncService'
 
 export interface CreateUserData {
@@ -228,117 +228,47 @@ export class UserService {
   }
 
   static async createUser(userData: CreateUserData): Promise<{ data: User | null; error: any }> {
-    console.log('🚀 UserService.createUser: INICIANDO criação de usuário')
+    console.log('🚀 UserService.createUser: INICIANDO criação de usuário via Edge Function')
     console.log('📧 Email:', userData.email)
     console.log('👤 Nome:', userData.name)
     console.log('🔑 Role:', userData.role)
-    
+
     try {
-      // ETAPA 1: Verificar se email já existe (SEM usar .single())
-      console.log('🔍 ETAPA 1: Verificando se email já existe...')
-      const { data: existingUsers, error: checkError } = await supabaseAdmin
-        .from('users')
-        .select('id, email')
-        .eq('email', userData.email)
-        .limit(1)
-
-      console.log('📊 Resultado da verificação:', { 
-        encontrados: existingUsers?.length || 0, 
-        erro: checkError?.message 
+      const { data, error } = await supabase.functions.invoke('admin-create-user', {
+        body: {
+          name: userData.name,
+          email: userData.email,
+          password: userData.password,
+          role: userData.role,
+          status: userData.status || 'ativo',
+        },
       })
 
-      if (checkError) {
-        console.error('❌ ERRO na verificação de email:', checkError)
-        return { data: null, error: checkError }
+      if (error) {
+        console.error('❌ ERRO ao chamar Edge Function:', error)
+        return { data: null, error }
       }
 
-      if (existingUsers && existingUsers.length > 0) {
-        console.log('⚠️ Email já existe:', userData.email)
-        return { 
-          data: null, 
-          error: { 
-            message: 'Email já está registrado',
-            code: 'EMAIL_ALREADY_EXISTS'
-          } 
+      const result = data as { data?: User; error?: string; code?: string } | null
+      if (result?.error) {
+        const err = new Error(result.error) as Error & { code?: string }
+        err.code = result.code
+        return { data: null, error: err }
+      }
+
+      const createdUser = result?.data
+      if (!createdUser) {
+        return {
+          data: null,
+          error: { message: 'Resposta inválida da Edge Function', code: 'INVALID_RESPONSE' },
         }
       }
 
-      console.log('✅ Email disponível, prosseguindo...')
-
-      // ETAPA 2: Criar usuário de autenticação com confirmação automática
-      console.log('🔐 ETAPA 2: Criando usuário de autenticação...')
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: userData.email,
-        password: userData.password,
-        email_confirm: true, // Confirmar email automaticamente
-        user_metadata: {
-          name: userData.name
-        }
-      })
-
-      console.log('🔐 Resultado da criação de auth:', { 
-        sucesso: !authError && !!authData.user,
-        userId: authData.user?.id,
-        emailConfirmed: authData.user?.email_confirmed_at,
-        erro: authError?.message 
-      })
-
-      if (authError || !authData.user) {
-        console.error('❌ ERRO na criação do usuário de auth:', authError)
-        return { data: null, error: authError }
-      }
-
-      console.log('✅ Usuário de auth criado com sucesso e email confirmado automaticamente')
-
-      // ETAPA 3: Criar perfil do usuário
-      console.log('👤 ETAPA 3: Criando perfil do usuário...')
-      const profileData = {
-        auth_user_id: authData.user.id,
-        email: userData.email,
-        name: userData.name,
-        role: userData.role,
-        status: userData.status || 'ativo',
-        first_access_completed: true, // Novos usuários já têm primeiro acesso completado automaticamente
-        first_access_at: new Date().toISOString() // Data de conclusão do primeiro acesso
-      }
-
-      console.log('📝 Dados do perfil:', profileData)
-
-      // Inserir SEM usar .single() primeiro, depois buscar o registro criado
-      const { data: insertData, error: insertError } = await supabaseAdmin
-        .from('users')
-        .insert(profileData)
-        .select()
-
-      console.log('💾 Resultado da inserção:', { 
-        sucesso: !insertError && !!insertData,
-        registros: insertData?.length || 0,
-        erro: insertError?.message 
-      })
-
-      if (insertError) {
-        console.error('❌ ERRO na inserção do perfil:', insertError)
-        return { data: null, error: insertError }
-      }
-
-      if (!insertData || insertData.length === 0) {
-        console.error('❌ ERRO: Nenhum registro foi inserido')
-        return { 
-          data: null, 
-          error: { 
-            message: 'Falha ao criar perfil do usuário',
-            code: 'INSERT_FAILED'
-          } 
-        }
-      }
-
-      const createdUser = insertData[0]
-      console.log('✅ Usuário criado com sucesso:', { 
-        id: createdUser.id, 
+      console.log('✅ Usuário criado com sucesso:', {
+        id: createdUser.id,
         email: createdUser.email,
-        name: createdUser.name 
+        name: createdUser.name,
       })
-
       return { data: createdUser, error: null }
     } catch (error) {
       console.error('💥 ERRO INESPERADO na criação de usuário:', error)
@@ -462,18 +392,16 @@ export class UserService {
 
       console.log('UserService.updateUser: [ETAPA 2] ✅ Usuário encontrado com sucesso')
 
-      // Se uma nova senha foi fornecida, atualizar via Supabase Auth Admin API
+      // Se uma nova senha foi fornecida, atualizar via Edge Function (admin-update-user-password)
       if (userData.password) {
-        console.log('UserService.updateUser: [ETAPA 3] Iniciando atualização de senha...')
-        console.log('UserService.updateUser: [ETAPA 3] Auth User ID:', existingUser.auth_user_id)
-        
-        // Registrar tentativa de reset de senha
+        console.log('UserService.updateUser: [ETAPA 3] Iniciando atualização de senha via Edge Function...')
+
         await UserSyncService.logAuthEvent(existingUser.id, AuthEventType.PASSWORD_RESET_ATTEMPTED, {
           userEmail: existingUser.email,
           hasAuthUserId: !!existingUser.auth_user_id,
           timestamp: new Date().toISOString()
         })
-        
+
         if (!existingUser.auth_user_id) {
           console.error('UserService.updateUser: [ETAPA 3] ERRO - auth_user_id não encontrado após diagnóstico')
           await UserSyncService.logAuthEvent(existingUser.id, AuthEventType.PASSWORD_RESET_FAILED, {
@@ -485,41 +413,43 @@ export class UserService {
         }
 
         try {
-          console.log('UserService.updateUser: [ETAPA 3] Chamando Supabase Auth Admin API...')
-          const authUpdateStart = Date.now()
-          
-          const { data: authUpdateData, error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
-            existingUser.auth_user_id,
-            { password: userData.password }
+          const { data: passwordResult, error: passwordError } = await supabase.functions.invoke(
+            'admin-update-user-password',
+            {
+              body: {
+                userId: id,
+                newPassword: userData.password,
+              },
+            }
           )
 
-          const authUpdateDuration = Date.now() - authUpdateStart
-          console.log('UserService.updateUser: [ETAPA 3] Auth API respondeu em:', authUpdateDuration + 'ms')
-          console.log('UserService.updateUser: [ETAPA 3] Resultado da atualização de senha:', {
-            success: !authUpdateError,
-            error: authUpdateError?.message,
-            userUpdated: !!authUpdateData?.user
-          })
-
-          if (authUpdateError) {
-            console.error('UserService.updateUser: [ETAPA 3] ERRO - Falha na atualização de senha:', authUpdateError)
+          if (passwordError) {
+            console.error('UserService.updateUser: [ETAPA 3] ERRO - Falha na atualização de senha:', passwordError)
             await UserSyncService.logAuthEvent(existingUser.id, AuthEventType.PASSWORD_RESET_FAILED, {
               success: false,
-              errorMessage: `Erro ao atualizar senha: ${authUpdateError.message}`,
+              errorMessage: `Erro ao atualizar senha: ${passwordError.message}`,
               userEmail: existingUser.email
             })
-            return { data: null, error: new Error(`Erro ao atualizar senha: ${authUpdateError.message}`) }
+            return { data: null, error: new Error(`Erro ao atualizar senha: ${passwordError.message}`) }
           }
 
-          console.log('UserService.updateUser: [ETAPA 3] ✅ Senha atualizada com sucesso via Auth Admin API')
-          
-          // Registrar sucesso no reset de senha
+          const result = passwordResult as { error?: string } | null
+          if (result?.error) {
+            console.error('UserService.updateUser: [ETAPA 3] ERRO - Edge Function retornou erro:', result.error)
+            await UserSyncService.logAuthEvent(existingUser.id, AuthEventType.PASSWORD_RESET_FAILED, {
+              success: false,
+              errorMessage: result.error,
+              userEmail: existingUser.email
+            })
+            return { data: null, error: new Error(result.error) }
+          }
+
+          console.log('UserService.updateUser: [ETAPA 3] ✅ Senha atualizada com sucesso via Edge Function')
           await UserSyncService.logAuthEvent(existingUser.id, AuthEventType.PASSWORD_RESET_SUCCESS, {
             success: true,
             userEmail: existingUser.email,
             timestamp: new Date().toISOString()
           })
-          
         } catch (authError) {
           console.error('UserService.updateUser: [ETAPA 3] ERRO - Exceção inesperada:', authError)
           await UserSyncService.logAuthEvent(existingUser.id, AuthEventType.PASSWORD_RESET_FAILED, {

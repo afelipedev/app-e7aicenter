@@ -51,6 +51,7 @@ import {
   useDeleteProcess,
   useProcessAgentSummary,
   useProcessDetails,
+  useRefreshProcessAgentSummary,
   useToggleProcessMonitoring,
 } from "../hooks/useProcesses";
 import type { ProcessDetail, ProcessParty } from "../types";
@@ -168,8 +169,8 @@ export default function ProcessDetailsPage() {
     data: agentSummary,
     isLoading: isAgentLoading,
     isFetching: isAgentFetching,
-    refetch: refetchAgentSummary,
   } = useProcessAgentSummary(caseId, activeTab === "agent");
+  const refreshAgentSummary = useRefreshProcessAgentSummary(caseId);
   const deleteProcess = useDeleteProcess();
   const toggleMonitoring = useToggleProcessMonitoring();
   const partyGroups = useMemo(() => groupParties(process?.parties ?? []), [process?.parties]);
@@ -787,13 +788,22 @@ export default function ProcessDetailsPage() {
                   variant="secondary"
                   className="w-full justify-center"
                   onClick={async () => {
-                    await refetchAgentSummary();
-                    toast({ title: "Resumo do agente atualizado" });
+                    try {
+                      await refreshAgentSummary.mutateAsync();
+                      toast({ title: "Resumo do agente atualizado" });
+                    } catch (error) {
+                      toast({
+                        title: "Não foi possível atualizar a análise",
+                        description: error instanceof Error ? error.message : "Erro inesperado",
+                      });
+                    }
                   }}
-                  disabled={isAgentFetching}
+                  disabled={isAgentFetching || refreshAgentSummary.isPending}
                 >
-                  <RefreshCcw className={cn("mr-2 h-4 w-4", isAgentFetching && "animate-spin")} />
-                  {isAgentFetching ? "Atualizando análise..." : "Atualizar análise"}
+                  <RefreshCcw
+                    className={cn("mr-2 h-4 w-4", (isAgentFetching || refreshAgentSummary.isPending) && "animate-spin")}
+                  />
+                  {isAgentFetching || refreshAgentSummary.isPending ? "Atualizando análise..." : "Atualizar análise"}
                 </Button>
               </div>
             </Card>
@@ -821,7 +831,9 @@ export default function ProcessDetailsPage() {
                     >
                       <div className="space-y-2">
                         <p className="text-lg font-semibold">{title}</p>
-                        <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+                        <p className="whitespace-pre-line break-words text-sm leading-6 text-muted-foreground">
+                          {description}
+                        </p>
                       </div>
                     </Card>
                   ))}
@@ -829,7 +841,9 @@ export default function ProcessDetailsPage() {
                   <Card className="rounded-[24px] border-border/70 bg-card/95 p-6 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.55)]">
                     <div className="space-y-2">
                       <p className="text-lg font-semibold">Observação do agente</p>
-                      <p className="text-sm leading-6 text-muted-foreground">{agentSummary.sections.disclaimer}</p>
+                      <p className="whitespace-pre-line break-words text-sm leading-6 text-muted-foreground">
+                        {agentSummary.sections.disclaimer}
+                      </p>
                     </div>
                   </Card>
                 </>

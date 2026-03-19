@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Sparkles, X } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,14 +63,21 @@ function FilterTagMultiSelect({
   const available = options.filter((o) => !selected.includes(o));
 
   return (
-    <div className="min-w-0 space-y-2">
-      <Label>{label}</Label>
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <div className="min-w-0 space-y-3">
+      <div className="space-y-1">
+        <Label className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">{label}</Label>
+        <p className="text-sm leading-6 text-muted-foreground">
+          {selected.length > 0
+            ? `${selected.length} item${selected.length > 1 ? "s" : ""} selecionado${selected.length > 1 ? "s" : ""}`
+            : "Selecione itens para refinar a listagem."}
+        </p>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-center gap-2.5 rounded-[20px] border border-border/70 bg-muted/[0.14] p-3.5">
         {selected.map((value) => (
           <Badge
             key={value}
             variant="secondary"
-            className="max-w-full shrink-0 cursor-pointer gap-1 pr-1 hover:bg-secondary/80"
+            className="max-w-full shrink-0 cursor-pointer gap-1 rounded-full border border-border/60 bg-background/90 px-3 py-1 pr-2 text-xs font-medium text-foreground shadow-sm hover:bg-background"
             onClick={() => remove(value)}
             title={value}
           >
@@ -84,19 +91,19 @@ function FilterTagMultiSelect({
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 shrink-0 gap-1 border-dashed"
+              className="h-9 shrink-0 gap-1 rounded-full border-border/70 bg-background/85 px-3 shadow-sm"
             >
               Adicionar
               <ChevronDown className="h-3 w-3" />
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className="flex min-w-[200px] w-[min(calc(100vw-2rem),320px)] max-w-[320px] flex-col overflow-hidden p-0"
+            className="flex min-w-[200px] w-[min(calc(100vw-2rem),320px)] max-w-[320px] flex-col overflow-hidden rounded-[20px] border-border/70 bg-background/95 p-0 shadow-xl"
             align="start"
             side="bottom"
             sideOffset={4}
           >
-            <Command className="max-h-[min(360px,60vh)]">
+            <Command className="max-h-[min(360px,60vh)] bg-transparent">
               <CommandInput placeholder={placeholder} />
               <CommandList className="min-h-0 max-h-[min(280px,45vh)] overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y">
                 <CommandEmpty>Nenhuma opção disponível.</CommandEmpty>
@@ -159,25 +166,37 @@ export function ProcessFiltersSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-full max-w-[100vw] flex-col overflow-y-auto px-4 pb-6 pt-6 sm:max-w-xl sm:px-6"
+        className="flex w-full max-w-[100vw] flex-col overflow-y-auto border-l border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.94))] px-4 pb-6 pt-6 sm:max-w-xl sm:px-6"
       >
-        <SheetHeader>
-          <SheetTitle>Filtros da consulta</SheetTitle>
+        <SheetHeader className="space-y-4">
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-border/70 bg-background/80 px-4 py-2 shadow-sm">
+            <Sparkles className="h-4 w-4 text-emerald-600" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">
+              Segmentação avançada
+            </span>
+          </div>
+          <SheetTitle className="text-2xl font-semibold tracking-[-0.02em]">Filtros da consulta</SheetTitle>
           <SheetDescription>
             Combine os filtros para segmentar a listagem e encontrar processos com mais precisão em qualquer tamanho de tela.
           </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-6 min-w-0 space-y-6">
-          <div className="space-y-3">
-            <Label>Tags</Label>
-            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+        <div className="mt-6 min-w-0 space-y-5">
+          <div className="rounded-[24px] border border-border/70 bg-card/80 p-5 shadow-[0_16px_40px_-36px_rgba(15,23,42,0.45)]">
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">Tags</Label>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Use marcadores rápidos para priorizar categorias processuais recorrentes.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
               {processTags.map((tag) => (
                 <Button
                   key={tag}
                   type="button"
                   variant={filters.tags.includes(tag) ? "default" : "outline"}
-                  className="w-full justify-start whitespace-normal text-left sm:w-auto"
+                  className="w-full justify-start rounded-full whitespace-normal border-border/70 text-left sm:w-auto"
                   onClick={() => toggleTag(tag)}
                 >
                   {tag}
@@ -185,94 +204,143 @@ export function ProcessFiltersSheet({
               ))}
             </div>
           </div>
+          </div>
 
-          <FilterTagMultiSelect
-            label="Tribunal"
-            options={filterOptions.tribunals}
-            selected={filters.tribunals}
-            onChange={(selected) => updateFilters("tribunals", selected)}
-            placeholder="Buscar tribunal..."
-          />
+          <div className="rounded-[24px] border border-border/70 bg-card/80 p-5 shadow-[0_16px_40px_-36px_rgba(15,23,42,0.45)]">
+            <div className="space-y-5">
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">
+                  Critérios principais
+                </p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Combine tribunal, classe processual e parte envolvida para reduzir ruído na listagem.
+                </p>
+              </div>
 
-          <FilterTagMultiSelect
-            label="Classe processual"
-            options={filterOptions.classesProcessuais}
-            selected={filters.classesProcessuais}
-            onChange={(selected) => updateFilters("classesProcessuais", selected)}
-            placeholder="Buscar classe..."
-          />
+              <FilterTagMultiSelect
+                label="Tribunal"
+                options={filterOptions.tribunals}
+                selected={filters.tribunals}
+                onChange={(selected) => updateFilters("tribunals", selected)}
+                placeholder="Buscar tribunal..."
+              />
 
-          <FilterTagMultiSelect
-            label="Nome da parte"
-            options={filterOptions.partyNames}
-            selected={filters.partyNames}
-            onChange={(selected) => updateFilters("partyNames", selected)}
-            placeholder="Buscar nome..."
-          />
+              <FilterTagMultiSelect
+                label="Classe processual"
+                options={filterOptions.classesProcessuais}
+                selected={filters.classesProcessuais}
+                onChange={(selected) => updateFilters("classesProcessuais", selected)}
+                placeholder="Buscar classe..."
+              />
 
-          <div className="min-w-0 space-y-2">
-            <Label>Lado da parte</Label>
-            <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
-              {partySides.map((side) => (
-                <Button
-                  key={side}
-                  type="button"
-                  variant={filters.partySides.includes(side) ? "default" : "outline"}
-                  size="sm"
-                  className="w-full sm:w-auto"
-                  onClick={() => togglePartySide(side)}
-                >
-                  {side}
-                </Button>
-              ))}
+              <FilterTagMultiSelect
+                label="Nome da parte"
+                options={filterOptions.partyNames}
+                selected={filters.partyNames}
+                onChange={(selected) => updateFilters("partyNames", selected)}
+                placeholder="Buscar nome..."
+              />
+
+              <div className="min-w-0 space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">
+                    Lado da parte
+                  </Label>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    Delimite o papel da parte para uma leitura mais objetiva do resultado.
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+                  {partySides.map((side) => (
+                    <Button
+                      key={side}
+                      type="button"
+                      variant={filters.partySides.includes(side) ? "default" : "outline"}
+                      size="sm"
+                      className="w-full rounded-full border-border/70 sm:w-auto"
+                      onClick={() => togglePartySide(side)}
+                    >
+                      {side}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
-          <FilterTagMultiSelect
-            label="Documento da parte"
-            options={filterOptions.partyDocuments}
-            selected={filters.partyDocuments}
-            onChange={(selected) => updateFilters("partyDocuments", selected)}
-            placeholder="Buscar documento..."
-          />
+          <div className="rounded-[24px] border border-border/70 bg-card/80 p-5 shadow-[0_16px_40px_-36px_rgba(15,23,42,0.45)]">
+            <div className="space-y-5">
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">
+                  Contexto complementar
+                </p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Adicione documento da parte, assunto e intervalo de distribuição para um recorte mais preciso.
+                </p>
+              </div>
 
-          <FilterTagMultiSelect
-            label="Assuntos"
-            options={filterOptions.assuntos}
-            selected={filters.assuntos}
-            onChange={(selected) => updateFilters("assuntos", selected)}
-            placeholder="Buscar assunto..."
-          />
+              <FilterTagMultiSelect
+                label="Documento da parte"
+                options={filterOptions.partyDocuments}
+                selected={filters.partyDocuments}
+                onChange={(selected) => updateFilters("partyDocuments", selected)}
+                placeholder="Buscar documento..."
+              />
 
-          <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-            <div className="min-w-0 space-y-2">
-              <Label htmlFor="distributedFrom">Data da distribuição inicial</Label>
-              <Input
-                id="distributedFrom"
-                type="date"
-                className="min-w-0"
-                value={filters.distributedFrom}
-                onChange={(event) => updateFilters("distributedFrom", event.target.value)}
+              <FilterTagMultiSelect
+                label="Assuntos"
+                options={filterOptions.assuntos}
+                selected={filters.assuntos}
+                onChange={(selected) => updateFilters("assuntos", selected)}
+                placeholder="Buscar assunto..."
               />
-            </div>
-            <div className="min-w-0 space-y-2">
-              <Label htmlFor="distributedTo">Data da distribuição final</Label>
-              <Input
-                id="distributedTo"
-                type="date"
-                className="min-w-0"
-                value={filters.distributedTo}
-                onChange={(event) => updateFilters("distributedTo", event.target.value)}
-              />
+
+              <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                <div className="min-w-0 space-y-2.5">
+                  <Label
+                    htmlFor="distributedFrom"
+                    className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80"
+                  >
+                    Data da distribuição inicial
+                  </Label>
+                  <Input
+                    id="distributedFrom"
+                    type="date"
+                    className="min-w-0 rounded-2xl border-border/70 bg-background/80 shadow-sm"
+                    value={filters.distributedFrom}
+                    onChange={(event) => updateFilters("distributedFrom", event.target.value)}
+                  />
+                </div>
+                <div className="min-w-0 space-y-2.5">
+                  <Label
+                    htmlFor="distributedTo"
+                    className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80"
+                  >
+                    Data da distribuição final
+                  </Label>
+                  <Input
+                    id="distributedTo"
+                    type="date"
+                    className="min-w-0 rounded-2xl border-border/70 bg-background/80 shadow-sm"
+                    value={filters.distributedTo}
+                    onChange={(event) => updateFilters("distributedTo", event.target.value)}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:justify-end">
-            <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={onClear}>
+          <div className="flex flex-col-reverse gap-3 border-t border-border/70 pt-5 sm:flex-row sm:justify-end">
+            <Button
+              className="w-full rounded-full border-border/70 bg-background/80 px-5 shadow-sm sm:w-auto"
+              type="button"
+              variant="outline"
+              onClick={onClear}
+            >
               Limpar filtros
             </Button>
             <Button
-              className="w-full sm:w-auto"
+              className="w-full rounded-full px-5 sm:w-auto"
               type="button"
               onClick={() => {
                 onApply();
