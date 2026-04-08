@@ -86,6 +86,7 @@ const menuItems: SidebarEntry[] = [
         icon: Briefcase,
         items: [
           { title: "Dashboard", url: "/documents/cases", icon: Briefcase },
+          { title: "Kanban", url: "/documents/cases/kanban", icon: Trello },
           { title: "Consultas Processuais", url: "/documents/cases/queries", icon: Scale },
           { title: "Consultas Históricas", url: "/documents/cases/history", icon: History },
           { title: "Monitoramentos", url: "/documents/cases/monitoring", icon: Bell },

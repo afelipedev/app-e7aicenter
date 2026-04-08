@@ -24,6 +24,7 @@ import ProcessHistoryPage from "./features/processes/pages/ProcessHistoryPage";
 import ProcessMonitoringPage from "./features/processes/pages/ProcessMonitoringPage";
 import ProcessApiConsumptionPage from "./features/processes/pages/ProcessApiConsumptionPage";
 import ProcessDetailsPage from "./features/processes/pages/ProcessDetailsPage";
+import LegalKanbanPage from "./features/legal-kanban/pages/LegalKanbanPage";
 import PowerBI from "./pages/integrations/PowerBI";
 import Trello from "./pages/integrations/Trello";
 import CalendarIntegration from "./pages/integrations/CalendarIntegration";
@@ -99,6 +100,7 @@ const App = () => (
               <Route path="/documents/payroll" element={<Payroll />} />
               <Route path="/documents/sped" element={<Sped />} />
               <Route path="/documents/cases" element={<Cases />} />
+              <Route path="/documents/cases/kanban" element={<LegalKanbanPage />} />
               <Route path="/documents/cases/queries" element={<ProcessQueriesPage />} />
               <Route path="/documents/cases/history" element={<ProcessHistoryPage />} />
               <Route path="/documents/cases/monitoring" element={<ProcessMonitoringPage />} />

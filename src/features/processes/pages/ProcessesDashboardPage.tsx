@@ -13,6 +13,11 @@ export default function ProcessesDashboardPage() {
   const { data, isLoading } = useProcessesDashboard();
   const quickLinks = [
     {
+      label: "Kanban jurídico",
+      helper: "Board operacional compartilhado com cards, raias, prazos e responsáveis.",
+      href: processRoutes.kanban,
+    },
+    {
       label: "Consultas processuais",
       helper: "Busca direta por CNJ e acesso rápido ao detalhe.",
       href: processRoutes.queries,
