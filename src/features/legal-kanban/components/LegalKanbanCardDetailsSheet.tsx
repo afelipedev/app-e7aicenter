@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   CalendarClock,
@@ -21,8 +21,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,7 +35,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -48,9 +64,10 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import TipTapEditor, { defaultTipTapDoc, type TipTapJSON } from "@/features/leads/components/TipTapEditor";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { LegalKanbanRichTextEditor } from "@/features/legal-kanban/components/editor/LegalKanbanRichTextEditor";
+import { createEmptyRichTextDoc } from "@/features/legal-kanban/components/editor/extensions";
 import {
   LEGAL_KANBAN_COLOR_PRESETS,
   LEGAL_KANBAN_PRIORITY_META,
@@ -60,6 +77,7 @@ import {
   useAddLegalKanbanChecklist,
   useAddLegalKanbanChecklistItem,
   useAddLegalKanbanComment,
+  useDeleteLegalKanbanTimelineItem,
   useAddLegalKanbanLinkAttachment,
   useCreateLegalKanbanLabel,
   useDeleteLegalKanbanChecklist,
@@ -81,15 +99,11 @@ import type {
   LegalKanbanCustomFieldValue,
   LegalKanbanLabel,
   LegalKanbanUser,
+  RichTextDoc,
 } from "../types";
-import { formatRelativeDate, getMemberInitials } from "../utils";
+import { formatKanbanDatetimeLocal, formatRelativeDate, getMemberInitials } from "../utils";
 
-function formatKanbanDatetimeLocal(value: string) {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return format(d, "dd/MM/yyyy · HH:mm", { locale: ptBR });
-}
+const TIMELINE_PAGE_SIZE = 5;
 
 interface LegalKanbanCardDetailsSheetProps {
   cardId: string | null;
@@ -116,6 +130,7 @@ export function LegalKanbanCardDetailsSheet({
   const setMembers = useSetLegalKanbanCardMembers(cardId || "");
   const setLabels = useSetLegalKanbanCardLabels(cardId || "");
   const addComment = useAddLegalKanbanComment(cardId || "");
+  const deleteTimelineItem = useDeleteLegalKanbanTimelineItem(cardId || "");
   const addChecklist = useAddLegalKanbanChecklist(cardId || "");
   const deleteChecklist = useDeleteLegalKanbanChecklist(cardId || "");
   const addChecklistItem = useAddLegalKanbanChecklistItem(cardId || "");
@@ -127,7 +142,7 @@ export function LegalKanbanCardDetailsSheet({
   const createLabel = useCreateLegalKanbanLabel();
 
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState<TipTapJSON>(defaultTipTapDoc());
+  const [description, setDescription] = useState<RichTextDoc>(createEmptyRichTextDoc());
   const [descriptionText, setDescriptionText] = useState("");
   const [status, setStatus] = useState<keyof typeof LEGAL_KANBAN_STATUS_META>("ativo");
   const [priority, setPriority] = useState<keyof typeof LEGAL_KANBAN_PRIORITY_META>("media");
@@ -145,19 +160,25 @@ export function LegalKanbanCardDetailsSheet({
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [datesOpen, setDatesOpen] = useState(false);
   const [checklistsOpen, setChecklistsOpen] = useState(false);
-  const [showActivitySidebar, setShowActivitySidebar] = useState(true);
   const [labelSearch, setLabelSearch] = useState("");
   const [newLabelDraft, setNewLabelDraft] = useState({
     name: "",
     color: LEGAL_KANBAN_COLOR_PRESETS[0],
   });
   const [memberSearch, setMemberSearch] = useState("");
+  const [timelinePage, setTimelinePage] = useState(1);
+  const [timelineDeleteTarget, setTimelineDeleteTarget] = useState<{
+    kind: "comment" | "activity";
+    sourceId: string;
+  } | null>(null);
+  const commentsSectionRef = useRef<HTMLElement | null>(null);
+  const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (!data) return;
 
     setTitle(data.title);
-    setDescription((data.descriptionJson as TipTapJSON) || defaultTipTapDoc());
+    setDescription((data.descriptionJson as RichTextDoc) || createEmptyRichTextDoc());
     setDescriptionText(data.descriptionText || "");
     setStatus(data.status);
     setPriority(data.priority);
@@ -166,6 +187,15 @@ export function LegalKanbanCardDetailsSheet({
     setReminderAt(toInputDateTime(data.reminderAt));
     setCustomFieldDrafts(buildCustomFieldDrafts(board.customFields, data.customFieldValues));
   }, [board.customFields, data]);
+
+  useEffect(() => {
+    setTimelinePage(1);
+    setTimelineDeleteTarget(null);
+  }, [cardId]);
+
+  useEffect(() => {
+    if (!open) setTimelineDeleteTarget(null);
+  }, [open]);
 
   const selectedMemberIds = useMemo(
     () => new Set(data?.members.map((member) => member.user.id) || []),
@@ -199,6 +229,7 @@ export function LegalKanbanCardDetailsSheet({
 
     const comments = data.comments.map((comment) => ({
       id: `comment-${comment.id}`,
+      sourceId: comment.id,
       kind: "comment" as const,
       createdAt: comment.createdAt,
       author: comment.author,
@@ -206,19 +237,39 @@ export function LegalKanbanCardDetailsSheet({
       body: comment.content,
     }));
 
-    const activities = data.activities.map((activity) => ({
-      id: `activity-${activity.id}`,
-      kind: "activity" as const,
-      createdAt: activity.createdAt,
-      author: activity.actor,
-      title: activity.actor?.name || "Sistema",
-      body: activity.message,
-    }));
+    const activities = data.activities
+      .filter(
+        (activity) =>
+          activity.activityType !== "comment_added" &&
+          activity.message.trim() !== "Adicionou um comentário.",
+      )
+      .map((activity) => ({
+        id: `activity-${activity.id}`,
+        sourceId: activity.id,
+        kind: "activity" as const,
+        createdAt: activity.createdAt,
+        author: activity.actor,
+        title: activity.actor?.name || "Sistema",
+        body: activity.message,
+      }));
 
     return [...comments, ...activities].sort(
       (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
     );
   }, [data]);
+
+  const timelineTotalPages = Math.ceil(timeline.length / TIMELINE_PAGE_SIZE);
+  const timelinePageSafe = timelineTotalPages > 0 ? Math.min(timelinePage, timelineTotalPages) : 1;
+  const paginatedTimeline = useMemo(() => {
+    const start = (timelinePageSafe - 1) * TIMELINE_PAGE_SIZE;
+    return timeline.slice(start, start + TIMELINE_PAGE_SIZE);
+  }, [timeline, timelinePageSafe]);
+
+  useEffect(() => {
+    if (timelineTotalPages > 0 && timelinePage > timelineTotalPages) {
+      setTimelinePage(timelineTotalPages);
+    }
+  }, [timelinePage, timelineTotalPages]);
 
   async function handleSaveCard() {
     if (!cardId) return;
@@ -335,10 +386,30 @@ export function LegalKanbanCardDetailsSheet({
     try {
       await addComment.mutateAsync(commentDraft.trim());
       setCommentDraft("");
+      setTimelinePage(1);
       toast.success("Comentário adicionado.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao salvar o comentário.");
     }
+  }
+
+  async function confirmDeleteTimelineItem() {
+    if (!timelineDeleteTarget) return;
+    const { kind, sourceId } = timelineDeleteTarget;
+    try {
+      await deleteTimelineItem.mutateAsync({ kind, id: sourceId });
+      toast.success(kind === "comment" ? "Comentário excluído." : "Atividade excluída.");
+      setTimelineDeleteTarget(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao excluir.");
+    }
+  }
+
+  function scrollToCommentsSection() {
+    commentsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => {
+      commentTextareaRef.current?.focus();
+    }, 200);
   }
 
   async function handleAddChecklist() {
@@ -462,13 +533,18 @@ export function LegalKanbanCardDetailsSheet({
     }
   }
 
-  function openFromAddMenu(kind: "labels" | "dates" | "checklists" | "members" | "attachments" | "customFields") {
+  function openFromAddMenu(kind: "labels" | "dates" | "checklists" | "members" | "attachments" | "customFields" | "comments") {
     setLabelsOpen(false);
     setDatesOpen(false);
     setChecklistsOpen(false);
     if (kind === "customFields") {
       setInlinePanel(null);
       setCustomFieldsEditDialogOpen(true);
+      return;
+    }
+    if (kind === "comments") {
+      setInlinePanel(null);
+      scrollToCommentsSection();
       return;
     }
     if (kind === "members" || kind === "attachments") {
@@ -487,11 +563,17 @@ export function LegalKanbanCardDetailsSheet({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          "flex max-h-[min(900px,92vh)] w-[min(1080px,calc(100vw-1.5rem))] max-w-[min(1080px,calc(100vw-1.5rem))] flex-col gap-0 overflow-hidden p-0",
+          "flex max-h-[min(900px,92vh)] w-[min(1240px,calc(100vw-1rem))] max-w-[min(1240px,calc(100vw-1rem))] flex-col gap-0 overflow-hidden p-0",
           "[&>button]:hidden",
         )}
         onCloseAutoFocus={(event) => event.preventDefault()}
       >
+        <DialogHeader className="sr-only">
+          <DialogTitle>{data ? `Card ${data.cardNumber}: ${data.title}` : "Detalhes do card"}</DialogTitle>
+          <DialogDescription>
+            Painel com descrição, datas, anexos, checklist, comentários e demais detalhes do card do Kanban jurídico.
+          </DialogDescription>
+        </DialogHeader>
         {isLoading || !data ? (
           <div className="p-8 text-sm text-muted-foreground">Carregando card...</div>
         ) : (
@@ -528,11 +610,10 @@ export function LegalKanbanCardDetailsSheet({
 
             <div
               className={cn(
-                "grid min-h-0 flex-1 grid-cols-1",
-                showActivitySidebar && "lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]",
+                "grid min-h-0 min-w-0 flex-1 grid-cols-1",
               )}
             >
-              <ScrollArea className="min-h-0 max-h-[min(720px,calc(92vh-8rem))]">
+              <ScrollArea className="min-h-0 min-w-0 max-h-[min(720px,calc(92vh-8rem))]">
                 <div className="space-y-5 p-4 sm:p-5">
                   <div className="flex items-start gap-3">
                     <button
@@ -652,6 +733,16 @@ export function LegalKanbanCardDetailsSheet({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="w-72 rounded-xl p-1.5" sideOffset={6}>
+                        <DropdownMenuItem
+                          className="flex cursor-default items-start gap-3 rounded-lg px-3 py-2.5"
+                          onSelect={() => openFromAddMenu("comments")}
+                        >
+                          <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                          <div className="min-w-0">
+                            <p className="font-medium">Comentários</p>
+                            <p className="text-xs text-muted-foreground">Adicionar comentário e ver atividade</p>
+                          </div>
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           className="flex cursor-default items-start gap-3 rounded-lg px-3 py-2.5"
                           onSelect={() => openFromAddMenu("labels")}
@@ -912,6 +1003,11 @@ export function LegalKanbanCardDetailsSheet({
                         </TopPanelBlock>
                       </PopoverContent>
                     </Popover>
+
+                    <Button type="button" variant="outline" size="sm" className="rounded-md font-medium" onClick={scrollToCommentsSection}>
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      Comentários
+                    </Button>
                   </div>
 
                   {(startDate || dueDate || reminderAt) && (
@@ -921,22 +1017,22 @@ export function LegalKanbanCardDetailsSheet({
                       className="flex flex-wrap gap-x-5 gap-y-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 text-xs sm:text-sm"
                     >
                       {startDate ? (
-                        <span className="inline-flex min-w-0 max-w-full items-baseline gap-1.5">
-                          <span className="h-2 w-2 shrink-0 translate-y-0.5 rounded-full bg-sky-600" aria-hidden />
+                        <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-sky-600" aria-hidden />
                           <span className="shrink-0 text-muted-foreground">Início</span>
                           <span className="min-w-0 font-medium text-foreground">{formatKanbanDatetimeLocal(startDate)}</span>
                         </span>
                       ) : null}
                       {dueDate ? (
-                        <span className="inline-flex min-w-0 max-w-full items-baseline gap-1.5">
-                          <span className="h-2 w-2 shrink-0 translate-y-0.5 rounded-full bg-amber-600" aria-hidden />
+                        <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-amber-600" aria-hidden />
                           <span className="shrink-0 text-muted-foreground">Entrega</span>
                           <span className="min-w-0 font-medium text-foreground">{formatKanbanDatetimeLocal(dueDate)}</span>
                         </span>
                       ) : null}
                       {reminderAt ? (
-                        <span className="inline-flex min-w-0 max-w-full items-baseline gap-1.5">
-                          <Bell className="h-3.5 w-3.5 shrink-0 translate-y-0.5 text-violet-600" aria-hidden />
+                        <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+                          <Bell className="h-3.5 w-3.5 shrink-0 text-violet-600" aria-hidden />
                           <span className="shrink-0 text-muted-foreground">Lembrete</span>
                           <span className="min-w-0 font-medium text-foreground">{formatKanbanDatetimeLocal(reminderAt)}</span>
                         </span>
@@ -1008,7 +1104,7 @@ export function LegalKanbanCardDetailsSheet({
                     </section>
                   ) : null}
 
-                  <section className="rounded-xl border border-border/70 bg-card p-4">
+                  <section className="min-w-0 max-w-full rounded-xl border border-border/70 bg-card p-4">
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <h3 className="text-sm font-semibold">Etiquetas</h3>
                       <Button
@@ -1046,13 +1142,14 @@ export function LegalKanbanCardDetailsSheet({
                       <MessageSquare className="h-4 w-4 text-primary" />
                       <h3 className="text-sm font-semibold">Descrição</h3>
                     </div>
-                    <TipTapEditor
+                    <LegalKanbanRichTextEditor
                       value={description}
                       onChange={(json, plainText) => {
                         setDescription(json);
                         setDescriptionText(plainText);
                       }}
-                      className="rounded-xl"
+                      onImageUpload={(file) => legalKanbanService.uploadInlineImage(cardId!, file)}
+                      className="w-full max-w-full rounded-xl"
                     />
                   </section>
 
@@ -1260,35 +1357,27 @@ export function LegalKanbanCardDetailsSheet({
                       )}
                     </div>
                   </section>
-                </div>
-              </ScrollArea>
 
-              {showActivitySidebar ? (
-                <div className="flex min-h-0 flex-col border-t border-border/70 bg-muted/20 lg:border-l lg:border-t-0">
-                  <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/70 px-4 py-3">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <History className="h-4 w-4 shrink-0 text-primary" />
-                      <h3 className="truncate text-sm font-semibold">Comentários e atividade</h3>
+                  <section ref={commentsSectionRef} className="rounded-xl border border-border/70 bg-card p-4">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <History className="h-4 w-4 shrink-0 text-primary" />
+                        <h3 className="truncate text-sm font-semibold">Comentários e atividade</h3>
+                      </div>
+                      <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={scrollToCommentsSection}>
+                        Adicionar comentário
+                      </Button>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 shrink-0 text-xs"
-                      onClick={() => setShowActivitySidebar(false)}
-                    >
-                      Ocultar detalhes
-                    </Button>
-                  </div>
-                  <ScrollArea className="min-h-0 flex-1 max-h-[min(720px,calc(92vh-8rem))]">
-                    <div className="space-y-4 p-4">
+
+                    <div className="space-y-4">
                       <div className="space-y-2 rounded-xl border border-border/70 bg-background p-3">
                         <Textarea
+                          ref={commentTextareaRef}
                           value={commentDraft}
                           onChange={(event) => setCommentDraft(event.target.value)}
                           placeholder="Escreva um comentário..."
                           rows={3}
-                          className="min-h-[88px] resize-none"
+                          className="min-h-[96px] resize-y"
                         />
                         <div className="flex justify-end">
                           <Button type="button" size="sm" onClick={() => void handleAddComment()}>
@@ -1302,47 +1391,124 @@ export function LegalKanbanCardDetailsSheet({
                         {timeline.length === 0 ? (
                           <p className="text-center text-sm text-muted-foreground">Nenhuma atividade ainda.</p>
                         ) : (
-                          timeline.map((item) => (
-                            <div
-                              key={item.id}
-                              className="flex gap-3 rounded-xl border border-border/60 bg-background/80 p-3"
-                            >
-                              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                                {getMemberInitials(item.author || ({ name: "Sistema" } as LegalKanbanUser))}
-                              </span>
-                              <div className="min-w-0 space-y-1">
-                                <p className="text-sm leading-snug text-foreground">
-                                  <span className="font-semibold">{item.title}</span>
-                                  {item.kind === "comment" ? (
-                                    <>
-                                      {" "}
-                                      comentou: <span className="text-muted-foreground">{item.body}</span>
-                                    </>
-                                  ) : (
-                                    <span className="text-muted-foreground"> {item.body}</span>
-                                  )}
-                                </p>
-                                <button
-                                  type="button"
-                                  className="text-left text-xs font-medium text-primary hover:underline"
-                                >
-                                  {formatRelativeDate(item.createdAt)}
-                                </button>
+                          <>
+                            {paginatedTimeline.map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex gap-3 rounded-xl border border-border/60 bg-background/80 p-3"
+                              >
+                                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                                  {getMemberInitials(item.author || ({ name: "Sistema" } as LegalKanbanUser))}
+                                </span>
+                                <div className="min-w-0 flex-1 space-y-1">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <p className="min-w-0 text-sm leading-snug text-foreground">
+                                      <span className="font-semibold">{item.title}</span>
+                                      {item.kind === "comment" ? (
+                                        <>
+                                          {" "}
+                                          comentou: <span className="text-muted-foreground">{item.body}</span>
+                                        </>
+                                      ) : (
+                                        <span className="text-muted-foreground"> {item.body}</span>
+                                      )}
+                                    </p>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 shrink-0 text-destructive hover:bg-destructive/15 hover:text-destructive"
+                                      disabled={deleteTimelineItem.isPending}
+                                      onClick={() =>
+                                        setTimelineDeleteTarget({ kind: item.kind, sourceId: item.sourceId })
+                                      }
+                                      aria-label={item.kind === "comment" ? "Excluir comentário" : "Excluir atividade"}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    {item.kind === "comment" ? "Comentário" : "Atividade"} ·{" "}
+                                    <time dateTime={item.createdAt}>{formatKanbanDatetimeLocal(item.createdAt)}</time>
+                                  </p>
+                                </div>
                               </div>
-                            </div>
-                          ))
+                            ))}
+                            {timelineTotalPages > 1 && (
+                              <div className="flex flex-col gap-3 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                                <p className="text-center text-xs text-muted-foreground sm:text-left">
+                                  Página {timelinePageSafe} de {timelineTotalPages} · {timeline.length} registro
+                                  {timeline.length !== 1 ? "s" : ""}
+                                </p>
+                                <Pagination className="mx-0 w-full justify-center sm:w-auto sm:justify-end">
+                                  <PaginationContent>
+                                    <PaginationItem>
+                                      <PaginationPrevious
+                                        href="#"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          setTimelinePage((p) => Math.max(1, p - 1));
+                                        }}
+                                        className={timelinePageSafe <= 1 ? "pointer-events-none opacity-50" : ""}
+                                        aria-disabled={timelinePageSafe <= 1}
+                                      />
+                                    </PaginationItem>
+                                    {Array.from({ length: timelineTotalPages }, (_, i) => i + 1)
+                                      .filter((p) => {
+                                        if (timelineTotalPages <= 7) return true;
+                                        if (p === 1 || p === timelineTotalPages) return true;
+                                        if (Math.abs(p - timelinePageSafe) <= 1) return true;
+                                        return false;
+                                      })
+                                      .reduce<number[]>((acc, p, idx, arr) => {
+                                        if (idx > 0 && arr[idx - 1]! < p - 1) acc.push(-1);
+                                        acc.push(p);
+                                        return acc;
+                                      }, [])
+                                      .map((p, idx) =>
+                                        p === -1 ? (
+                                          <PaginationItem key={`ellipsis-${idx}`}>
+                                            <PaginationEllipsis />
+                                          </PaginationItem>
+                                        ) : (
+                                          <PaginationItem key={p}>
+                                            <PaginationLink
+                                              href="#"
+                                              onClick={(e) => {
+                                                e.preventDefault();
+                                                setTimelinePage(p);
+                                              }}
+                                              isActive={timelinePageSafe === p}
+                                            >
+                                              {p}
+                                            </PaginationLink>
+                                          </PaginationItem>
+                                        ),
+                                      )}
+                                    <PaginationItem>
+                                      <PaginationNext
+                                        href="#"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          setTimelinePage((p) => Math.min(timelineTotalPages, p + 1));
+                                        }}
+                                        className={
+                                          timelinePageSafe >= timelineTotalPages ? "pointer-events-none opacity-50" : ""
+                                        }
+                                        aria-disabled={timelinePageSafe >= timelineTotalPages}
+                                      />
+                                    </PaginationItem>
+                                  </PaginationContent>
+                                </Pagination>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
-                  </ScrollArea>
+                  </section>
                 </div>
-              ) : (
-                <div className="flex items-center justify-center border-t border-border/70 px-3 py-2 lg:border-l lg:border-t-0">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setShowActivitySidebar(true)}>
-                    Mostrar comentários e atividade
-                  </Button>
-                </div>
-              )}
+              </ScrollArea>
             </div>
           </div>
 
@@ -1381,6 +1547,39 @@ export function LegalKanbanCardDetailsSheet({
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            <AlertDialog
+              open={timelineDeleteTarget != null}
+              onOpenChange={(next) => {
+                if (!next) setTimelineDeleteTarget(null);
+              }}
+            >
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    {timelineDeleteTarget?.kind === "comment"
+                      ? "Excluir comentário?"
+                      : "Excluir atividade?"}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação não pode ser desfeita. O item será removido do histórico do card.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel type="button" disabled={deleteTimelineItem.isPending}>
+                    Cancelar
+                  </AlertDialogCancel>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={deleteTimelineItem.isPending}
+                    onClick={() => void confirmDeleteTimelineItem()}
+                  >
+                    Excluir
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </>
         )}
       </DialogContent>

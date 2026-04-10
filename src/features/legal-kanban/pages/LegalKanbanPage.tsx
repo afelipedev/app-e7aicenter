@@ -22,7 +22,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ArrowUpRight,
-  CheckCheck,
+  CalendarDays,
+  ListChecks,
   MessageSquare,
   Paperclip,
   Plus,
@@ -44,7 +45,14 @@ import { LegalKanbanFiltersBar } from "../components/LegalKanbanFiltersBar";
 import { useCreateLegalKanbanCard, useLegalKanbanBoard, useMoveLegalKanbanCard, useReorderLegalKanbanColumns } from "../hooks/useLegalKanbanBoard";
 import { useLegalKanbanFilters } from "../hooks/useLegalKanbanFilters";
 import type { LegalKanbanBoardData, LegalKanbanCard, LegalKanbanColumn, LegalKanbanColumnWithCards } from "../types";
-import { formatRelativeDate, getChecklistProgress, getMemberInitials, hasDueSoon, reindexByHundreds } from "../utils";
+import {
+  calendarDaysUntil,
+  formatDaysRemainingUntilReminder,
+  formatKanbanDatetimeLocal,
+  formatRelativeDate,
+  getMemberInitials,
+  reindexByHundreds,
+} from "../utils";
 
 type ActiveDragState =
   | { type: "column"; columnId: string }
@@ -492,9 +500,34 @@ function CardPreview({ card }: { card: LegalKanbanCard }) {
       ) : null}
 
       <div className="grid gap-2.5 text-xs text-muted-foreground">
-        {card.dueDate ? (
-          <div className={cn("rounded-2xl border px-3 py-2", hasDueSoon(card.dueDate) ? "border-amber-200 bg-amber-50 text-amber-700" : "border-border/70 bg-muted/20")}>
-            Prazo {formatRelativeDate(card.dueDate)}
+        {card.reminderAt ? (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5"
+            aria-label={`Lembrete em ${formatKanbanDatetimeLocal(card.reminderAt)}. ${formatDaysRemainingUntilReminder(card.reminderAt)}.`}
+          >
+            <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="text-muted-foreground">{formatKanbanDatetimeLocal(card.reminderAt)}</span>
+            <span className="text-muted-foreground" aria-hidden>
+              ·
+            </span>
+            <span
+              className={cn(
+                "font-medium",
+                calendarDaysUntil(card.reminderAt) < 0 && "text-destructive",
+                calendarDaysUntil(card.reminderAt) >= 0 && "text-emerald-600 dark:text-emerald-500",
+              )}
+            >
+              {formatDaysRemainingUntilReminder(card.reminderAt)}
+            </span>
+          </div>
+        ) : null}
+        {card.dueDate && !card.reminderAt ? (
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+            <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="text-muted-foreground">
+              Prazo <span className="font-medium text-foreground">{formatRelativeDate(card.dueDate)}</span>
+            </span>
           </div>
         ) : null}
 
@@ -516,10 +549,14 @@ function CardPreview({ card }: { card: LegalKanbanCard }) {
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex items-center gap-1">
-            <CheckCheck className="h-3.5 w-3.5" />
-            {getChecklistProgress(card)}%
-          </span>
+          {card.checklistStats.total > 0 ? (
+            <span className="inline-flex items-center gap-1" title="Itens concluídos do checklist">
+              <ListChecks className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>
+                {card.checklistStats.completed}/{card.checklistStats.total}
+              </span>
+            </span>
+          ) : null}
           <span className="inline-flex items-center gap-1">
             <MessageSquare className="h-3.5 w-3.5" />
             {card.commentsCount}

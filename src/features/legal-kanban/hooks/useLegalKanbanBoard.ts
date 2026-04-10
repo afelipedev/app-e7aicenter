@@ -271,6 +271,21 @@ export function useAddLegalKanbanComment(cardId: string) {
   });
 }
 
+export function useDeleteLegalKanbanTimelineItem(cardId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { kind: "comment" | "activity"; id: string }) =>
+      input.kind === "comment"
+        ? legalKanbanService.deleteComment(input.id)
+        : legalKanbanService.deleteActivity(input.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
+    },
+  });
+}
+
 export function useAddLegalKanbanChecklist(cardId: string) {
   const queryClient = useQueryClient();
 

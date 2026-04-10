@@ -1,6 +1,7 @@
 import { supabase, type User } from "@/lib/supabase";
 import {
   LEGAL_KANBAN_BOARD_SLUG,
+  LEGAL_KANBAN_INLINE_IMAGE_BUCKET,
   LEGAL_KANBAN_DEFAULT_COLUMNS,
   LEGAL_KANBAN_STORAGE_BUCKET,
 } from "../constants";
@@ -775,8 +776,17 @@ export const legalKanbanService = {
       .select("*, author:author_user_id ( id, name, email, role, status )")
       .single();
 
-    await logActivity(cardId, actor.id, "comment_added", "Adicionou um comentário.");
     return mapComment(ensureData(response, "Não foi possível salvar o comentário."));
+  },
+
+  async deleteComment(commentId: string) {
+    const response = await db.from("legal_kanban_comments").delete().eq("id", commentId).select("id").single();
+    ensureData(response, "Não foi possível excluir o comentário.");
+  },
+
+  async deleteActivity(activityId: string) {
+    const response = await db.from("legal_kanban_activities").delete().eq("id", activityId).select("id").single();
+    ensureData(response, "Não foi possível excluir a atividade.");
   },
 
   async addChecklist(cardId: string, title: string) {
@@ -946,6 +956,35 @@ export const legalKanbanService = {
 
     await logActivity(cardId, actor.id, "attachment_added", `Enviou o arquivo "${file.name}".`);
     return mapAttachment(ensureData(response, "Não foi possível registrar o anexo."));
+  },
+
+  async uploadInlineImage(cardId: string, file: File) {
+    if (!file.type.startsWith("image/")) {
+      throw new Error("Selecione uma imagem válida para inserir na descrição.");
+    }
+
+    const fileExt = file.name.split(".").pop();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const filePath = `${cardId}/${Date.now()}-${safeName}${fileExt ? "" : ""}`;
+
+    const uploadResponse = await supabase.storage
+      .from(LEGAL_KANBAN_INLINE_IMAGE_BUCKET)
+      .upload(filePath, file, {
+        cacheControl: "31536000",
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (uploadResponse.error) {
+      throw new Error(uploadResponse.error.message);
+    }
+
+    const { data } = supabase.storage.from(LEGAL_KANBAN_INLINE_IMAGE_BUCKET).getPublicUrl(uploadResponse.data.path);
+    if (!data.publicUrl) {
+      throw new Error("Não foi possível gerar a URL pública da imagem.");
+    }
+
+    return data.publicUrl;
   },
 
   async getAttachmentUrl(attachment: LegalKanbanAttachment) {

@@ -1,0 +1,147 @@
+.kanban-rich-text-editor {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.kanban-rich-text-editor__toolbar-scroll {
+  scrollbar-width: thin;
+}
+
+.kanban-rich-text-editor .tiptap {
+  max-width: 100%;
+  min-height: 220px;
+  outline: none;
+  overflow-x: auto;
+  padding: 1rem;
+  color: hsl(var(--foreground));
+  font-size: 0.95rem;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.kanban-rich-text-editor .tiptap p.is-editor-empty:first-child::before {
+  color: hsl(var(--muted-foreground));
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.kanban-rich-text-editor .tiptap > * + * {
+  margin-top: 0.75rem;
+}
+
+.kanban-rich-text-editor .tiptap h1,
+.kanban-rich-text-editor .tiptap h2,
+.kanban-rich-text-editor .tiptap h3 {
+  color: hsl(var(--foreground));
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.kanban-rich-text-editor .tiptap h1 {
+  font-size: 1.5rem;
+}
+
+.kanban-rich-text-editor .tiptap h2 {
+  font-size: 1.25rem;
+}
+
+.kanban-rich-text-editor .tiptap h3 {
+  font-size: 1.125rem;
+}
+
+.kanban-rich-text-editor .tiptap ul,
+.kanban-rich-text-editor .tiptap ol {
+  padding-left: 1.25rem;
+}
+
+.kanban-rich-text-editor .tiptap ul[data-type="taskList"] {
+  list-style: none;
+  margin-left: 0;
+  padding-left: 0;
+}
+
+.kanban-rich-text-editor .tiptap ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+}
+
+.kanban-rich-text-editor .tiptap ul[data-type="taskList"] li > label {
+  margin-top: 0.125rem;
+}
+
+.kanban-rich-text-editor .tiptap ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.kanban-rich-text-editor .tiptap blockquote {
+  border-left: 3px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+  margin: 1rem 0;
+  padding-left: 1rem;
+}
+
+.kanban-rich-text-editor .tiptap pre {
+  background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.875rem;
+  color: hsl(var(--foreground));
+  margin: 1rem 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.875rem 1rem;
+}
+
+.kanban-rich-text-editor .tiptap code {
+  background: hsl(var(--muted));
+  border-radius: 0.35rem;
+  font-size: 0.9em;
+  padding: 0.15rem 0.35rem;
+}
+
+.kanban-rich-text-editor .tiptap pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.kanban-rich-text-editor .tiptap a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.kanban-rich-text-editor .tiptap mark {
+  border-radius: 0.3rem;
+  box-decoration-break: clone;
+  color: inherit;
+  padding: 0.1rem 0.2rem;
+}
+
+.kanban-rich-text-editor .tiptap img,
+.kanban-rich-text-editor__image {
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  display: block;
+  height: auto;
+  margin: 1rem 0;
+  max-width: 100%;
+}
+
+.kanban-rich-text-editor .tiptap img.ProseMirror-selectednode {
+  box-shadow: 0 0 0 2px hsl(var(--primary));
+}
+
+@media (max-width: 640px) {
+  .kanban-rich-text-editor .tiptap {
+    min-height: 180px;
+    padding: 0.875rem;
+    font-size: 0.925rem;
+  }
+
+  .kanban-rich-text-editor .tiptap pre {
+    padding: 0.75rem 0.875rem;
+  }
+}

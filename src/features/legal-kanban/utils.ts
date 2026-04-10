@@ -1,8 +1,18 @@
-import { addDays, endOfDay, formatDistanceToNowStrict, isAfter, isBefore, isWithinInterval, parseISO, startOfDay } from "date-fns";
+import {
+  addDays,
+  differenceInCalendarDays,
+  endOfDay,
+  format,
+  formatDistanceToNowStrict,
+  isAfter,
+  isBefore,
+  isWithinInterval,
+  parseISO,
+  startOfDay,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type {
   KanbanDueFilter,
-  LegalKanbanCard,
   LegalKanbanColumnWithCards,
   LegalKanbanFiltersState,
   LegalKanbanUser,
@@ -14,6 +24,32 @@ export function formatRelativeDate(date: string | null | undefined) {
     addSuffix: true,
     locale: ptBR,
   });
+}
+
+/** Data/hora no fuso local, alinhado ao modal do card (dd/MM/yyyy · HH:mm). */
+export function formatKanbanDatetimeLocal(value: string) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return format(d, "dd/MM/yyyy · HH:mm", { locale: ptBR });
+}
+
+/** Dias entre hoje (calendário) e a data do lembrete; positivo = futuro. */
+export function calendarDaysUntil(isoDate: string) {
+  const target = startOfDay(parseISO(isoDate));
+  const today = startOfDay(new Date());
+  return differenceInCalendarDays(target, today);
+}
+
+/** Texto curto para o card: "3 dias restantes", "Hoje", "1 dia de atraso", etc. */
+export function formatDaysRemainingUntilReminder(isoDate: string) {
+  const days = calendarDaysUntil(isoDate);
+  if (days > 1) return `${days} dias restantes`;
+  if (days === 1) return "1 dia restante";
+  if (days === 0) return "Hoje";
+  const overdue = Math.abs(days);
+  if (overdue === 1) return "1 dia de atraso";
+  return `${overdue} dias de atraso`;
 }
 
 export function normalizeText(value: string) {
@@ -132,8 +168,3 @@ export function hasDueSoon(date: string | null) {
   return isAfter(target, today) && isWithinInterval(target, { start: today, end: endOfDay(addDays(today, 3)) });
 }
 
-export function getChecklistProgress(card: LegalKanbanCard) {
-  const { total, completed } = card.checklistStats;
-  if (total === 0) return 0;
-  return Math.round((completed / total) * 100);
-}
