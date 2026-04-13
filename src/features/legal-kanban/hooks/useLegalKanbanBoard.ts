@@ -182,6 +182,18 @@ export function useUpdateLegalKanbanCard(cardId: string) {
   });
 }
 
+export function useDeleteLegalKanbanCard() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (deletedCardId: string) => legalKanbanService.deleteCard(deletedCardId),
+    onSuccess: (_data, deletedCardId) => {
+      queryClient.removeQueries({ queryKey: legalKanbanKeys.card(deletedCardId) });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+    },
+  });
+}
+
 export function useCreateLegalKanbanColumn() {
   const queryClient = useQueryClient();
 
@@ -422,6 +434,18 @@ export function useUploadLegalKanbanAttachment(cardId: string) {
 
   return useMutation({
     mutationFn: (file: File) => legalKanbanService.uploadAttachment(cardId, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
+    },
+  });
+}
+
+export function useDeleteLegalKanbanAttachment(cardId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (attachmentId: string) => legalKanbanService.deleteAttachment(attachmentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });

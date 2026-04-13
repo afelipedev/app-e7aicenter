@@ -555,6 +555,14 @@ export const legalKanbanService = {
     return card;
   },
 
+  async deleteCard(cardId: string) {
+    const response = await db.from("legal_kanban_cards").delete().eq("id", cardId);
+
+    if (response.error) {
+      throw new Error(response.error.message || "Não foi possível excluir o card.");
+    }
+  },
+
   async moveCard(cardId: string, sourceColumnId: string, destinationColumnId: string, destinationIndex: number) {
     const actor = await getCurrentPublicUser();
 
@@ -1005,5 +1013,30 @@ export const legalKanbanService = {
     }
 
     return response.data.signedUrl;
+  },
+
+  async deleteAttachment(attachmentId: string) {
+    const actor = await getCurrentPublicUser();
+    const response = await db
+      .from("legal_kanban_attachments")
+      .select("*")
+      .eq("id", attachmentId)
+      .single();
+
+    const row = ensureData(response, "Anexo não encontrado.");
+
+    if (row.attachment_type === "file" && row.file_path) {
+      const removeResponse = await supabase.storage.from(LEGAL_KANBAN_STORAGE_BUCKET).remove([row.file_path]);
+      if (removeResponse.error) {
+        throw new Error(removeResponse.error.message);
+      }
+    }
+
+    const deleteResponse = await db.from("legal_kanban_attachments").delete().eq("id", attachmentId);
+    if (deleteResponse.error) {
+      throw new Error(deleteResponse.error.message || "Não foi possível excluir o anexo.");
+    }
+
+    await logActivity(row.card_id, actor.id, "attachment_deleted", `Removeu o anexo "${row.name}".`);
   },
 };

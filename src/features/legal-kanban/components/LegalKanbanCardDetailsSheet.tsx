@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
+  Archive,
   Bell,
   CalendarClock,
   Check,
@@ -7,15 +8,22 @@ import {
   CheckSquare,
   ChevronDown,
   Circle,
+  Download,
+  ExternalLink,
+  File,
+  FileText,
   History,
+  Image as ImageIcon,
   Link2,
   ListChecks,
-  Trash2,
   MessageSquare,
+  MoreVertical,
   Paperclip,
   Plus,
   Save,
   Tag,
+  Trash2,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
@@ -27,6 +35,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -78,24 +87,35 @@ import {
   useDeleteLegalKanbanTimelineItem,
   useAddLegalKanbanLinkAttachment,
   useCreateLegalKanbanLabel,
+  useDeleteLegalKanbanAttachment,
+  useDeleteLegalKanbanCard,
   useDeleteLegalKanbanChecklist,
   useLegalKanbanCardDetails,
+  useMoveLegalKanbanCard,
   useSetLegalKanbanCardLabels,
   useSetLegalKanbanCardMembers,
   useToggleLegalKanbanChecklistItem,
   useUpdateLegalKanbanCard,
   useUploadLegalKanbanAttachment,
 } from "../hooks/useLegalKanbanBoard";
+import { useAuth } from "@/contexts/AuthContext";
 import { legalKanbanService } from "../services/legalKanbanService";
 import type {
   KanbanPriority,
   KanbanStatus,
+  LegalKanbanAttachment,
   LegalKanbanBoardData,
   LegalKanbanLabel,
   LegalKanbanUser,
   RichTextDoc,
 } from "../types";
-import { formatKanbanDatetimeLocal, formatRelativeDate, getMemberInitials, normalizeRichTextDoc } from "../utils";
+import {
+  buildColorFromName,
+  formatKanbanDatetimeLocal,
+  formatRelativeDate,
+  getMemberInitials,
+  normalizeRichTextDoc,
+} from "../utils";
 
 const TIMELINE_PAGE_SIZE = 5;
 
@@ -112,10 +132,13 @@ export function LegalKanbanCardDetailsSheet({
   board,
   onOpenChange,
 }: LegalKanbanCardDetailsSheetProps) {
-  type InlinePanel = "members" | "attachments" | null;
+  type InlinePanel = "attachments" | null;
 
   const { data, isLoading, isFetching } = useLegalKanbanCardDetails(cardId);
+  const { user: authUser } = useAuth();
   const updateCard = useUpdateLegalKanbanCard(cardId || "");
+  const moveCard = useMoveLegalKanbanCard();
+  const deleteCard = useDeleteLegalKanbanCard();
   const setMembers = useSetLegalKanbanCardMembers(cardId || "");
   const setLabels = useSetLegalKanbanCardLabels(cardId || "");
   const addComment = useAddLegalKanbanComment(cardId || "");
@@ -126,6 +149,7 @@ export function LegalKanbanCardDetailsSheet({
   const toggleChecklistItem = useToggleLegalKanbanChecklistItem(cardId || "");
   const addLinkAttachment = useAddLegalKanbanLinkAttachment(cardId || "");
   const uploadAttachment = useUploadLegalKanbanAttachment(cardId || "");
+  const deleteAttachment = useDeleteLegalKanbanAttachment(cardId || "");
   const createLabel = useCreateLegalKanbanLabel();
 
   const [title, setTitle] = useState("");
@@ -150,12 +174,17 @@ export function LegalKanbanCardDetailsSheet({
     color: LEGAL_KANBAN_COLOR_PRESETS[0],
   });
   const [memberSearch, setMemberSearch] = useState("");
+  const [membersModalOpen, setMembersModalOpen] = useState(false);
   const [timelinePage, setTimelinePage] = useState(1);
   const [editorInstanceKey, setEditorInstanceKey] = useState(0);
   const [timelineDeleteTarget, setTimelineDeleteTarget] = useState<{
     kind: "comment" | "activity";
     sourceId: string;
   } | null>(null);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [attachmentDeleteTarget, setAttachmentDeleteTarget] = useState<LegalKanbanAttachment | null>(null);
+  const attachmentFileInputRef = useRef<HTMLInputElement | null>(null);
   const commentsSectionRef = useRef<HTMLElement | null>(null);
   const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const descriptionEditorRef = useRef<LegalKanbanRichTextEditorHandle | null>(null);
@@ -279,6 +308,16 @@ export function LegalKanbanCardDetailsSheet({
     if (!open) setTimelineDeleteTarget(null);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) {
+      setArchiveConfirmOpen(false);
+      setDeleteConfirmOpen(false);
+      setAttachmentDeleteTarget(null);
+      setMembersModalOpen(false);
+      setMemberSearch("");
+    }
+  }, [open]);
+
   const selectedMemberIds = useMemo(
     () => new Set(data?.members.map((member) => member.user.id) || []),
     [data?.members],
@@ -288,6 +327,18 @@ export function LegalKanbanCardDetailsSheet({
     () => board.columns.find((column) => column.id === data?.columnId) || null,
     [board.columns, data?.columnId],
   );
+  const archivedColumn = useMemo(
+    () => board.columns.find((column) => column.kind === "archived") ?? null,
+    [board.columns],
+  );
+  const cardActionsBusy =
+    updateCard.isPending ||
+    moveCard.isPending ||
+    deleteCard.isPending ||
+    setMembers.isPending;
+  const archiveActionDisabled =
+    !archivedColumn ||
+    (Boolean(data?.columnId === archivedColumn?.id) && status === "arquivado");
   const filteredLabels = useMemo(() => {
     const normalized = labelSearch.trim().toLowerCase();
     if (!normalized) return board.labels;
@@ -435,6 +486,61 @@ export function LegalKanbanCardDetailsSheet({
     }
   }
 
+  async function handleIngressarComoMembro() {
+    if (!cardId || !data || !authUser?.id) {
+      toast.error("Não foi possível identificar o usuário.");
+      return;
+    }
+    if (selectedMemberIds.has(authUser.id)) {
+      toast.info("Você já é membro deste card.");
+      return;
+    }
+    try {
+      const next = [...data.members.map((member) => member.user.id), authUser.id];
+      await setMembers.mutateAsync(next);
+      toast.success("Você foi adicionado como membro responsável do card.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao ingressar no card.");
+    }
+  }
+
+  async function confirmArchiveCard() {
+    if (!cardId || !data || !archivedColumn) return;
+    try {
+      const needsMove = data.columnId !== archivedColumn.id;
+      if (needsMove) {
+        const destinationIndex = archivedColumn.cards.filter((c) => c.id !== cardId).length;
+        await moveCard.mutateAsync({
+          cardId,
+          sourceColumnId: data.columnId,
+          destinationColumnId: archivedColumn.id,
+          destinationIndex,
+        });
+      }
+      if (status !== "arquivado") {
+        await updateCard.mutateAsync({ status: "arquivado", completedAt: null });
+        setStatus("arquivado");
+      }
+      setArchiveConfirmOpen(false);
+      toast.success("Card arquivado.");
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao arquivar o card.");
+    }
+  }
+
+  async function confirmDeleteCard() {
+    if (!cardId) return;
+    try {
+      await deleteCard.mutateAsync(cardId);
+      setDeleteConfirmOpen(false);
+      toast.success("Card excluído.");
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao excluir o card.");
+    }
+  }
+
   async function handleToggleLabel(labelId: string) {
     if (!data || !cardId) return;
     const next = selectedLabelIds.has(labelId)
@@ -579,6 +685,49 @@ export function LegalKanbanCardDetailsSheet({
     }
   }
 
+  async function handleDownloadAttachment(attachment: LegalKanbanAttachment) {
+    if (attachment.attachmentType === "link" && attachment.url) {
+      window.open(attachment.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    try {
+      setAttachmentLoadingId(attachment.id);
+      const url = await legalKanbanService.getAttachmentUrl(attachment);
+      if (!url) {
+        toast.error("Não foi possível obter o arquivo.");
+        return;
+      }
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Falha ao baixar o arquivo.");
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = attachment.name || "anexo";
+      anchor.rel = "noopener";
+      anchor.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao baixar o anexo.");
+    } finally {
+      setAttachmentLoadingId(null);
+    }
+  }
+
+  async function confirmDeleteAttachment() {
+    if (!attachmentDeleteTarget) return;
+    try {
+      await deleteAttachment.mutateAsync(attachmentDeleteTarget.id);
+      toast.success("Anexo removido.");
+      setAttachmentDeleteTarget(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao excluir o anexo.");
+    }
+  }
+
   function openFromAddMenu(kind: "labels" | "dates" | "checklists" | "members" | "attachments" | "comments") {
     setLabelsOpen(false);
     setDatesOpen(false);
@@ -588,8 +737,14 @@ export function LegalKanbanCardDetailsSheet({
       scrollToCommentsSection();
       return;
     }
-    if (kind === "members" || kind === "attachments") {
-      setInlinePanel(kind);
+    if (kind === "members") {
+      setInlinePanel(null);
+      setMemberSearch("");
+      setMembersModalOpen(true);
+      return;
+    }
+    if (kind === "attachments") {
+      setInlinePanel("attachments");
       return;
     }
     setInlinePanel(null);
@@ -601,6 +756,7 @@ export function LegalKanbanCardDetailsSheet({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
@@ -636,6 +792,50 @@ export function LegalKanbanCardDetailsSheet({
                 >
                   <Save className="h-4 w-4" />
                 </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 rounded-md"
+                      disabled={cardActionsBusy}
+                      title="Ações do card"
+                      aria-label="Ações do card"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem
+                      disabled={
+                        cardActionsBusy ||
+                        !authUser?.id ||
+                        Boolean(authUser?.id && selectedMemberIds.has(authUser.id))
+                      }
+                      onClick={() => void handleIngressarComoMembro()}
+                    >
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Ingressar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={cardActionsBusy || archiveActionDisabled}
+                      onClick={() => setArchiveConfirmOpen(true)}
+                    >
+                      <Archive className="mr-2 h-4 w-4" />
+                      Arquivar
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      disabled={cardActionsBusy}
+                      onClick={() => setDeleteConfirmOpen(true)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                   type="button"
                   variant="ghost"
@@ -1048,6 +1248,61 @@ export function LegalKanbanCardDetailsSheet({
                       <MessageSquare className="mr-2 h-4 w-4" />
                       Comentários
                     </Button>
+
+                    {cardData.members.length > 0 ? (
+                      <div className="flex min-w-0 max-w-full flex-col gap-1">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-foreground">Membros</p>
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <div className="flex max-w-[min(100%,14rem)] flex-wrap items-center gap-1.5 sm:max-w-[18rem]">
+                            {cardData.members.map((member) => (
+                              <button
+                                key={member.id}
+                                type="button"
+                                title={member.user.name}
+                                aria-label={`Membro: ${member.user.name}. Abrir gestão de membros`}
+                                onClick={() => {
+                                  setMemberSearch("");
+                                  setMembersModalOpen(true);
+                                }}
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 text-[10px] font-semibold text-white shadow-sm ring-1 ring-black/5 transition hover:opacity-95 hover:ring-2 hover:ring-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                style={{ backgroundColor: buildColorFromName(member.user.name) }}
+                              >
+                                {getMemberInitials(member.user)}
+                              </button>
+                            ))}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 rounded-full border border-border/80 bg-muted text-foreground"
+                            title="Adicionar ou gerenciar membros"
+                            aria-label="Adicionar ou gerenciar membros"
+                            onClick={() => {
+                              setMemberSearch("");
+                              setMembersModalOpen(true);
+                            }}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 shrink-0 rounded-full"
+                        title="Membros"
+                        aria-label="Adicionar membros ao card"
+                        onClick={() => {
+                          setMemberSearch("");
+                          setMembersModalOpen(true);
+                        }}
+                      >
+                        <UserPlus className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
 
                   {(startDate || dueDate || reminderAt) && (
@@ -1082,41 +1337,6 @@ export function LegalKanbanCardDetailsSheet({
 
                   {inlinePanel ? (
                     <section className="rounded-xl border border-border/70 bg-muted/30 p-4">
-                      {inlinePanel === "members" ? (
-                        <TopPanelBlock title="Membros" subtitle="Pesquise e selecione um ou mais membros.">
-                          <Input
-                            value={memberSearch}
-                            onChange={(event) => setMemberSearch(event.target.value)}
-                            placeholder="Pesquisar membros"
-                          />
-                          <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-                            {filteredMembers.map((member) => {
-                              const active = selectedMemberIds.has(member.id);
-                              return (
-                                <button
-                                  key={member.id}
-                                  type="button"
-                                  onClick={() => handleToggleMember(member.id)}
-                                  className={cn(
-                                    "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
-                                    active ? "border-primary bg-primary/10" : "border-border/70 bg-background",
-                                  )}
-                                >
-                                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                                    {getMemberInitials(member)}
-                                  </span>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="truncate font-medium">{member.name}</p>
-                                    <p className="truncate text-xs text-muted-foreground">{member.role}</p>
-                                  </div>
-                                  <Checkbox checked={active} className="shrink-0" />
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </TopPanelBlock>
-                      ) : null}
-
                       {inlinePanel === "attachments" ? (
                         <TopPanelBlock title="Anexos" subtitle="Links e arquivos.">
                           <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
@@ -1163,6 +1383,14 @@ export function LegalKanbanCardDetailsSheet({
                   </section>
 
                   <section className="rounded-xl border border-border/70 bg-card p-4">
+                    <input
+                      ref={attachmentFileInputRef}
+                      type="file"
+                      className="sr-only"
+                      tabIndex={-1}
+                      aria-hidden
+                      onChange={handleUploadFile}
+                    />
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <Paperclip className="h-4 w-4 text-primary" />
@@ -1172,10 +1400,12 @@ export function LegalKanbanCardDetailsSheet({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-8 text-xs"
-                        onClick={() => openFromAddMenu("attachments")}
+                        className="h-8 shrink-0 text-xs"
+                        disabled={uploadAttachment.isPending || !cardId}
+                        onClick={() => attachmentFileInputRef.current?.click()}
+                        title="Escolher arquivo para anexar"
                       >
-                        Adicionar
+                        {uploadAttachment.isPending ? "Enviando…" : "Adicionar"}
                       </Button>
                     </div>
                     <div className="space-y-2">
@@ -1183,22 +1413,74 @@ export function LegalKanbanCardDetailsSheet({
                         <p className="text-sm text-muted-foreground">Nenhum anexo.</p>
                       ) : (
                         cardData.attachments.map((attachment) => (
-                          <button
+                          <div
                             key={attachment.id}
-                            type="button"
-                            onClick={() => handleOpenAttachment(attachment.id)}
-                            className="flex w-full items-center justify-between gap-3 rounded-lg border border-border/70 bg-background px-3 py-2.5 text-left text-sm transition-colors hover:border-primary/30"
+                            className="flex w-full items-center gap-2 rounded-lg border border-border/70 bg-background px-2 py-2 text-sm sm:gap-3 sm:px-3 sm:py-2.5"
                           >
-                            <div className="min-w-0">
-                              <p className="truncate font-medium">{attachment.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {attachment.attachmentType === "file" ? "Arquivo" : "Link"} · {formatRelativeDate(attachment.createdAt)}
-                              </p>
+                            <div className="flex min-w-0 flex-1 items-center gap-2.5 text-left sm:gap-3">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40">
+                                <AttachmentTypeIcon attachment={attachment} />
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate font-medium">{attachment.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {attachmentKindLabel(attachment)} · {formatRelativeDate(attachment.createdAt)}
+                                </p>
+                              </div>
                             </div>
-                            <span className="shrink-0 text-xs font-medium text-primary">
-                              {attachmentLoadingId === attachment.id ? "…" : "Abrir"}
-                            </span>
-                          </button>
+                            <div className="flex shrink-0 items-center gap-0.5">
+                              {attachment.attachmentType === "link" ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                  title="Abrir link em nova guia"
+                                  aria-label="Abrir link em nova guia"
+                                  disabled={attachmentLoadingId === attachment.id}
+                                  onClick={() => void handleOpenAttachment(attachment.id)}
+                                >
+                                  {attachmentLoadingId === attachment.id ? (
+                                    <span className="text-xs">…</span>
+                                  ) : (
+                                    <ExternalLink className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                  title="Baixar arquivo"
+                                  aria-label="Baixar arquivo"
+                                  disabled={attachmentLoadingId === attachment.id || uploadAttachment.isPending}
+                                  onClick={() => void handleDownloadAttachment(attachment)}
+                                >
+                                  {attachmentLoadingId === attachment.id ? (
+                                    <span className="text-xs">…</span>
+                                  ) : (
+                                    <Download className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                title="Excluir anexo"
+                                aria-label="Excluir anexo"
+                                disabled={deleteAttachment.isPending}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setAttachmentDeleteTarget(attachment);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
                         ))
                       )}
                     </div>
@@ -1427,10 +1709,219 @@ export function LegalKanbanCardDetailsSheet({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+
+            <AlertDialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Arquivar card?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    O card será movido para a raia &quot;{archivedColumn?.title ?? "Arquivados"}&quot; e o status
+                    será alterado para arquivado.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel type="button" disabled={cardActionsBusy}>
+                    Cancelar
+                  </AlertDialogCancel>
+                  <Button
+                    type="button"
+                    disabled={cardActionsBusy}
+                    onClick={() => void confirmArchiveCard()}
+                  >
+                    <Archive className="mr-2 h-4 w-4" />
+                    Arquivar
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir card?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação não pode ser desfeita. Comentários, anexos e demais dados deste card serão removidos
+                    permanentemente.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel type="button" disabled={deleteCard.isPending}>
+                    Cancelar
+                  </AlertDialogCancel>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={deleteCard.isPending}
+                    onClick={() => void confirmDeleteCard()}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Excluir card
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog
+              open={attachmentDeleteTarget != null}
+              onOpenChange={(next) => {
+                if (!next) setAttachmentDeleteTarget(null);
+              }}
+            >
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir anexo?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {attachmentDeleteTarget ? (
+                      <>
+                        O arquivo <span className="font-medium text-foreground">{attachmentDeleteTarget.name}</span>{" "}
+                        será removido do card
+                        {attachmentDeleteTarget.attachmentType === "file"
+                          ? " e o arquivo será apagado do armazenamento."
+                          : "."}
+                      </>
+                    ) : null}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel type="button" disabled={deleteAttachment.isPending}>
+                    Cancelar
+                  </AlertDialogCancel>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={deleteAttachment.isPending}
+                    onClick={() => void confirmDeleteAttachment()}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Excluir anexo
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </>
         )}
       </DialogContent>
     </Dialog>
+
+    <Dialog
+      open={membersModalOpen && Boolean(cardId)}
+      onOpenChange={(next) => {
+        setMembersModalOpen(next);
+        if (!next) setMemberSearch("");
+      }}
+    >
+      <DialogContent
+        className="z-[100] max-h-[min(540px,88vh)] gap-0 overflow-hidden border-border/70 p-0 sm:max-w-md"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <DialogHeader className="border-b border-border/60 px-6 pb-4 pt-6 text-center sm:text-center">
+          <DialogTitle className="text-center text-base font-semibold">Membros</DialogTitle>
+          <DialogDescription className="sr-only">
+            Pesquise usuários com perfil advogado ou advogado administrador, marque ou desmarque para vincular ao
+            card e use o X para remover membros do cartão.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[min(420px,60vh)] space-y-4 overflow-y-auto px-6 py-4">
+          {!data || data.id !== cardId ? (
+            <p className="text-center text-sm text-muted-foreground">Carregando membros...</p>
+          ) : (
+            <>
+              <Input
+                value={memberSearch}
+                onChange={(event) => setMemberSearch(event.target.value)}
+                placeholder="Pesquisar membros"
+                className="h-10 rounded-lg border-border/70"
+              />
+
+              <div>
+                <p className="mb-2 text-sm font-semibold">Membros do cartão</p>
+                {data.members.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-3 py-4 text-center text-sm text-muted-foreground">
+                    Nenhum membro ainda. Marque na lista abaixo para adicionar.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {data.members.map((member) => (
+                      <li
+                        key={member.id}
+                        className="flex items-center gap-3 rounded-xl border border-border/70 bg-background px-3 py-2.5"
+                      >
+                        <span
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white shadow-sm ring-1 ring-black/5"
+                          style={{ backgroundColor: buildColorFromName(member.user.name) }}
+                        >
+                          {getMemberInitials(member.user)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{member.user.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {member.user.role === "advogado_adm" ? "Advogado administrador" : "Advogado"}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                          title="Remover do cartão"
+                          aria-label={`Remover ${member.user.name} do cartão`}
+                          disabled={setMembers.isPending}
+                          onClick={() => void handleToggleMember(member.user.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <Separator />
+
+              <div>
+                <p className="mb-2 text-sm font-semibold text-muted-foreground">Advogados</p>
+                <div className="space-y-2 pr-1">
+                  {filteredMembers.length === 0 ? (
+                    <EmptyState text="Nenhum advogado encontrado com a pesquisa." />
+                  ) : (
+                    filteredMembers.map((member) => {
+                      const active = selectedMemberIds.has(member.id);
+                      return (
+                        <button
+                          key={member.id}
+                          type="button"
+                          onClick={() => void handleToggleMember(member.id)}
+                          disabled={setMembers.isPending}
+                          className={cn(
+                            "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+                            active ? "border-primary bg-primary/10" : "border-border/70 bg-background",
+                          )}
+                        >
+                          <span
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ring-1 ring-black/5"
+                            style={{ backgroundColor: buildColorFromName(member.name) }}
+                          >
+                            {getMemberInitials(member)}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-medium">{member.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {member.role === "advogado_adm" ? "Advogado administrador" : "Advogado"}
+                            </p>
+                          </div>
+                          <Checkbox checked={active} className="pointer-events-none shrink-0" />
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
@@ -1609,6 +2100,47 @@ function EmptyState({ text }: { text: string }) {
       {text}
     </div>
   );
+}
+
+function attachmentKindLabel(attachment: LegalKanbanAttachment) {
+  if (attachment.attachmentType === "link") return "Link";
+  const mime = attachment.mimeType || "";
+  const name = attachment.name.toLowerCase();
+  if (mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(name)) return "Imagem";
+  if (mime === "application/pdf" || name.endsWith(".pdf")) return "PDF";
+  if (
+    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    mime === "application/msword" ||
+    name.endsWith(".docx") ||
+    name.endsWith(".doc")
+  ) {
+    return "Word";
+  }
+  return "Arquivo";
+}
+
+function AttachmentTypeIcon({ attachment }: { attachment: LegalKanbanAttachment }) {
+  const base = "h-4 w-4 shrink-0";
+  if (attachment.attachmentType === "link") {
+    return <Link2 className={cn(base, "text-sky-600")} aria-hidden />;
+  }
+  const mime = attachment.mimeType || "";
+  const name = attachment.name.toLowerCase();
+  if (mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(name)) {
+    return <ImageIcon className={cn(base, "text-violet-600")} aria-hidden />;
+  }
+  if (mime === "application/pdf" || name.endsWith(".pdf")) {
+    return <FileText className={cn(base, "text-red-600")} aria-hidden />;
+  }
+  if (
+    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    mime === "application/msword" ||
+    name.endsWith(".docx") ||
+    name.endsWith(".doc")
+  ) {
+    return <FileText className={cn(base, "text-blue-600")} aria-hidden />;
+  }
+  return <File className={cn(base, "text-muted-foreground")} aria-hidden />;
 }
 
 function toInputDateTime(value: string | null) {
