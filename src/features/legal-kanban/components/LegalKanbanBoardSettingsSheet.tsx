@@ -6,19 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LEGAL_KANBAN_COLOR_PRESETS } from "../constants";
 import {
   useCreateLegalKanbanColumn,
-  useCreateLegalKanbanCustomField,
   useCreateLegalKanbanLabel,
   useDeleteLegalKanbanColumn,
-  useDeleteLegalKanbanCustomField,
   useDeleteLegalKanbanLabel,
   useReorderLegalKanbanColumns,
   useUpdateLegalKanbanColumn,
 } from "../hooks/useLegalKanbanBoard";
-import type { LegalKanbanBoardData, LegalKanbanCustomField, LegalKanbanFieldType } from "../types";
+import type { LegalKanbanBoardData } from "../types";
 
 interface LegalKanbanBoardSettingsSheetProps {
   board: LegalKanbanBoardData;
@@ -33,20 +30,9 @@ export function LegalKanbanBoardSettingsSheet({ board, open, onOpenChange }: Leg
   const deleteColumn = useDeleteLegalKanbanColumn();
   const createLabel = useCreateLegalKanbanLabel();
   const deleteLabel = useDeleteLegalKanbanLabel();
-  const createCustomField = useCreateLegalKanbanCustomField();
-  const deleteCustomField = useDeleteLegalKanbanCustomField();
 
   const [newColumn, setNewColumn] = useState({ title: "", color: LEGAL_KANBAN_COLOR_PRESETS[0] });
   const [newLabel, setNewLabel] = useState({ name: "", color: LEGAL_KANBAN_COLOR_PRESETS[1] });
-  const [newField, setNewField] = useState<{
-    name: string;
-    fieldType: LegalKanbanFieldType;
-    options: string;
-  }>({
-    name: "",
-    fieldType: "text",
-    options: "",
-  });
 
   const columnsByPosition = useMemo(() => [...board.columns].sort((a, b) => a.position - b.position), [board.columns]);
 
@@ -122,32 +108,6 @@ export function LegalKanbanBoardSettingsSheet({ board, open, onOpenChange }: Leg
     }
   }
 
-  async function handleCreateField() {
-    if (!newField.name.trim()) {
-      toast.error("Informe o nome do campo.");
-      return;
-    }
-
-    try {
-      await createCustomField.mutateAsync({
-        boardId: board.board.id,
-        name: newField.name.trim(),
-        fieldType: newField.fieldType,
-        options:
-          newField.fieldType === "select"
-            ? newField.options
-                .split(",")
-                .map((option) => option.trim())
-                .filter(Boolean)
-            : [],
-      });
-      setNewField({ name: "", fieldType: "text", options: "" });
-      toast.success("Campo personalizado criado.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao criar o campo.");
-    }
-  }
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
@@ -162,7 +122,7 @@ export function LegalKanbanBoardSettingsSheet({ board, open, onOpenChange }: Leg
           <SheetHeader className="border-b border-border/70 px-6 py-5">
             <SheetTitle>Configuração do Kanban</SheetTitle>
             <SheetDescription>
-              Gerencie raias, etiquetas e campos personalizados do board compartilhado do setor jurídico.
+              Gerencie raias e etiquetas do board compartilhado do setor jurídico.
             </SheetDescription>
           </SheetHeader>
 
@@ -257,67 +217,6 @@ export function LegalKanbanBoardSettingsSheet({ board, open, onOpenChange }: Leg
                   ))}
                 </div>
               </section>
-
-              <section className="space-y-4">
-                <div className="space-y-1">
-                  <h3 className="text-base font-semibold">Campos personalizados</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Registre metadados específicos de cada fluxo jurídico.
-                  </p>
-                </div>
-
-                <div className="grid gap-3 rounded-3xl border border-border/70 bg-muted/20 p-4">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Input
-                      value={newField.name}
-                      onChange={(event) => setNewField((current) => ({ ...current, name: event.target.value }))}
-                      placeholder="Ex.: Vara responsável"
-                    />
-                    <Select
-                      value={newField.fieldType}
-                      onValueChange={(value: LegalKanbanFieldType) =>
-                        setNewField((current) => ({ ...current, fieldType: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="text">Texto</SelectItem>
-                        <SelectItem value="number">Número</SelectItem>
-                        <SelectItem value="date">Data</SelectItem>
-                        <SelectItem value="checkbox">Checkbox</SelectItem>
-                        <SelectItem value="select">Seleção</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {newField.fieldType === "select" ? (
-                    <Input
-                      value={newField.options}
-                      onChange={(event) => setNewField((current) => ({ ...current, options: event.target.value }))}
-                      placeholder="Opções separadas por vírgula"
-                    />
-                  ) : null}
-
-                  <div className="flex justify-end">
-                    <Button onClick={handleCreateField} disabled={createCustomField.isPending}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Adicionar campo
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {board.customFields.map((field) => (
-                    <CustomFieldRow
-                      key={field.id}
-                      field={field}
-                      onDelete={() => deleteCustomField.mutate(field.id)}
-                    />
-                  ))}
-                </div>
-              </section>
             </div>
           </ScrollArea>
         </div>
@@ -366,29 +265,6 @@ function EditableColumnRow({
           ) : null}
         </div>
       </div>
-    </div>
-  );
-}
-
-function CustomFieldRow({
-  field,
-  onDelete,
-}: {
-  field: LegalKanbanCustomField;
-  onDelete: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-3xl border border-border/70 bg-background p-4">
-      <div>
-        <p className="font-medium">{field.name}</p>
-        <p className="text-sm text-muted-foreground">
-          Tipo: {field.fieldType}
-          {field.options.length > 0 ? ` • ${field.options.join(", ")}` : ""}
-        </p>
-      </div>
-      <Button variant="outline" size="icon" onClick={onDelete}>
-        <Trash2 className="h-4 w-4" />
-      </Button>
     </div>
   );
 }

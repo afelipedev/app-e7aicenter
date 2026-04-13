@@ -11,12 +11,31 @@ import {
   startOfDay,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { createEmptyRichTextDoc } from "./components/editor/extensions";
 import type {
   KanbanDueFilter,
   LegalKanbanColumnWithCards,
   LegalKanbanFiltersState,
   LegalKanbanUser,
+  RichTextDoc,
 } from "./types";
+
+/** Garante documento TipTap válido a partir do JSONB/string do Postgres. */
+export function normalizeRichTextDoc(raw: unknown): RichTextDoc {
+  if (raw == null) return createEmptyRichTextDoc();
+  let value: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return createEmptyRichTextDoc();
+    }
+  }
+  if (typeof value !== "object" || value === null) return createEmptyRichTextDoc();
+  const obj = value as Record<string, unknown>;
+  if (obj.type !== "doc") return createEmptyRichTextDoc();
+  return value as RichTextDoc;
+}
 
 export function formatRelativeDate(date: string | null | undefined) {
   if (!date) return "Sem data";

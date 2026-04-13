@@ -29,7 +29,7 @@ import type {
   RichTextDoc,
   UpdateLegalKanbanCardInput,
 } from "../types";
-import { buildColorFromName, reindexByHundreds, sortByPosition } from "../utils";
+import { buildColorFromName, normalizeRichTextDoc, reindexByHundreds, sortByPosition } from "../utils";
 
 type QueryResponse<T> = {
   data: T | null;
@@ -127,7 +127,7 @@ function mapCardBase(row: any): LegalKanbanCardBase {
     columnId: row.column_id,
     title: row.title,
     cardNumber: row.card_number,
-    descriptionJson: row.description_json || {},
+    descriptionJson: normalizeRichTextDoc(row.description_json),
     descriptionText: row.description_text || "",
     status: row.status,
     priority: row.priority,

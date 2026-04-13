@@ -252,14 +252,11 @@ export default function LegalKanbanPage() {
           </DndContext>
 
           <LegalKanbanCardDetailsSheet
+            key={selectedCardId ?? "empty-card"}
             cardId={selectedCardId}
             open={selectedCardId != null}
             board={boardData}
             onOpenChange={(open) => setSelectedCardId(open ? selectedCardId : null)}
-            onRequestBoardSettings={() => {
-              setSelectedCardId(null);
-              setBoardSettingsOpen(true);
-            }}
           />
         </>
       ) : (

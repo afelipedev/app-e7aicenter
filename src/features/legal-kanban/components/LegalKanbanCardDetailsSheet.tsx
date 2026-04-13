@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   CalendarClock,
@@ -7,11 +7,9 @@ import {
   CheckSquare,
   ChevronDown,
   Circle,
-  FormInput,
   History,
   Link2,
   ListChecks,
-  Pencil,
   Trash2,
   MessageSquare,
   Paperclip,
@@ -34,7 +32,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Pagination,
   PaginationContent,
@@ -58,15 +55,16 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { LegalKanbanRichTextEditor } from "@/features/legal-kanban/components/editor/LegalKanbanRichTextEditor";
+import {
+  LegalKanbanRichTextEditor,
+  type LegalKanbanRichTextEditorHandle,
+} from "@/features/legal-kanban/components/editor/LegalKanbanRichTextEditor";
 import { createEmptyRichTextDoc } from "@/features/legal-kanban/components/editor/extensions";
 import {
   LEGAL_KANBAN_COLOR_PRESETS,
@@ -82,11 +80,9 @@ import {
   useCreateLegalKanbanLabel,
   useDeleteLegalKanbanChecklist,
   useLegalKanbanCardDetails,
-  useSaveLegalKanbanCustomFieldValue,
   useSetLegalKanbanCardLabels,
   useSetLegalKanbanCardMembers,
   useToggleLegalKanbanChecklistItem,
-  useDeleteLegalKanbanCustomFieldValue,
   useUpdateLegalKanbanCard,
   useUploadLegalKanbanAttachment,
 } from "../hooks/useLegalKanbanBoard";
@@ -95,13 +91,11 @@ import type {
   KanbanPriority,
   KanbanStatus,
   LegalKanbanBoardData,
-  LegalKanbanCustomField,
-  LegalKanbanCustomFieldValue,
   LegalKanbanLabel,
   LegalKanbanUser,
   RichTextDoc,
 } from "../types";
-import { formatKanbanDatetimeLocal, formatRelativeDate, getMemberInitials } from "../utils";
+import { formatKanbanDatetimeLocal, formatRelativeDate, getMemberInitials, normalizeRichTextDoc } from "../utils";
 
 const TIMELINE_PAGE_SIZE = 5;
 
@@ -110,8 +104,6 @@ interface LegalKanbanCardDetailsSheetProps {
   open: boolean;
   board: LegalKanbanBoardData;
   onOpenChange: (open: boolean) => void;
-  /** Fecha o card e abre o sheet Configurar board (apenas perfis com permissão). */
-  onRequestBoardSettings?: () => void;
 }
 
 export function LegalKanbanCardDetailsSheet({
@@ -119,13 +111,10 @@ export function LegalKanbanCardDetailsSheet({
   open,
   board,
   onOpenChange,
-  onRequestBoardSettings,
 }: LegalKanbanCardDetailsSheetProps) {
   type InlinePanel = "members" | "attachments" | null;
 
-  const { user } = useAuth();
-  const canManageBoard = user?.role === "administrator" || user?.role === "advogado_adm";
-  const { data, isLoading } = useLegalKanbanCardDetails(cardId);
+  const { data, isLoading, isFetching } = useLegalKanbanCardDetails(cardId);
   const updateCard = useUpdateLegalKanbanCard(cardId || "");
   const setMembers = useSetLegalKanbanCardMembers(cardId || "");
   const setLabels = useSetLegalKanbanCardLabels(cardId || "");
@@ -135,8 +124,6 @@ export function LegalKanbanCardDetailsSheet({
   const deleteChecklist = useDeleteLegalKanbanChecklist(cardId || "");
   const addChecklistItem = useAddLegalKanbanChecklistItem(cardId || "");
   const toggleChecklistItem = useToggleLegalKanbanChecklistItem(cardId || "");
-  const saveCustomFieldValue = useSaveLegalKanbanCustomFieldValue(cardId || "");
-  const deleteCustomFieldValue = useDeleteLegalKanbanCustomFieldValue(cardId || "");
   const addLinkAttachment = useAddLegalKanbanLinkAttachment(cardId || "");
   const uploadAttachment = useUploadLegalKanbanAttachment(cardId || "");
   const createLabel = useCreateLegalKanbanLabel();
@@ -152,9 +139,6 @@ export function LegalKanbanCardDetailsSheet({
   const [commentDraft, setCommentDraft] = useState("");
   const [checklistDraft, setChecklistDraft] = useState("");
   const [linkDraft, setLinkDraft] = useState({ name: "", url: "" });
-  const [customFieldDrafts, setCustomFieldDrafts] = useState<Record<string, string | boolean>>({});
-  const [editingCustomFieldId, setEditingCustomFieldId] = useState<string | null>(null);
-  const [customFieldsEditDialogOpen, setCustomFieldsEditDialogOpen] = useState(false);
   const [attachmentLoadingId, setAttachmentLoadingId] = useState<string | null>(null);
   const [inlinePanel, setInlinePanel] = useState<InlinePanel>(null);
   const [labelsOpen, setLabelsOpen] = useState(false);
@@ -167,26 +151,124 @@ export function LegalKanbanCardDetailsSheet({
   });
   const [memberSearch, setMemberSearch] = useState("");
   const [timelinePage, setTimelinePage] = useState(1);
+  const [editorInstanceKey, setEditorInstanceKey] = useState(0);
   const [timelineDeleteTarget, setTimelineDeleteTarget] = useState<{
     kind: "comment" | "activity";
     sourceId: string;
   } | null>(null);
   const commentsSectionRef = useRef<HTMLElement | null>(null);
   const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const descriptionEditorRef = useRef<LegalKanbanRichTextEditorHandle | null>(null);
+  const prevOpenRef = useRef(false);
+  const lastHydratedSnapshotRef = useRef<{
+    cardId: string;
+    serverKey: string;
+    title: string;
+    descriptionJson: string;
+    descriptionText: string;
+    status: KanbanStatus;
+    priority: KanbanPriority;
+    startDate: string;
+    dueDate: string;
+    reminderAt: string;
+  } | null>(null);
+  const currentBoardCard = useMemo(
+    () =>
+      cardId
+        ? board.columns.flatMap((column) => column.cards).find((card) => card.id === cardId) || null
+        : null,
+    [board.columns, cardId],
+  );
+  const cardData = data?.id === cardId ? data : null;
+  const serverSnapshotKey = useMemo(() => {
+    if (!cardData) return null;
 
-  useEffect(() => {
-    if (!data) return;
+    return JSON.stringify({
+      id: cardData.id,
+      updatedAt: cardData.updatedAt,
+      title: cardData.title,
+      descriptionText: cardData.descriptionText,
+      status: cardData.status,
+      priority: cardData.priority,
+      startDate: cardData.startDate,
+      dueDate: cardData.dueDate,
+      reminderAt: cardData.reminderAt,
+    });
+  }, [cardData]);
+  const cardDetailsStaleComparedToBoard = Boolean(
+    currentBoardCard &&
+      cardData &&
+      (currentBoardCard.updatedAt !== cardData.updatedAt ||
+        currentBoardCard.descriptionText !== cardData.descriptionText),
+  );
 
-    setTitle(data.title);
-    setDescription((data.descriptionJson as RichTextDoc) || createEmptyRichTextDoc());
-    setDescriptionText(data.descriptionText || "");
-    setStatus(data.status);
-    setPriority(data.priority);
-    setStartDate(toInputDateTime(data.startDate));
-    setDueDate(toInputDateTime(data.dueDate));
-    setReminderAt(toInputDateTime(data.reminderAt));
-    setCustomFieldDrafts(buildCustomFieldDrafts(board.customFields, data.customFieldValues));
-  }, [board.customFields, data]);
+  useLayoutEffect(() => {
+    if (!open) {
+      prevOpenRef.current = false;
+      lastHydratedSnapshotRef.current = null;
+      return;
+    }
+    if (!cardId || !cardData || !serverSnapshotKey) return;
+
+    const justOpened = !prevOpenRef.current;
+    const lastHydrated = lastHydratedSnapshotRef.current;
+    const cardChanged = lastHydrated?.cardId !== cardData.id;
+    const serverChanged = lastHydrated?.serverKey !== serverSnapshotKey;
+    prevOpenRef.current = true;
+
+    const descriptionJson = normalizeRichTextDoc(cardData.descriptionJson);
+    const nextSnapshot = {
+      cardId: cardData.id,
+      serverKey: serverSnapshotKey,
+      title: cardData.title,
+      descriptionJson: JSON.stringify(descriptionJson),
+      descriptionText: cardData.descriptionText || "",
+      status: cardData.status,
+      priority: cardData.priority,
+      startDate: toInputDateTime(cardData.startDate),
+      dueDate: toInputDateTime(cardData.dueDate),
+      reminderAt: toInputDateTime(cardData.reminderAt),
+    };
+
+    const formStillMatchesLastHydrated =
+      !lastHydrated ||
+      (title === lastHydrated.title &&
+        JSON.stringify(description) === lastHydrated.descriptionJson &&
+        descriptionText === lastHydrated.descriptionText &&
+        status === lastHydrated.status &&
+        priority === lastHydrated.priority &&
+        startDate === lastHydrated.startDate &&
+        dueDate === lastHydrated.dueDate &&
+        reminderAt === lastHydrated.reminderAt);
+
+    if (!justOpened && !cardChanged && !(serverChanged && formStillMatchesLastHydrated)) {
+      return;
+    }
+
+    lastHydratedSnapshotRef.current = nextSnapshot;
+    setTitle(nextSnapshot.title);
+    setDescription(descriptionJson);
+    setDescriptionText(nextSnapshot.descriptionText);
+    setEditorInstanceKey((current) => current + 1);
+    setStatus(nextSnapshot.status);
+    setPriority(nextSnapshot.priority);
+    setStartDate(nextSnapshot.startDate);
+    setDueDate(nextSnapshot.dueDate);
+    setReminderAt(nextSnapshot.reminderAt);
+  }, [
+    cardData,
+    cardId,
+    description,
+    descriptionText,
+    dueDate,
+    open,
+    priority,
+    reminderAt,
+    serverSnapshotKey,
+    startDate,
+    status,
+    title,
+  ]);
 
   useEffect(() => {
     setTimelinePage(1);
@@ -274,10 +356,14 @@ export function LegalKanbanCardDetailsSheet({
   async function handleSaveCard() {
     if (!cardId) return;
     try {
+      const snapshot = descriptionEditorRef.current?.getSnapshot();
+      const descriptionJson = snapshot?.json ?? description;
+      const descriptionPlain = snapshot?.plainText ?? descriptionText;
+
       await updateCard.mutateAsync({
         title: title.trim(),
-        descriptionJson: description,
-        descriptionText,
+        descriptionJson,
+        descriptionText: descriptionPlain,
         status,
         priority,
         startDate: fromInputDateTime(startDate),
@@ -286,6 +372,8 @@ export function LegalKanbanCardDetailsSheet({
         recurrenceRule: "",
         completedAt: status === "concluido" ? new Date().toISOString() : null,
       });
+      setDescription(descriptionJson);
+      setDescriptionText(descriptionPlain);
       toast.success("Card atualizado.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao atualizar o card.");
@@ -443,48 +531,6 @@ export function LegalKanbanCardDetailsSheet({
     }
   }
 
-  async function handleSaveCustomField(field: LegalKanbanCustomField) {
-    const rawValue = customFieldDrafts[field.id];
-    const valueText = typeof rawValue === "boolean" ? String(rawValue) : String(rawValue ?? "");
-    const valueJson =
-      field.fieldType === "checkbox"
-        ? { checked: Boolean(rawValue) }
-        : field.fieldType === "date"
-          ? { date: valueText || null }
-          : field.fieldType === "number"
-            ? { number: valueText ? Number(valueText) : null }
-            : field.fieldType === "select"
-              ? { option: valueText || null }
-              : { text: valueText || null };
-
-    try {
-      await saveCustomFieldValue.mutateAsync({
-        customFieldId: field.id,
-        valueText: valueText || null,
-        valueJson,
-      });
-      setEditingCustomFieldId(null);
-      toast.success(`Campo "${field.name}" salvo.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao salvar o campo.");
-    }
-  }
-
-  async function handleRemoveCustomField(field: LegalKanbanCustomField) {
-    if (!cardId) return;
-    try {
-      await deleteCustomFieldValue.mutateAsync(field.id);
-      setCustomFieldDrafts((current) => ({
-        ...current,
-        [field.id]: field.fieldType === "checkbox" ? false : "",
-      }));
-      if (editingCustomFieldId === field.id) setEditingCustomFieldId(null);
-      toast.success(`Valor do campo "${field.name}" removido do card.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao remover o campo.");
-    }
-  }
-
   async function handleAddLink() {
     if (!linkDraft.name.trim() || !linkDraft.url.trim()) {
       toast.error("Informe nome e URL do link.");
@@ -533,15 +579,10 @@ export function LegalKanbanCardDetailsSheet({
     }
   }
 
-  function openFromAddMenu(kind: "labels" | "dates" | "checklists" | "members" | "attachments" | "customFields" | "comments") {
+  function openFromAddMenu(kind: "labels" | "dates" | "checklists" | "members" | "attachments" | "comments") {
     setLabelsOpen(false);
     setDatesOpen(false);
     setChecklistsOpen(false);
-    if (kind === "customFields") {
-      setInlinePanel(null);
-      setCustomFieldsEditDialogOpen(true);
-      return;
-    }
     if (kind === "comments") {
       setInlinePanel(null);
       scrollToCommentsSection();
@@ -569,12 +610,12 @@ export function LegalKanbanCardDetailsSheet({
         onCloseAutoFocus={(event) => event.preventDefault()}
       >
         <DialogHeader className="sr-only">
-          <DialogTitle>{data ? `Card ${data.cardNumber}: ${data.title}` : "Detalhes do card"}</DialogTitle>
+        <DialogTitle>{cardData ? `Card ${cardData.cardNumber}: ${cardData.title}` : "Detalhes do card"}</DialogTitle>
           <DialogDescription>
             Painel com descrição, datas, anexos, checklist, comentários e demais detalhes do card do Kanban jurídico.
           </DialogDescription>
         </DialogHeader>
-        {isLoading || !data ? (
+        {isLoading || !cardData || (isFetching && cardDetailsStaleComparedToBoard) ? (
           <div className="p-8 text-sm text-muted-foreground">Carregando card...</div>
         ) : (
           <>
@@ -620,9 +661,9 @@ export function LegalKanbanCardDetailsSheet({
                       type="button"
                       onClick={handleToggleCompleted}
                       className="mt-0.5 shrink-0 rounded-full text-muted-foreground transition-colors hover:text-primary"
-                      title={data.status === "concluido" ? "Reabrir card" : "Concluir card"}
+                      title={cardData.status === "concluido" ? "Reabrir card" : "Concluir card"}
                     >
-                      {data.status === "concluido" ? (
+                      {cardData.status === "concluido" ? (
                         <CheckCircle2 className="h-8 w-8 text-primary" />
                       ) : (
                         <Circle className="h-8 w-8" />
@@ -643,7 +684,7 @@ export function LegalKanbanCardDetailsSheet({
                       />
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs text-muted-foreground sm:text-sm">
-                          Card #{data.cardNumber}
+                          Card #{cardData.cardNumber}
                         </span>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -720,6 +761,15 @@ export function LegalKanbanCardDetailsSheet({
                             ))}
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        {cardData.labels.map((label) => (
+                          <Badge
+                            key={label.id}
+                            className="rounded-md px-2.5 py-1 text-xs font-medium text-white"
+                            style={{ backgroundColor: label.color }}
+                          >
+                            {label.name}
+                          </Badge>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -791,16 +841,6 @@ export function LegalKanbanCardDetailsSheet({
                           <div className="min-w-0">
                             <p className="font-medium">Anexo</p>
                             <p className="text-xs text-muted-foreground">Arquivos e links</p>
-                          </div>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="flex cursor-default items-start gap-3 rounded-lg px-3 py-2.5"
-                          onSelect={() => openFromAddMenu("customFields")}
-                        >
-                          <FormInput className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                          <div className="min-w-0">
-                            <p className="font-medium">Campos personalizados</p>
-                            <p className="text-xs text-muted-foreground">Valores extras do board</p>
                           </div>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -1104,45 +1144,14 @@ export function LegalKanbanCardDetailsSheet({
                     </section>
                   ) : null}
 
-                  <section className="min-w-0 max-w-full rounded-xl border border-border/70 bg-card p-4">
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-semibold">Etiquetas</h3>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 text-xs"
-                        onClick={() => {
-                          setInlinePanel(null);
-                          setLabelsOpen(true);
-                        }}
-                      >
-                        Gerenciar
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {data.labels.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Nenhuma etiqueta neste card.</p>
-                      ) : (
-                        data.labels.map((label) => (
-                          <Badge
-                            key={label.id}
-                            className="rounded-md px-2.5 py-1 text-xs font-medium text-white"
-                            style={{ backgroundColor: label.color }}
-                          >
-                            {label.name}
-                          </Badge>
-                        ))
-                      )}
-                    </div>
-                  </section>
-
                   <section className="rounded-xl border border-border/70 bg-card p-4">
                     <div className="mb-3 flex items-center gap-2">
                       <MessageSquare className="h-4 w-4 text-primary" />
                       <h3 className="text-sm font-semibold">Descrição</h3>
                     </div>
                     <LegalKanbanRichTextEditor
+                      key={`${cardData.id}:${editorInstanceKey}`}
+                      ref={descriptionEditorRef}
                       value={description}
                       onChange={(json, plainText) => {
                         setDescription(json);
@@ -1170,10 +1179,10 @@ export function LegalKanbanCardDetailsSheet({
                       </Button>
                     </div>
                     <div className="space-y-2">
-                      {data.attachments.length === 0 ? (
+                      {cardData.attachments.length === 0 ? (
                         <p className="text-sm text-muted-foreground">Nenhum anexo.</p>
                       ) : (
-                        data.attachments.map((attachment) => (
+                        cardData.attachments.map((attachment) => (
                           <button
                             key={attachment.id}
                             type="button"
@@ -1193,132 +1202,6 @@ export function LegalKanbanCardDetailsSheet({
                         ))
                       )}
                     </div>
-                  </section>
-
-                  <section className="rounded-xl border border-border/70 bg-card p-4">
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <FormInput className="h-4 w-4 text-primary" />
-                        <h3 className="text-sm font-semibold">Campos personalizados</h3>
-                      </div>
-                      {board.customFields.length > 0 || (canManageBoard && onRequestBoardSettings) ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button type="button" variant="ghost" size="sm" className="h-8 gap-1 text-xs">
-                              Gerenciar
-                              <ChevronDown className="h-3.5 w-3.5 opacity-70" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-56">
-                            {board.customFields.length > 0 ? (
-                              <DropdownMenuItem
-                                className="cursor-pointer"
-                                onSelect={() => setCustomFieldsEditDialogOpen(true)}
-                              >
-                                <Pencil className="mr-2 h-4 w-4" />
-                                Editar valores no card
-                              </DropdownMenuItem>
-                            ) : null}
-                            {canManageBoard && onRequestBoardSettings ? (
-                              <DropdownMenuItem
-                                className="cursor-pointer"
-                                onSelect={() => onRequestBoardSettings()}
-                              >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Criar campo no board
-                              </DropdownMenuItem>
-                            ) : null}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : null}
-                    </div>
-                    {board.customFields.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        {canManageBoard && onRequestBoardSettings
-                          ? "Nenhum campo no board. Use Gerenciar para criar o primeiro campo personalizado."
-                          : "Nenhum campo personalizado configurado neste board."}
-                      </p>
-                    ) : data.customFieldValues.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        Nenhum valor salvo neste card. Use <span className="font-medium text-foreground">Gerenciar</span> para
-                        editar valores ou criar novos campos no board.
-                      </p>
-                    ) : (
-                      <ul className="space-y-3">
-                        {data.customFieldValues.map((cv) => {
-                          const field = board.customFields.find((f) => f.id === cv.customFieldId);
-                          if (!field) return null;
-                          const isEditing = editingCustomFieldId === field.id;
-                          return (
-                            <li
-                              key={cv.id}
-                              className="rounded-lg border border-border/60 bg-muted/15 p-3"
-                            >
-                              {isEditing ? (
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-sm font-semibold">{field.name}</span>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 text-xs"
-                                      onClick={() => setEditingCustomFieldId(null)}
-                                    >
-                                      Cancelar
-                                    </Button>
-                                  </div>
-                                  <CustomFieldInput
-                                    field={field}
-                                    value={customFieldDrafts[field.id]}
-                                    hideLabel
-                                    onChange={(next) =>
-                                      setCustomFieldDrafts((current) => ({
-                                        ...current,
-                                        [field.id]: next,
-                                      }))
-                                    }
-                                    onSave={() => void handleSaveCustomField(field)}
-                                  />
-                                </div>
-                              ) : (
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-medium text-muted-foreground">{field.name}</p>
-                                    <p className="mt-1 break-words text-sm text-foreground">
-                                      {formatCustomFieldValueDisplay(field, cv)}
-                                    </p>
-                                  </div>
-                                  <div className="flex shrink-0 gap-0.5">
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      title="Editar"
-                                      onClick={() => setEditingCustomFieldId(field.id)}
-                                    >
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 text-destructive hover:text-destructive"
-                                      title="Remover valor do card"
-                                      disabled={deleteCustomFieldValue.isPending}
-                                      onClick={() => void handleRemoveCustomField(field)}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
                   </section>
 
                   <section className="rounded-xl border border-border/70 bg-card p-4">
@@ -1511,42 +1394,6 @@ export function LegalKanbanCardDetailsSheet({
               </ScrollArea>
             </div>
           </div>
-
-            <Dialog open={customFieldsEditDialogOpen} onOpenChange={setCustomFieldsEditDialogOpen}>
-              <DialogContent className="z-[100] max-h-[min(560px,85vh)] max-w-xl gap-0 overflow-hidden p-0 sm:max-w-xl">
-                <DialogHeader className="border-b border-border/70 px-6 pb-4 pt-6">
-                  <DialogTitle>Editar valores no card</DialogTitle>
-                  <DialogDescription>Preencha e salve cada campo personalizado.</DialogDescription>
-                </DialogHeader>
-                <ScrollArea className="max-h-[min(400px,55vh)] px-6">
-                  <div className="space-y-3 py-4">
-                    {board.customFields.length === 0 ? (
-                      <EmptyState text="Nenhum campo personalizado no board. Crie um campo em Configurar board." />
-                    ) : (
-                      board.customFields.map((field) => (
-                        <CustomFieldInput
-                          key={field.id}
-                          field={field}
-                          value={customFieldDrafts[field.id]}
-                          onChange={(value) =>
-                            setCustomFieldDrafts((current) => ({
-                              ...current,
-                              [field.id]: value,
-                            }))
-                          }
-                          onSave={() => void handleSaveCustomField(field)}
-                        />
-                      ))
-                    )}
-                  </div>
-                </ScrollArea>
-                <DialogFooter className="border-t border-border/70 px-6 py-4 sm:justify-end">
-                  <Button type="button" variant="outline" onClick={() => setCustomFieldsEditDialogOpen(false)}>
-                    Fechar
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
 
             <AlertDialog
               open={timelineDeleteTarget != null}
@@ -1762,119 +1609,6 @@ function EmptyState({ text }: { text: string }) {
       {text}
     </div>
   );
-}
-
-function CustomFieldInput({
-  field,
-  value,
-  onChange,
-  onSave,
-  hideLabel,
-}: {
-  field: LegalKanbanCustomField;
-  value: string | boolean | undefined;
-  onChange: (value: string | boolean) => void;
-  onSave: () => void;
-  hideLabel?: boolean;
-}) {
-  return (
-    <div className="space-y-2 rounded-3xl border border-border/70 bg-background p-4">
-      <div className="flex items-center justify-between gap-3">
-        {hideLabel ? <span className="sr-only">{field.name}</span> : <Label>{field.name}</Label>}
-        <Button variant="ghost" size="sm" onClick={onSave}>
-          Salvar
-        </Button>
-      </div>
-
-      {field.fieldType === "checkbox" ? (
-        <label className="flex items-center gap-3 rounded-2xl border border-border/60 px-3 py-3">
-          <Checkbox checked={Boolean(value)} onCheckedChange={(checked) => onChange(Boolean(checked))} />
-          <span className="text-sm text-muted-foreground">Marcar campo</span>
-        </label>
-      ) : field.fieldType === "select" ? (
-        <Select value={String(value || "")} onValueChange={(next) => onChange(next)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Selecione uma opção" />
-          </SelectTrigger>
-          <SelectContent>
-            {field.options.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : field.fieldType === "date" ? (
-        <Input type="date" value={String(value || "")} onChange={(event) => onChange(event.target.value)} />
-      ) : field.fieldType === "number" ? (
-        <Input type="number" value={String(value || "")} onChange={(event) => onChange(event.target.value)} />
-      ) : (
-        <Input value={String(value || "")} onChange={(event) => onChange(event.target.value)} />
-      )}
-    </div>
-  );
-}
-
-function formatCustomFieldValueDisplay(
-  field: LegalKanbanCustomField,
-  cv: LegalKanbanCustomFieldValue,
-): string {
-  if (field.fieldType === "checkbox") {
-    return cv.valueJson?.checked ? "Sim" : "Não";
-  }
-  if (field.fieldType === "date") {
-    const raw = String(cv.valueJson?.date || cv.valueText || "").trim();
-    return raw || "—";
-  }
-  if (field.fieldType === "number") {
-    const n = cv.valueJson?.number ?? cv.valueText;
-    if (n === null || n === undefined || n === "") return "—";
-    return String(n);
-  }
-  if (field.fieldType === "select") {
-    const raw = String(cv.valueJson?.option || cv.valueText || "").trim();
-    return raw || "—";
-  }
-  const text = String(cv.valueJson?.text ?? cv.valueText ?? "").trim();
-  return text || "—";
-}
-
-function buildCustomFieldDrafts(fields: LegalKanbanCustomField[], values: LegalKanbanCustomFieldValue[]) {
-  const valueMap = new Map(values.map((value) => [value.customFieldId, value]));
-  const next: Record<string, string | boolean> = {};
-
-  fields.forEach((field) => {
-    const current = valueMap.get(field.id);
-
-    if (!current) {
-      next[field.id] = field.fieldType === "checkbox" ? false : "";
-      return;
-    }
-
-    if (field.fieldType === "checkbox") {
-      next[field.id] = Boolean(current.valueJson?.checked);
-      return;
-    }
-
-    if (field.fieldType === "date") {
-      next[field.id] = String(current.valueJson?.date || current.valueText || "");
-      return;
-    }
-
-    if (field.fieldType === "number") {
-      next[field.id] = String(current.valueJson?.number ?? current.valueText ?? "");
-      return;
-    }
-
-    if (field.fieldType === "select") {
-      next[field.id] = String(current.valueJson?.option || current.valueText || "");
-      return;
-    }
-
-    next[field.id] = String(current.valueJson?.text || current.valueText || "");
-  });
-
-  return next;
 }
 
 function toInputDateTime(value: string | null) {

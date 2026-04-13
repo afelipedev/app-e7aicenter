@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { EditorContent, type Editor, useEditor } from "@tiptap/react";
 import {
   AlignCenter,
@@ -39,9 +39,15 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import type { RichTextDoc } from "../../types";
+import { normalizeRichTextDoc } from "../../utils";
 import { buildLegalKanbanEditorExtensions, createEmptyRichTextDoc } from "./extensions";
 import { useWindowSize } from "./use-window-size";
 import "./legal-kanban-rich-text-editor.css";
+
+export type LegalKanbanRichTextEditorHandle = {
+  /** Último conteúdo do editor (evita estado React defasado no salvamento). */
+  getSnapshot: () => { json: RichTextDoc; plainText: string } | null;
+};
 
 interface LegalKanbanRichTextEditorProps {
   value: RichTextDoc;
@@ -52,14 +58,22 @@ interface LegalKanbanRichTextEditorProps {
   disabled?: boolean;
 }
 
-export function LegalKanbanRichTextEditor({
-  value,
-  onChange,
-  onImageUpload,
-  className,
-  placeholder = "Descreva o contexto, próximos passos ou observações relevantes...",
-  disabled = false,
-}: LegalKanbanRichTextEditorProps) {
+export const LegalKanbanRichTextEditor = forwardRef<
+  LegalKanbanRichTextEditorHandle,
+  LegalKanbanRichTextEditorProps
+>(function LegalKanbanRichTextEditor(
+  {
+    value,
+    onChange,
+    onImageUpload,
+    className,
+    placeholder = "Descreva o contexto, próximos passos ou observações relevantes...",
+    disabled = false,
+  },
+  ref,
+) {
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   const isMobile = useIsMobile();
   const { width } = useWindowSize();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -79,9 +93,23 @@ export function LegalKanbanRichTextEditor({
       },
     },
     onUpdate: ({ editor: currentEditor }) => {
-      onChange?.(currentEditor.getJSON() as RichTextDoc, currentEditor.getText());
+      onChangeRef.current?.(currentEditor.getJSON() as RichTextDoc, currentEditor.getText());
     },
   });
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getSnapshot: () => {
+        if (!editor) return null;
+        return {
+          json: editor.getJSON() as RichTextDoc,
+          plainText: editor.getText(),
+        };
+      },
+    }),
+    [editor],
+  );
 
   useEffect(() => {
     if (!editor) return;
@@ -90,11 +118,12 @@ export function LegalKanbanRichTextEditor({
 
   useEffect(() => {
     if (!editor) return;
+    const nextDoc = normalizeRichTextDoc(value || createEmptyRichTextDoc());
     const current = JSON.stringify(editor.getJSON());
-    const next = JSON.stringify(value || createEmptyRichTextDoc());
+    const next = JSON.stringify(nextDoc);
 
     if (current !== next) {
-      editor.commands.setContent(value || createEmptyRichTextDoc());
+      editor.commands.setContent(nextDoc, { emitUpdate: false });
     }
   }, [editor, value]);
 
@@ -462,7 +491,9 @@ export function LegalKanbanRichTextEditor({
       />
     </>
   );
-}
+});
+
+LegalKanbanRichTextEditor.displayName = "LegalKanbanRichTextEditor";
 
 function ToolbarIconButton({
   title,

@@ -7,6 +7,8 @@ import type {
   CreateLegalKanbanLabelInput,
   LegalKanbanBoardData,
   LegalKanbanCard,
+  LegalKanbanCardBase,
+  LegalKanbanCardDetails,
   LegalKanbanColumn,
   UpdateLegalKanbanCardInput,
 } from "../types";
@@ -58,6 +60,34 @@ function moveCardInCache(
   return {
     ...board,
     columns,
+  };
+}
+
+function patchCardInBoardCache(board: LegalKanbanBoardData, updatedCard: LegalKanbanCardBase) {
+  return {
+    ...board,
+    columns: board.columns.map((column) => ({
+      ...column,
+      cards: column.cards.map((card) =>
+        card.id === updatedCard.id
+          ? {
+              ...card,
+              ...updatedCard,
+            }
+          : card,
+      ),
+    })),
+  };
+}
+
+function patchCardDetailsCache(previous: LegalKanbanCardDetails | undefined, updatedCard: LegalKanbanCardBase) {
+  if (!previous || previous.id !== updatedCard.id) {
+    return previous;
+  }
+
+  return {
+    ...previous,
+    ...updatedCard,
   };
 }
 
@@ -139,7 +169,13 @@ export function useUpdateLegalKanbanCard(cardId: string) {
 
   return useMutation({
     mutationFn: (input: UpdateLegalKanbanCardInput) => legalKanbanService.updateCard(cardId, input),
-    onSuccess: () => {
+    onSuccess: (updatedCard) => {
+      queryClient.setQueryData<LegalKanbanBoardData>(legalKanbanKeys.board(), (previous) =>
+        previous ? patchCardInBoardCache(previous, updatedCard) : previous,
+      );
+      queryClient.setQueryData<LegalKanbanCardDetails>(legalKanbanKeys.card(cardId), (previous) =>
+        patchCardDetailsCache(previous, updatedCard),
+      );
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
