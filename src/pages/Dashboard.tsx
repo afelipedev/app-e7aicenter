@@ -8,6 +8,7 @@ import {
   Building,
   Clock,
   CheckCircle,
+  Trello,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -98,9 +99,9 @@ const quickActions = [
   {
     title: "Ver Processos",
     description: "Acompanhar andamentos",
-    icon: Briefcase,
+    icon: Trello,
     color: "bg-gradient-blue",
-    url: "/documents/cases",
+    url: "/documents/cases/kanban",
   },
   {
     title: "Relatórios",
