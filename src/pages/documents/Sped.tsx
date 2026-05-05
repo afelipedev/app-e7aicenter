@@ -37,7 +37,8 @@ import type {
   BatchSpedUploadResult,
   ProcessingStatus,
   PaginatedResult,
-  SpedType
+  SpedType,
+  ProcessingFilters
 } from '../../../shared/types/sped';
 
 // Constants
@@ -79,8 +80,27 @@ export default function Sped() {
   const [stats, setStats] = useState<EnhancedSpedStats | null>(null);
   const [processingHistory, setProcessingHistory] = useState<PaginatedResult<ProcessingHistory> | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [historyCompanyFilter, setHistoryCompanyFilter] = useState<string>('');
+  const [historyCompetenciaFilter, setHistoryCompetenciaFilter] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [lastUploadResult, setLastUploadResult] = useState<BatchSpedUploadResult | null>(null);
+
+  const buildCompletedHistoryFilters = useCallback((
+    companyId: string = historyCompanyFilter,
+    competency: string = historyCompetenciaFilter
+  ): ProcessingFilters => {
+    const filters: ProcessingFilters = { status: ['completed'] };
+
+    if (companyId) {
+      filters.company_id = companyId;
+    }
+
+    if (competency) {
+      filters.competency = competency;
+    }
+
+    return filters;
+  }, [historyCompanyFilter, historyCompetenciaFilter]);
 
   // Initialize data
   const initializeData = useCallback(async () => {
@@ -90,7 +110,7 @@ export default function Sped() {
         SpedService.getCompanies(),
         SpedService.getEnhancedStats(),
         SpedService.getProcessingHistory(
-          { status: ['completed'] },
+          buildCompletedHistoryFilters(),
           { field: 'started_at', direction: 'desc' },
           1,
           5
@@ -110,7 +130,7 @@ export default function Sped() {
         variant: "destructive",
       });
     }
-  }, [toast]);
+  }, [toast, buildCompletedHistoryFilters]);
 
   // Initialize component
   useEffect(() => {
@@ -400,10 +420,13 @@ export default function Sped() {
   };
 
   // Load processing history
-  const loadProcessingHistory = async (page: number = currentPage) => {
+  const loadProcessingHistory = async (
+    page: number = currentPage,
+    customFilters?: { companyId?: string; competency?: string }
+  ) => {
     try {
       const history = await SpedService.getProcessingHistory(
-        { status: ['completed'] },
+        buildCompletedHistoryFilters(customFilters?.companyId, customFilters?.competency),
         { field: 'started_at', direction: 'desc' },
         page,
         5
@@ -418,6 +441,20 @@ export default function Sped() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleHistoryCompetenciaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setHistoryCompetenciaFilter(formatCompetencia(e.target.value));
+  };
+
+  const applyHistoryFilters = () => {
+    loadProcessingHistory(1);
+  };
+
+  const clearHistoryFilters = () => {
+    setHistoryCompanyFilter('');
+    setHistoryCompetenciaFilter('');
+    loadProcessingHistory(1, { companyId: '', competency: '' });
   };
 
   // Download Excel file from processing history
@@ -672,6 +709,53 @@ export default function Sped() {
           <CardTitle>Histórico de Processamentos (Concluídos)</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="history-company-filter">Empresa</Label>
+              <select
+                id="history-company-filter"
+                value={historyCompanyFilter}
+                onChange={(e) => setHistoryCompanyFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-input rounded-md bg-background"
+              >
+                <option value="">Todas as empresas</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="history-competencia-filter">Competência</Label>
+              <Input
+                id="history-competencia-filter"
+                type="text"
+                placeholder="MM/AAAA"
+                value={historyCompetenciaFilter}
+                onChange={handleHistoryCompetenciaChange}
+                maxLength={7}
+                className="h-[38px]"
+              />
+            </div>
+
+            <div className="flex items-end gap-2">
+              <Button
+                onClick={applyHistoryFilters}
+                className="w-full md:w-auto md:w-10"
+                size="icon"
+                aria-label="Buscar histórico"
+                title="Buscar histórico"
+              >
+                <Search className="w-4 h-4" />
+              </Button>
+              <Button variant="outline" onClick={clearHistoryFilters} className="w-full md:w-auto">
+                Limpar
+              </Button>
+            </div>
+          </div>
+
           {processingHistory && processingHistory.data.length > 0 ? (
             <>
               <Table>
