@@ -42,6 +42,7 @@ import FavoritesPage from "./features/teams/pages/FavoritesPage";
 import TeamsAdminPage from "./features/teams/pages/admin/TeamsAdminPage";
 import TeamDetailAdminPage from "./features/teams/pages/admin/TeamDetailAdminPage";
 import ProfilePage from "./features/profile/pages/ProfilePage";
+import { ThemeProvider } from "./features/theme/providers/ThemeProvider";
 
 // Configuração do QueryClient com cache otimizado
 const queryClient = new QueryClient({
@@ -71,12 +72,13 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
+    <ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             
@@ -164,10 +166,11 @@ const App = () => (
             </Route>
             
             <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

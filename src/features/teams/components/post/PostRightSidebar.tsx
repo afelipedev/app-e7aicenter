@@ -1,16 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Loader2, Plus, Send, Trash2, Trello, Unlink } from "lucide-react";
+import { ExternalLink, FileText, Image as ImageIcon, Loader2, Lock, Paperclip, Plus, Send, Trash2, Trello, Unlink } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 import { kanbanBridgeService } from "../../services/kanbanBridgeService";
+import { attachmentService } from "../../services/attachmentService";
 import { useCurrentProfileId } from "../../hooks/useCurrentProfileId";
+import type { PostAttachment } from "../../types";
 import { CreateCardFromPostDialog } from "./CreateCardFromPostDialog";
 import { legalKanbanService } from "@/features/legal-kanban/services/legalKanbanService";
 import {
@@ -55,10 +67,15 @@ function relativeTime(iso: string) {
   return `${d}d atrás`;
 }
 
+const GLOBAL_KANBAN_MANAGER_ROLES = ["administrator", "it", "advogado_adm"];
+
 export function PostRightSidebar({ postId }: PostRightSidebarProps) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: profileId } = useCurrentProfileId();
   const [createCardOpen, setCreateCardOpen] = useState(false);
+  const [noAccessOpen, setNoAccessOpen] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [commentMentionSearch, setCommentMentionSearch] = useState<string | null>(null);
   const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -102,6 +119,47 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
   });
   const cardLinked = !!cardId && !!cardData?.card;
 
+  const { data: attachments = [] } = useQuery<PostAttachment[]>({
+    queryKey: ["teams", "post-attachments", postId],
+    queryFn: () => attachmentService.listForPost(postId),
+    enabled: !!postId,
+  });
+
+  async function openAttachment(att: PostAttachment) {
+    if (!att.storage_path) {
+      if (att.url) window.open(att.url, "_blank", "noopener");
+      return;
+    }
+    const url = await attachmentService.getSignedUrl(att.storage_path);
+    if (url) window.open(url, "_blank", "noopener");
+    else toast.error("Não foi possível abrir o anexo");
+  }
+
+  function humanSize(bytes?: number | null) {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+  const boardId = cardData?.board?.id ?? null;
+  const isGlobalManager = GLOBAL_KANBAN_MANAGER_ROLES.includes(user?.role ?? "");
+
+  const { data: isBoardMember = false } = useQuery({
+    queryKey: ["legal-kanban", "is-board-member", boardId, profileId],
+    queryFn: async () => {
+      if (!boardId || !profileId) return false;
+      const { count } = await supabase
+        .from("legal_kanban_board_members")
+        .select("id", { count: "exact", head: true })
+        .eq("board_id", boardId)
+        .eq("user_id", profileId);
+      return (count ?? 0) > 0;
+    },
+    enabled: !!boardId && !!profileId && !isGlobalManager,
+  });
+
+  const hasBoardAccess = isGlobalManager || isBoardMember;
+
   const { data: cardMentionCandidates = [] } = useQuery({
     queryKey: ["teams", "kanban-board-members", cardData?.board?.id],
     queryFn: async () => {
@@ -113,7 +171,7 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
         .eq("board_id", boardId);
       if (error) throw new Error(error.message);
 
-      return ((data ?? []) as Array<{
+      return ((data ?? []) as unknown as Array<{
         user_id: string;
         user: { id: string; name: string | null; status: string | null } | null;
       }>)
@@ -211,9 +269,16 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
         </div>
 
         {cardLinked && cardData?.card ? (
-          <NavLink
-            to={`/documents/cases/quadros/${cardData.board?.slug ?? ""}?card=${cardData.card.id}`}
-            className="block rounded-lg border bg-card p-3 hover:bg-accent/40 transition-colors"
+          <button
+            type="button"
+            onClick={() => {
+              if (!hasBoardAccess) {
+                setNoAccessOpen(true);
+                return;
+              }
+              navigate(`/documents/cases/quadros/${cardData.board?.slug ?? ""}?card=${cardData.card.id}`);
+            }}
+            className="block w-full rounded-lg border bg-card p-3 text-left hover:bg-accent/40 transition-colors"
           >
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               {cardData.card.priority && (
@@ -226,11 +291,21 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
                   #{cardData.card.card_number}
                 </span>
               )}
+              {!hasBoardAccess && (
+                <Badge variant="outline" className="text-[10px] gap-1 border-amber-300 text-amber-700">
+                  <Lock className="h-2.5 w-2.5" />
+                  Sem acesso
+                </Badge>
+              )}
             </div>
             <div className="flex items-start gap-1">
               <Trello className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
               <span className="font-medium text-sm flex-1">{cardData.card.title}</span>
-              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              {hasBoardAccess ? (
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              ) : (
+                <Lock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              )}
             </div>
             <div className="mt-2 text-xs text-muted-foreground">
               {cardData.board?.title} · {cardData.column?.title}
@@ -238,12 +313,49 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
                 <> · vence {new Date(cardData.card.due_date).toLocaleDateString("pt-BR")}</>
               )}
             </div>
-          </NavLink>
+          </button>
         ) : (
           <Button variant="default" className="w-full" onClick={() => setCreateCardOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Criar Card
           </Button>
+        )}
+      </Card>
+
+      {/* Anexos da postagem */}
+      <Card className="p-4">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 flex items-center gap-1.5">
+          <Paperclip className="h-3.5 w-3.5" />
+          Anexos da postagem
+          {attachments.length > 0 && (
+            <span className="ml-auto text-[10px] font-normal text-muted-foreground">
+              {attachments.length}
+            </span>
+          )}
+        </h3>
+        {attachments.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Nenhum anexo nesta postagem.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {attachments.map((att) => {
+              const Icon = att.kind === "image" ? ImageIcon : FileText;
+              return (
+                <li key={att.id}>
+                  <button
+                    type="button"
+                    onClick={() => openAttachment(att)}
+                    className="flex w-full items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-xs hover:bg-accent transition-colors text-left"
+                  >
+                    <Icon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                    <span className="flex-1 truncate font-medium">{att.name}</span>
+                    {att.size_bytes ? (
+                      <span className="text-muted-foreground flex-shrink-0">{humanSize(att.size_bytes)}</span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </Card>
 
@@ -392,6 +504,31 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
         onOpenChange={setCreateCardOpen}
         postId={postId}
       />
+
+      <AlertDialog open={noAccessOpen} onOpenChange={setNoAccessOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-amber-600" />
+              Acesso restrito ao quadro
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 pt-1">
+              <span className="block">
+                Você não é membro do quadro{" "}
+                <span className="font-medium text-foreground">{cardData?.board?.title ?? ""}</span>{" "}
+                e por isso não pode visualizar este card.
+              </span>
+              <span className="block">
+                Solicite ao responsável da equipe que adicione você como membro do quadro
+                em <span className="font-mono text-xs">Gestão de Quadros</span>.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setNoAccessOpen(false)}>Entendi</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }

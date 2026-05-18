@@ -1,4 +1,4 @@
-import { useParams, NavLink, useNavigate } from "react-router-dom";
+import { useParams, NavLink, useNavigate, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import { ArrowLeft, FileText, Image as ImageIcon, Pin, Star, Trash2, UserPlus } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { usePost, usePostMessages } from "../hooks/usePostThread";
 import { useCurrentProfileId } from "../hooks/useCurrentProfileId";
 import { MessageList } from "../components/post/MessageList";
+import { FavoriteMessagesDialog } from "../components/post/FavoriteMessagesDialog";
 import { MessageComposer } from "../components/post/MessageComposer";
 import { PostRightSidebar } from "../components/post/PostRightSidebar";
 import { InviteMemberDialog } from "../components/post/InviteMemberDialog";
@@ -57,6 +58,8 @@ export default function PostPage() {
   const qc = useQueryClient();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [favMessagesOpen, setFavMessagesOpen] = useState(false);
+  const [, setSearchParams] = useSearchParams();
   const { data: post } = usePost(postId);
   const { messages, isLoading: msgLoading } = usePostMessages(postId);
   const { data: profileId } = useCurrentProfileId();
@@ -83,7 +86,7 @@ export default function PostPage() {
           .select("user_id, user:users!channel_members_user_id_fkey(id, name, status)")
           .eq("channel_id", channelRow.id);
         if (error) throw new Error(error.message);
-        return ((data ?? []) as Array<{
+        return ((data ?? []) as unknown as Array<{
           user_id: string;
           user: { id: string; name: string | null; status: string | null } | null;
         }>)
@@ -97,7 +100,7 @@ export default function PostPage() {
         .select("user_id, user:users!team_members_user_id_fkey(id, name, status)")
         .eq("team_id", channelRow.team_id);
       if (error) throw new Error(error.message);
-      return ((data ?? []) as Array<{
+      return ((data ?? []) as unknown as Array<{
         user_id: string;
         user: { id: string; name: string | null; status: string | null } | null;
       }>)
@@ -194,12 +197,12 @@ export default function PostPage() {
               <div className="flex items-center gap-1">
                 {channelRow && (
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant="ghost"
+                    size="icon"
                     onClick={() => setInviteOpen(true)}
+                    title="Convidar membro"
                   >
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Convidar membro
+                    <UserPlus className="h-4 w-4" />
                   </Button>
                 )}
                 <Button variant="ghost" size="icon" onClick={() => toggleFav.mutate()} disabled={!profileId} title="Favoritar">
@@ -268,10 +271,20 @@ export default function PostPage() {
           </Card>
 
           <div className="mt-4 border rounded-lg bg-card flex-1 flex flex-col">
-            <div className="px-4 py-3 border-b">
+            <div className="px-4 py-2.5 border-b flex items-center justify-between gap-2">
               <h2 className="text-sm font-medium">
                 Respostas {messages.length > 0 && `(${messages.length})`}
               </h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Mensagens favoritas"
+                onClick={() => setFavMessagesOpen(true)}
+                disabled={!profileId}
+              >
+                <Star className="h-4 w-4" />
+              </Button>
             </div>
             <div className="p-4 flex-1 max-h-[60vh] overflow-y-auto">
               {msgLoading ? (
@@ -296,6 +309,19 @@ export default function PostPage() {
           channelId={channelRow.id}
         />
       )}
+
+      <FavoriteMessagesDialog
+        open={favMessagesOpen}
+        onOpenChange={setFavMessagesOpen}
+        postId={postId!}
+        onSelectMessage={(messageId) => {
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.set("messageId", messageId);
+            return next;
+          });
+        }}
+      />
 
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent>

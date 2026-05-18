@@ -2,6 +2,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Settings, LogOut, Loader2 } from "lucide-react";
 import { NotificationsBell } from "@/features/teams/components/NotificationsBell";
 import { Button } from "@/components/ui/button";
+import { ThemeToggleButton } from "@/features/theme/components/ThemeToggleButton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,6 +65,7 @@ export function Header() {
 
       <div className="flex items-center gap-2">
         <NotificationsBell />
+        <ThemeToggleButton />
 
         <Button variant="ghost" size="icon" onClick={() => navigate("/perfil")}>
           <Settings className="w-5 h-5" />

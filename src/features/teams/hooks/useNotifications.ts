@@ -41,7 +41,19 @@ export function useNotifications() {
         .is("read_at", null);
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: teamsKeys.notifications() }),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: teamsKeys.notifications() });
+      const prev = qc.getQueryData<NotificationRow[]>(teamsKeys.notifications());
+      const stamp = new Date().toISOString();
+      qc.setQueryData<NotificationRow[]>(teamsKeys.notifications(), (old) =>
+        (old ?? []).map((n) => (n.read_at ? n : { ...n, read_at: stamp })),
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(teamsKeys.notifications(), ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: teamsKeys.notifications() }),
   });
 
   const markRead = useMutation({
@@ -50,7 +62,19 @@ export function useNotifications() {
         .update({ read_at: new Date().toISOString() }).eq("id", notificationId);
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: teamsKeys.notifications() }),
+    onMutate: async (notificationId) => {
+      await qc.cancelQueries({ queryKey: teamsKeys.notifications() });
+      const prev = qc.getQueryData<NotificationRow[]>(teamsKeys.notifications());
+      const stamp = new Date().toISOString();
+      qc.setQueryData<NotificationRow[]>(teamsKeys.notifications(), (old) =>
+        (old ?? []).map((n) => (n.id === notificationId ? { ...n, read_at: stamp } : n)),
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(teamsKeys.notifications(), ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: teamsKeys.notifications() }),
   });
 
   const unread = (query.data ?? []).filter((n) => !n.read_at);
