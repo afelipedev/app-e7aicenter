@@ -9,10 +9,9 @@ import { teamsKeys } from "../../hooks/useTeamsTree";
 
 interface MessageComposerProps {
   postId: string;
-  authorUserId: string;
 }
 
-export function MessageComposer({ postId, authorUserId }: MessageComposerProps) {
+export function MessageComposer({ postId }: MessageComposerProps) {
   const qc = useQueryClient();
   const [text, setText] = useState("");
 
@@ -24,12 +23,7 @@ export function MessageComposer({ postId, authorUserId }: MessageComposerProps) 
         type: "doc",
         content: [{ type: "paragraph", content: [{ type: "text", text: trimmed }] }],
       };
-      return messageService.sendMessage({
-        post_id: postId,
-        author_user_id: authorUserId,
-        content_json: doc,
-        content_text: trimmed,
-      });
+      return messageService.sendMessage({ post_id: postId, content_json: doc });
     },
     onSuccess: () => {
       setText("");

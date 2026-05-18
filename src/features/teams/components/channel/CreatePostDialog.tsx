@@ -63,21 +63,22 @@ export function CreatePostDialog({ open, onOpenChange, channelId, authorUserId }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="w-[min(96vw,56rem)] max-w-2xl overflow-hidden p-0">
+        <DialogHeader className="px-6 pt-6">
           <DialogTitle>Nova postagem</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          <div>
+        <div className="min-w-0 max-h-[calc(90vh-9rem)] space-y-3 overflow-y-auto px-6 pb-4">
+          <div className="min-w-0">
             <Label htmlFor="post-title">Título</Label>
             <Input
               id="post-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ex.: Atualização do projeto X"
+              className="w-full min-w-0"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <Label>Descrição</Label>
             <LegalKanbanRichTextEditor
               ref={editorRef}
@@ -85,10 +86,11 @@ export function CreatePostDialog({ open, onOpenChange, channelId, authorUserId }
               onChange={(json, text) => { setValue(json); setPlainText(text); }}
               placeholder="Escreva a postagem… (suporta menções, listas, imagens)"
               onImageUpload={(file) => attachmentService.uploadInlineImage("draft", file)}
+              className="min-w-0 max-w-full"
             />
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="border-t px-6 py-4">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
             Cancelar
           </Button>

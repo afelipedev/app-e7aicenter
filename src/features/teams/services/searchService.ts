@@ -7,33 +7,36 @@ export interface TeamsSearchResult {
 }
 
 export const searchService = {
-  async search(query: string, opts?: { channelId?: string; limit?: number }): Promise<TeamsSearchResult> {
-    const limit = opts?.limit ?? 20;
+  async search(
+    query: string,
+    opts?: { channelId?: string; teamId?: string; limit?: number; authorId?: string; from?: string; to?: string },
+  ): Promise<TeamsSearchResult> {
     const term = query.trim();
-    if (!term) return { posts: [], messages: [] };
+    if (term.length < 2) return { posts: [], messages: [] };
 
-    const tsQuery = term.split(/\s+/).filter(Boolean).map((t) => `${t}:*`).join(" & ");
+    let scope: string | undefined;
+    if (opts?.channelId) scope = `channel:${opts.channelId}`;
+    else if (opts?.teamId) scope = `team:${opts.teamId}`;
 
-    let postsQ = supabase
-      .from("posts")
-      .select("*, author:users!posts_author_user_id_fkey(id, name, email)")
-      .textSearch("search_tsv", tsQuery, { type: "websearch", config: "portuguese" })
-      .is("deleted_at", null)
-      .limit(limit);
-    if (opts?.channelId) postsQ = postsQ.eq("channel_id", opts.channelId);
-    const { data: posts } = await postsQ;
+    const { data, error } = await supabase.functions.invoke("teams-search", {
+      body: {
+        query: term,
+        scope,
+        filters: {
+          limit: opts?.limit,
+          author_id: opts?.authorId,
+          from: opts?.from,
+          to: opts?.to,
+        },
+      },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(typeof data.error === "string" ? data.error : "Erro");
 
-    const messagesQ = supabase
-      .from("post_messages")
-      .select("*, author:users!post_messages_author_user_id_fkey(id, name, email)")
-      .textSearch("search_tsv", tsQuery, { type: "websearch", config: "portuguese" })
-      .is("deleted_at", null)
-      .limit(limit);
-    const { data: messages } = await messagesQ;
-
+    const payload = data?.data as { posts?: PostWithAuthor[]; messages?: PostMessageWithAuthor[] } | undefined;
     return {
-      posts: (posts ?? []) as PostWithAuthor[],
-      messages: (messages ?? []) as PostMessageWithAuthor[],
+      posts: payload?.posts ?? [],
+      messages: payload?.messages ?? [],
     };
   },
 };

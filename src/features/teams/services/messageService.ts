@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase";
 import type { PostMessage, PostMessageWithAuthor, MessageReaction } from "../types";
-import { extractMentionsFromDoc } from "../utils";
 
 const TIMEOUT_MS = 15000;
 function withTimeout<T>(p: PromiseLike<T>, ms = TIMEOUT_MS): Promise<T> {
@@ -42,25 +41,14 @@ export const messageService = {
 
   async sendMessage(input: {
     post_id: string;
-    author_user_id: string;
     content_json: Record<string, unknown>;
-    content_text: string;
   }): Promise<PostMessage> {
-    const { data, error } = await withTimeout(
-      supabase.from("post_messages").insert(input).select().single(),
-    );
+    const { data, error } = await supabase.functions.invoke("teams-message-send", {
+      body: { post_id: input.post_id, content_json: input.content_json },
+    });
     if (error) throw new Error(error.message);
-
-    // Persist mentions
-    const mentionIds = extractMentionsFromDoc(input.content_json);
-    if (mentionIds.length) {
-      const rows = mentionIds.map((mentioned_user_id) => ({
-        message_id: (data as PostMessage).id,
-        mentioned_user_id,
-      }));
-      await supabase.from("message_mentions").insert(rows);
-    }
-    return data as PostMessage;
+    if (data?.error) throw new Error(typeof data.error === "string" ? data.error : "Erro");
+    return (data?.data?.message as PostMessage);
   },
 
   async deleteMessage(messageId: string): Promise<void> {

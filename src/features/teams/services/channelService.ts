@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { Channel, ChannelVisibility } from "../types";
-import { slugify } from "../utils";
+import type { Channel, ChannelVisibility, ChannelMemberRole } from "../types";
 
 const TIMEOUT_MS = 15000;
 function withTimeout<T>(p: PromiseLike<T>, ms = TIMEOUT_MS): Promise<T> {
@@ -11,6 +10,15 @@ function withTimeout<T>(p: PromiseLike<T>, ms = TIMEOUT_MS): Promise<T> {
       (e) => { clearTimeout(t); reject(e); },
     );
   });
+}
+
+async function invokeChannelMutate(action: string, payload: Record<string, unknown>) {
+  const { data, error } = await withTimeout(
+    supabase.functions.invoke("teams-channel-mutate", { body: { action, payload } }),
+  );
+  if (error) throw new Error(error.message);
+  if (data?.error) throw new Error(typeof data.error === "string" ? data.error : "Erro");
+  return data?.data;
 }
 
 export const channelService = {
@@ -34,27 +42,29 @@ export const channelService = {
   },
 
   async createChannel(input: { team_id: string; name: string; topic?: string; visibility?: ChannelVisibility }): Promise<Channel> {
-    const slug = slugify(input.name) || `canal-${Date.now()}`;
-    const { data, error } = await withTimeout(
-      supabase.from("channels").insert({
-        team_id: input.team_id,
-        name: input.name,
-        slug,
-        topic: input.topic ?? null,
-        visibility: input.visibility ?? "public",
-        position: 200,
-      }).select().single(),
-    );
-    if (error) throw new Error(error.message);
-    return data as Channel;
+    const result = await invokeChannelMutate("create_channel", input);
+    return (result as { channel: Channel }).channel;
   },
 
   async updateChannel(channelId: string, patch: Partial<Pick<Channel, "name" | "topic" | "visibility" | "position" | "is_archived">>): Promise<Channel> {
-    const { data, error } = await withTimeout(
-      supabase.from("channels").update(patch).eq("id", channelId).select().single(),
-    );
-    if (error) throw new Error(error.message);
-    return data as Channel;
+    const result = await invokeChannelMutate("update_channel", { channel_id: channelId, ...patch });
+    return (result as { channel: Channel }).channel;
+  },
+
+  async deleteChannel(channelId: string): Promise<void> {
+    await invokeChannelMutate("delete_channel", { channel_id: channelId });
+  },
+
+  async addChannelMember(input: { channel_id: string; user_id: string; role?: ChannelMemberRole }) {
+    return invokeChannelMutate("add_member", input);
+  },
+
+  async removeChannelMember(input: { channel_id: string; user_id: string }) {
+    return invokeChannelMutate("remove_member", input);
+  },
+
+  async reorderChannels(input: { team_id: string; order: string[] }) {
+    return invokeChannelMutate("reorder_channels", input);
   },
 
   async markChannelRead(channelId: string, userId: string): Promise<void> {

@@ -108,7 +108,7 @@ export default function PostPage() {
             <MessageList postId={postId!} messages={messages} currentUserId={profileId ?? null} />
           )}
         </div>
-        {profileId && <MessageComposer postId={postId!} authorUserId={profileId} />}
+        {profileId && <MessageComposer postId={postId!} />}
       </div>
 
       <CreateCardFromPostDialog
