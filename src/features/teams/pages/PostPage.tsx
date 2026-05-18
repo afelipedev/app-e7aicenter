@@ -298,7 +298,7 @@ export default function PostPage() {
         </div>
 
         {/* Sidebar direita */}
-        <PostRightSidebar postId={postId!} />
+        <PostRightSidebar postId={postId!} channelId={post.channel_id} />
       </div>
 
       {channelRow && (

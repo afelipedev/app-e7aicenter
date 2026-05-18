@@ -71,11 +71,15 @@ function AttachmentChip({ att }: { att: PostAttachment }) {
     <button
       type="button"
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); openAttachment(att); }}
-      className="inline-flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-xs hover:bg-accent transition-colors max-w-full"
+      className="group inline-flex max-w-full items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-xs transition-colors hover:bg-primary hover:text-primary-foreground"
     >
-      <Icon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+      <Icon className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground group-hover:text-primary-foreground" />
       <span className="truncate font-medium">{att.name}</span>
-      {att.size_bytes ? <span className="text-muted-foreground flex-shrink-0">{humanSize(att.size_bytes)}</span> : null}
+      {att.size_bytes ? (
+        <span className="flex-shrink-0 text-muted-foreground group-hover:text-primary-foreground">
+          {humanSize(att.size_bytes)}
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -196,7 +200,11 @@ export function PostList({ posts, teamSlug, channelSlug, channelId }: PostListPr
                     </span>
                   </div>
                   <NavLink to={postPath}>
-                    <Button variant="ghost" size="sm" className="text-primary hover:text-primary">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-primary hover:bg-primary hover:text-primary-foreground"
+                    >
                       Visualizar conversa
                       <ChevronRight className="ml-1 h-4 w-4" />
                     </Button>

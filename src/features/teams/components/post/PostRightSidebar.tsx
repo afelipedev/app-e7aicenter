@@ -1,7 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, FileText, Image as ImageIcon, Loader2, Lock, Paperclip, Plus, Send, Trash2, Trello, Unlink } from "lucide-react";
+import {
+  Activity,
+  CloudUpload,
+  ExternalLink,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  Lock,
+  MessageSquare,
+  Paperclip,
+  Plus,
+  Send,
+  Trash2,
+  Trello,
+  Unlink,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,12 +26,15 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { MAX_ATTACHMENT_BYTES } from "../../constants";
+import { teamsKeys } from "../../hooks/useTeamsTree";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { kanbanBridgeService } from "../../services/kanbanBridgeService";
@@ -34,6 +52,7 @@ import {
 
 interface PostRightSidebarProps {
   postId: string;
+  channelId?: string;
 }
 
 interface KanbanComment {
@@ -69,7 +88,7 @@ function relativeTime(iso: string) {
 
 const GLOBAL_KANBAN_MANAGER_ROLES = ["administrator", "it", "advogado_adm"];
 
-export function PostRightSidebar({ postId }: PostRightSidebarProps) {
+export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -78,7 +97,10 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
   const [noAccessOpen, setNoAccessOpen] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [commentMentionSearch, setCommentMentionSearch] = useState<string | null>(null);
+  const [attachmentDragOver, setAttachmentDragOver] = useState(false);
+  const [attachmentToDelete, setAttachmentToDelete] = useState<PostAttachment | null>(null);
   const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
 
   const { data: link } = useQuery({
     queryKey: ["teams", "kanban-link", postId],
@@ -133,6 +155,49 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
     const url = await attachmentService.getSignedUrl(att.storage_path);
     if (url) window.open(url, "_blank", "noopener");
     else toast.error("Não foi possível abrir o anexo");
+  }
+
+  const uploadAttachments = useMutation({
+    mutationFn: async (files: File[]) => {
+      if (!channelId || !profileId) throw new Error("Não foi possível enviar o anexo");
+      for (const file of files) {
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          toast.error(`"${file.name}" excede 25 MB`);
+          continue;
+        }
+        await attachmentService.uploadPostAttachment(postId, channelId, profileId, file);
+      }
+    },
+    onSuccess: () => {
+      toast.success("Anexo(s) adicionado(s)");
+      qc.invalidateQueries({ queryKey: ["teams", "post-attachments", postId] });
+      qc.invalidateQueries({ queryKey: teamsKeys.post(postId) });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteAttachment = useMutation({
+    mutationFn: async (att: PostAttachment) => {
+      await attachmentService.deleteAttachment(att.id, att.storage_path);
+    },
+    onSuccess: () => {
+      toast.success("Anexo removido");
+      setAttachmentToDelete(null);
+      qc.invalidateQueries({ queryKey: ["teams", "post-attachments", postId] });
+      qc.invalidateQueries({ queryKey: teamsKeys.post(postId) });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function handleAttachmentFiles(incoming: FileList | File[]) {
+    const accepted = Array.from(incoming).filter((f) => {
+      if (f.size > MAX_ATTACHMENT_BYTES) {
+        toast.error(`"${f.name}" excede 25 MB`);
+        return false;
+      }
+      return true;
+    });
+    if (accepted.length) uploadAttachments.mutate(accepted);
   }
 
   function humanSize(bytes?: number | null) {
@@ -258,7 +323,8 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
       {/* Informações do Card */}
       <Card className="p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+            <Trello className="h-3.5 w-3.5" />
             Informações do Card
           </h3>
           {cardLinked && (
@@ -333,18 +399,19 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
             </span>
           )}
         </h3>
+
         {attachments.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Nenhum anexo nesta postagem.</p>
+          <p className="text-xs text-muted-foreground mb-3">Nenhum anexo nesta postagem.</p>
         ) : (
-          <ul className="space-y-1.5">
+          <ul className="space-y-1.5 mb-3">
             {attachments.map((att) => {
               const Icon = att.kind === "image" ? ImageIcon : FileText;
               return (
-                <li key={att.id}>
+                <li key={att.id} className="group flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => openAttachment(att)}
-                    className="flex w-full items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-xs hover:bg-accent transition-colors text-left"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-xs hover:bg-accent transition-colors text-left"
                   >
                     <Icon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                     <span className="flex-1 truncate font-medium">{att.name}</span>
@@ -352,16 +419,73 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
                       <span className="text-muted-foreground flex-shrink-0">{humanSize(att.size_bytes)}</span>
                     ) : null}
                   </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 flex-shrink-0 opacity-70 hover:opacity-100"
+                    title="Excluir anexo"
+                    onClick={() => setAttachmentToDelete(att)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
                 </li>
               );
             })}
           </ul>
         )}
+
+        {channelId && profileId && (
+          <div
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") attachmentInputRef.current?.click();
+            }}
+            onDragOver={(e) => { e.preventDefault(); setAttachmentDragOver(true); }}
+            onDragLeave={() => setAttachmentDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setAttachmentDragOver(false);
+              if (e.dataTransfer.files?.length) handleAttachmentFiles(e.dataTransfer.files);
+            }}
+            onClick={() => attachmentInputRef.current?.click()}
+            className={`cursor-pointer rounded-lg border border-dashed px-3 py-3 text-center transition-colors ${
+              attachmentDragOver
+                ? "border-primary bg-primary/5"
+                : "border-muted-foreground/25 hover:border-muted-foreground/50"
+            }`}
+          >
+            {uploadAttachments.isPending ? (
+              <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+            ) : (
+              <>
+                <CloudUpload className="mx-auto h-5 w-5 text-muted-foreground mb-1" />
+                <p className="text-[11px] text-muted-foreground">
+                  Arraste ou{" "}
+                  <span className="text-primary underline">clique</span> para anexar
+                </p>
+              </>
+            )}
+            <input
+              ref={attachmentInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              disabled={uploadAttachments.isPending}
+              onChange={(e) => {
+                if (e.target.files?.length) handleAttachmentFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </div>
+        )}
       </Card>
 
       {/* Atividades recentes */}
       <Card className="p-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 flex items-center gap-1.5">
+          <Activity className="h-3.5 w-3.5" />
           Atividades recentes
         </h3>
         {!cardLinked ? (
@@ -387,7 +511,8 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
 
       {/* Comentários do Card */}
       <Card className="p-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 flex items-center gap-1.5">
+          <MessageSquare className="h-3.5 w-3.5" />
           Comentários do Card
         </h3>
         {!cardLinked ? (
@@ -504,6 +629,35 @@ export function PostRightSidebar({ postId }: PostRightSidebarProps) {
         onOpenChange={setCreateCardOpen}
         postId={postId}
       />
+
+      <AlertDialog
+        open={!!attachmentToDelete}
+        onOpenChange={(open) => { if (!open) setAttachmentToDelete(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir anexo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O arquivo{" "}
+              <span className="font-medium text-foreground">{attachmentToDelete?.name}</span>{" "}
+              será removido permanentemente desta postagem.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteAttachment.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteAttachment.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                if (attachmentToDelete) deleteAttachment.mutate(attachmentToDelete);
+              }}
+            >
+              {deleteAttachment.isPending ? "Excluindo..." : "Excluir anexo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={noAccessOpen} onOpenChange={setNoAccessOpen}>
         <AlertDialogContent>
