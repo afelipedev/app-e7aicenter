@@ -870,7 +870,28 @@ export const legalKanbanService = {
       }
     }
 
-    await logActivity(cardId, actor.id, "card_updated", `Atualizou o card "${card.title}".`);
+    const statusChanged = input.status !== undefined && input.status !== currentCard.status;
+    const priorityChanged = input.priority !== undefined && input.priority !== currentCard.priority;
+
+    if (statusChanged) {
+      await logActivity(
+        cardId,
+        actor.id,
+        "status_changed",
+        `Alterou o status para "${input.status}".`,
+        { status: input.status },
+      );
+    } else if (priorityChanged) {
+      await logActivity(
+        cardId,
+        actor.id,
+        "priority_changed",
+        `Alterou a prioridade para "${input.priority}".`,
+        { priority: input.priority },
+      );
+    } else {
+      await logActivity(cardId, actor.id, "card_updated", `Atualizou o card "${card.title}".`);
+    }
     return card;
   },
 

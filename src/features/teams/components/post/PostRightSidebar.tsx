@@ -44,6 +44,7 @@ import type { PostAttachment } from "../../types";
 import { CreateCardFromPostDialog } from "./CreateCardFromPostDialog";
 import { legalKanbanService } from "@/features/legal-kanban/services/legalKanbanService";
 import { MentionHighlightedText } from "../MentionHighlightedText";
+import { linkedActivityService } from "../../services/linkedActivityService";
 import {
   collectMentionUserIdsFromText,
   extractMentionQuery,
@@ -63,13 +64,6 @@ interface KanbanComment {
   author_user_id: string | null;
   author: { name: string | null; avatar_url: string | null } | null;
   mentions?: Array<{ user: { name: string | null } | null }>;
-}
-
-interface KanbanActivity {
-  id: string;
-  activity_type: string;
-  message: string | null;
-  created_at: string;
 }
 
 function initials(name?: string | null) {
@@ -120,13 +114,10 @@ export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
         .select("id, title, status, priority, due_date, column_id, board_id, card_number")
         .eq("id", cardId).maybeSingle();
       if (!card) return null;
-      const [{ data: column }, { data: board }, { data: activities }, { data: comments }] =
+      const [{ data: column }, { data: board }, { data: comments }] =
         await Promise.all([
           supabase.from("legal_kanban_columns").select("id, title").eq("id", card.column_id).maybeSingle(),
           supabase.from("legal_kanban_boards").select("id, title, slug").eq("id", card.board_id).maybeSingle(),
-          supabase.from("legal_kanban_activities")
-            .select("id, activity_type, message, created_at")
-            .eq("card_id", card.id).order("created_at", { ascending: false }).limit(8),
           supabase.from("legal_kanban_comments")
             .select(`
               id, content, created_at, author_user_id,
@@ -139,13 +130,17 @@ export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
         card,
         column,
         board,
-        activities: (activities ?? []) as KanbanActivity[],
         comments: (comments ?? []) as unknown as KanbanComment[],
       };
     },
     enabled: !!cardId,
   });
   const cardLinked = !!cardId && !!cardData?.card;
+
+  const { data: recentActivities = [] } = useQuery({
+    queryKey: ["teams", "linked-activities", postId, cardId ?? "none"],
+    queryFn: () => linkedActivityService.listForPostAndCard(postId, cardId),
+  });
 
   const { data: attachments = [] } = useQuery<PostAttachment[]>({
     queryKey: ["teams", "post-attachments", postId],
@@ -163,6 +158,10 @@ export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
     else toast.error("Não foi possível abrir o anexo");
   }
 
+  const invalidateLinkedActivities = () => {
+    qc.invalidateQueries({ queryKey: ["teams", "linked-activities", postId] });
+  };
+
   const uploadAttachments = useMutation({
     mutationFn: async (files: File[]) => {
       if (!channelId || !profileId) throw new Error("Não foi possível enviar o anexo");
@@ -178,6 +177,7 @@ export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
       toast.success("Anexo(s) adicionado(s)");
       qc.invalidateQueries({ queryKey: ["teams", "post-attachments", postId] });
       qc.invalidateQueries({ queryKey: teamsKeys.post(postId) });
+      invalidateLinkedActivities();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -191,6 +191,7 @@ export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
       setAttachmentToDelete(null);
       qc.invalidateQueries({ queryKey: ["teams", "post-attachments", postId] });
       qc.invalidateQueries({ queryKey: teamsKeys.post(postId) });
+      invalidateLinkedActivities();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -260,35 +261,54 @@ export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
     return cardMentionCandidates.filter((member) => member.name.toLowerCase().includes(query)).slice(0, 6);
   }, [cardMentionCandidates, commentMentionSearch]);
 
-  // Realtime: atualiza atividades, comentários e card quando há mudanças no card vinculado
+  // Realtime: atividades (post + card), comentários e dados do card vinculado
   useEffect(() => {
-    if (!cardId) return;
-    const channel = supabase
-      .channel(`kanban-card-mirror:${cardId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "legal_kanban_activities", filter: `card_id=eq.${cardId}` },
-        () => qc.invalidateQueries({ queryKey: ["teams", "kanban-card", cardId] }),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "legal_kanban_comments", filter: `card_id=eq.${cardId}` },
-        () => qc.invalidateQueries({ queryKey: ["teams", "kanban-card", cardId] }),
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "legal_kanban_cards", filter: `id=eq.${cardId}` },
-        () => qc.invalidateQueries({ queryKey: ["teams", "kanban-card", cardId] }),
-      )
-      .subscribe();
+    const channelName = `teams-post-sidebar:${postId}:${cardId ?? "no-card"}`;
+    let channel = supabase.channel(channelName);
+
+    channel = channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "post_activities", filter: `post_id=eq.${postId}` },
+      invalidateLinkedActivities,
+    );
+    channel = channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "post_attachments", filter: `post_id=eq.${postId}` },
+      () => {
+        invalidateLinkedActivities();
+        qc.invalidateQueries({ queryKey: ["teams", "post-attachments", postId] });
+      },
+    );
+
+    if (cardId) {
+      channel = channel
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "legal_kanban_activities", filter: `card_id=eq.${cardId}` },
+          invalidateLinkedActivities,
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "legal_kanban_comments", filter: `card_id=eq.${cardId}` },
+          () => qc.invalidateQueries({ queryKey: ["teams", "kanban-card", cardId] }),
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "legal_kanban_cards", filter: `id=eq.${cardId}` },
+          () => qc.invalidateQueries({ queryKey: ["teams", "kanban-card", cardId] }),
+        );
+    }
+
+    channel.subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [cardId, qc]);
+  }, [cardId, postId, qc]);
 
   const unlink = useMutation({
     mutationFn: () => kanbanBridgeService.unlink(postId),
     onSuccess: () => {
       toast.success("Card desvinculado");
       qc.invalidateQueries({ queryKey: ["teams", "kanban-link", postId] });
+      invalidateLinkedActivities();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -307,6 +327,7 @@ export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
       setCommentMentionSearch(null);
       qc.invalidateQueries({ queryKey: ["teams", "kanban-card", cardId] });
       qc.invalidateQueries({ queryKey: ["teams", "messages", postId] });
+      invalidateLinkedActivities();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -494,19 +515,15 @@ export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
           <Activity className="h-3.5 w-3.5" />
           Atividades recentes
         </h3>
-        {!cardLinked ? (
-          <p className="text-xs text-muted-foreground">
-            Vincule ou crie um card para ver as atividades.
-          </p>
-        ) : cardData!.activities.length === 0 ? (
+        {recentActivities.length === 0 ? (
           <p className="text-xs text-muted-foreground">Sem atividades ainda.</p>
         ) : (
           <ul className="space-y-2.5">
-            {cardData!.activities.map((a) => (
-              <li key={a.id} className="flex gap-2 text-xs">
+            {recentActivities.map((a) => (
+              <li key={`${a.source}-${a.id}`} className="flex gap-2 text-xs">
                 <div className="mt-1 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-foreground/90">{a.message ?? a.activity_type}</p>
+                  <p className="text-foreground/90">{a.message}</p>
                   <p className="text-muted-foreground mt-0.5">{relativeTime(a.created_at)}</p>
                 </div>
               </li>
@@ -644,6 +661,7 @@ export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
         open={createCardOpen}
         onOpenChange={setCreateCardOpen}
         postId={postId}
+        onCreated={invalidateLinkedActivities}
       />
 
       <AlertDialog

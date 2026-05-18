@@ -156,6 +156,7 @@ async function actionCreateCardFromPost(ctx: BridgeCtx, payload: Record<string, 
     post_id,
     actor_user_id: ctx.profileId,
     activity_type: "card_linked",
+    message: "Card vinculado à postagem.",
     metadata: { card_id: card.id, board_id, column_id, source_event_id: event_id },
     source_event_id: event_id,
   });
@@ -203,6 +204,7 @@ async function actionUnlink(ctx: BridgeCtx, payload: Record<string, unknown>) {
     post_id,
     actor_user_id: ctx.profileId,
     activity_type: "card_unlinked",
+    message: "Card desvinculado da postagem.",
     metadata: { card_id: link.card_id },
   });
   await auditSafe(admin, ctx.profileId, "teams.post.unlinked_from_card", {
@@ -250,14 +252,6 @@ async function actionMirrorComment(ctx: BridgeCtx, payload: Record<string, unkno
         .eq("id", source_message_id);
     }
 
-    const post_id = typeof payload?.post_id === "string" ? payload.post_id : undefined;
-    await admin.from("legal_kanban_activities").insert({
-      card_id,
-      actor_user_id: ctx.profileId,
-      activity_type: "comment_mirrored_from_post",
-      message: "Comentário espelhado a partir do Teams.",
-      metadata: { source_event_id: event_id, post_id, source_message_id },
-    });
     return { mirrored: data };
   }
 
@@ -291,13 +285,6 @@ async function actionMirrorComment(ctx: BridgeCtx, payload: Record<string, unkno
         .eq("id", source_comment_id);
     }
 
-    const card_id = typeof payload?.card_id === "string" ? payload.card_id : undefined;
-    await admin.from("post_activities").insert({
-      post_id,
-      actor_user_id: ctx.profileId,
-      activity_type: "comment_mirrored_from_card",
-      metadata: { source_event_id: event_id, card_id, source_comment_id },
-    });
     return { mirrored: data };
   }
 
