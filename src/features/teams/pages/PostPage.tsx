@@ -85,7 +85,11 @@ export default function PostPage() {
       if (!profileId) throw new Error("Sem perfil");
       return postService.toggleFavorite(postId!, profileId);
     },
-    onSuccess: () => toast.success("Favorito atualizado"),
+    onSuccess: (favorited) => {
+      toast.success(favorited ? "Adicionada aos favoritos" : "Removida dos favoritos");
+      qc.invalidateQueries({ queryKey: teamsKeys.favorites() });
+      if (post?.channel_id) qc.invalidateQueries({ queryKey: teamsKeys.posts(post.channel_id) });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { messageService } from "../../services/messageService";
+import { kanbanBridgeService } from "../../services/kanbanBridgeService";
 import { teamsKeys } from "../../hooks/useTeamsTree";
 
 interface MessageComposerProps {
@@ -23,11 +24,30 @@ export function MessageComposer({ postId }: MessageComposerProps) {
         type: "doc",
         content: [{ type: "paragraph", content: [{ type: "text", text: trimmed }] }],
       };
-      return messageService.sendMessage({ post_id: postId, content_json: doc });
+      const message = await messageService.sendMessage({ post_id: postId, content_json: doc });
+
+      // Espelha para o card vinculado, se houver
+      try {
+        const link = await kanbanBridgeService.getLinkForPost(postId);
+        if (link?.card_id) {
+          await kanbanBridgeService.mirrorComment({
+            direction: "post_to_card",
+            post_id: postId,
+            card_id: link.card_id,
+            content_text: trimmed,
+            content_json: doc,
+          });
+        }
+      } catch (e) {
+        // mirror não bloqueia o envio principal
+        console.warn("Mirror post→card falhou:", (e as Error).message);
+      }
+      return message;
     },
     onSuccess: () => {
       setText("");
       qc.invalidateQueries({ queryKey: teamsKeys.messages(postId) });
+      qc.invalidateQueries({ queryKey: ["teams", "kanban-card"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });

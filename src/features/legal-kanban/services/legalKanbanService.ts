@@ -1125,6 +1125,30 @@ export const legalKanbanService = {
       .eq("id", comment.id)
       .single();
 
+    // Espelha para a postagem vinculada (Teams), se houver
+    try {
+      const { data: link } = await db
+        .from("post_kanban_links")
+        .select("post_id")
+        .eq("card_id", cardId)
+        .maybeSingle();
+      if (link?.post_id) {
+        await supabase.functions.invoke("teams-kanban-bridge", {
+          body: {
+            action: "mirror_comment",
+            payload: {
+              direction: "card_to_post",
+              post_id: link.post_id,
+              card_id: cardId,
+              content_text: content,
+            },
+          },
+        });
+      }
+    } catch (e) {
+      console.warn("Mirror card→post falhou:", (e as Error).message);
+    }
+
     return mapComment(ensureData(detailsResponse, "Não foi possível carregar o comentário."));
   },
 
