@@ -1,5 +1,6 @@
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Bell, Settings, User, LogOut, Loader2 } from "lucide-react";
+import { Settings, User, LogOut, Loader2 } from "lucide-react";
+import { NotificationsBell } from "@/features/teams/components/NotificationsBell";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -54,10 +55,7 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-ai-orange rounded-full"></span>
-        </Button>
+        <NotificationsBell />
 
         <Button variant="ghost" size="icon">
           <Settings className="w-5 h-5" />

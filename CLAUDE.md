@@ -85,6 +85,7 @@ docs/               # Implementation notes, API docs (e.g. Judit)
 | `leads/` | Leads CRUD, templates, CSV, forms, N8N messaging |
 | `legal-kanban/` | Legal board, TipTap, dedicated service |
 | `processes/` | Process queries, case details, Judit adapters/services |
+| `teams/` | Equipes & Canais (Slack/Teams-like). Postagens com replies a 1 nível, reações, menções, favoritos, busca full-text PT-BR. Sidebar dinâmica (`TeamsTreeSidebar`). Edge Functions: `teams-admin-mutate`, `teams-kanban-bridge`. Reusa `LegalKanbanRichTextEditor`. Sync bidirecional com Kanban via `post_kanban_links` + `sync_event_ledger`. Migration `20260518030000_create_teams_module.sql`. |
 
 New features: prefer `components/`, `hooks/`, `pages/`, `services/`, `types.ts`, `utils/`.
 
@@ -155,6 +156,7 @@ Keep these in sync:
 - **Payroll detail:** `/payroll/processing/:processingId`
 - **Integrations:** `/integrations/powerbi`, `/integrations/calendar`
 - **Leads:** `/leads`, `/leads/templates`
+- **Teams:** `/teams`, `/teams/favorites`, `/teams/:teamSlug/:channelSlug`, `/teams/:teamSlug/:channelSlug/:postId`; admin: `/admin/teams`, `/admin/teams/:teamId` (`requiredPermission="admin"`)
 - **Companies:** `/companies` (`companies` permission), `/companies/:companyId/payrolls`
 - **Admin:** `/admin`, `/admin/users` (`admin` permission)
 - **Dev/QA:** `/test`, `/test/payroll-workflow`

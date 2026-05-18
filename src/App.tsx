@@ -35,6 +35,12 @@ import { TestPage } from "./pages/TestPage";
 import { TestPayrollWorkflow } from "./pages/TestPayrollWorkflow";
 import Leads from "./pages/leads/Leads";
 import LeadTemplates from "./pages/leads/Templates";
+import TeamsHomePage from "./features/teams/pages/TeamsHomePage";
+import ChannelPage from "./features/teams/pages/ChannelPage";
+import PostPage from "./features/teams/pages/PostPage";
+import FavoritesPage from "./features/teams/pages/FavoritesPage";
+import TeamsAdminPage from "./features/teams/pages/admin/TeamsAdminPage";
+import TeamDetailAdminPage from "./features/teams/pages/admin/TeamDetailAdminPage";
 
 // Configuração do QueryClient com cache otimizado
 const queryClient = new QueryClient({
@@ -133,7 +139,23 @@ const App = () => (
                   <Users />
                 </ProtectedRoute>
               } />
-              
+
+              {/* Teams */}
+              <Route path="/teams" element={<TeamsHomePage />} />
+              <Route path="/teams/favorites" element={<FavoritesPage />} />
+              <Route path="/teams/:teamSlug/:channelSlug" element={<ChannelPage />} />
+              <Route path="/teams/:teamSlug/:channelSlug/:postId" element={<PostPage />} />
+              <Route path="/admin/teams" element={
+                <ProtectedRoute requiredPermission="admin">
+                  <TeamsAdminPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/teams/:teamId" element={
+                <ProtectedRoute requiredPermission="admin">
+                  <TeamDetailAdminPage />
+                </ProtectedRoute>
+              } />
+
               {/* Test pages - accessible to all authenticated users */}
               <Route path="/test" element={<TestPage />} />
               <Route path="/test/payroll-workflow" element={<TestPayrollWorkflow />} />

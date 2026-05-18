@@ -1,55 +1,124 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. For a full product and route reference (Portuguese), see **[docs/Documentacao-PRJ.md](docs/Documentacao-PRJ.md)** and the onboarding **[README.md](README.md)**.
+
+---
 
 ## Build & Development Commands
 
 ```bash
-npm run dev       # Start dev server on port 8081
+npm install       # Install dependencies
+npm run dev       # Start Vite dev server on port 8081 (host ::)
 npm run build     # Production build
-npm run build:dev # Development build with source maps
+npm run build:dev # Development build (see Vite mode / source maps)
 npm run lint      # Run ESLint
-npm run preview   # Preview production build
+npm run preview   # Preview production build locally
 ```
+
+---
 
 ## Architecture Overview
 
-**E7AI Center** is a React application for law firms and accounting offices, providing AI assistants and document management with a focus on automated payroll (holerite) processing.
+**E7AI Center** is a **React SPA** (Vite) for **law firms and accounting offices**. It provides:
 
-### Tech Stack
-- **Frontend**: React 18 + TypeScript + Vite
-- **UI**: shadcn/ui (Radix primitives) + Tailwind CSS
-- **State**: React Context (auth) + TanStack React Query (data fetching)
-- **Backend**: Supabase (PostgreSQL + Auth + Realtime + Edge Functions)
-- **Forms**: React Hook Form + Zod validation
+- **LLM assistants** (tax, civil, financial, accounting, general) via Supabase Edge Function `chat-completion`.
+- **AI library agents** orchestrated with **N8N** webhooks (50+ agents, **11 themes** in [aiAgents.ts](src/config/aiAgents.ts)).
+- **Document management**: payroll (holerite), **SPED**, reports, payroll processing detail pages.
+- **Litigation workflows**: process queries and case details (**Judit** integration in [src/features/processes/](src/features/processes/)), **legal kanban** ([src/features/legal-kanban/](src/features/legal-kanban/)).
+- **Leads CRM** ([src/features/leads/](src/features/leads/)): CRUD, templates, CSV import/export, N8N messaging where applicable.
+- **Admin**: users and client companies with **RBAC**.
+- **UI integrations**: Power BI, calendar ([App.tsx](src/App.tsx) routes under `/integrations/*`).
+
+**Backend:** Supabase (PostgreSQL, Auth, Realtime, Storage, Edge Functions). **External:** N8N webhooks, Judit (processes/consumption), LLM providers configured on Edge Functions.
+
+---
+
+## Tech Stack
+
+| Layer | Technologies |
+|-------|----------------|
+| Build | **Vite 5**, `@vitejs/plugin-react-swc` |
+| UI | **React 18**, **TypeScript**, **react-router-dom** v6 |
+| Styling | **Tailwind CSS 3**, **tailwindcss-animate**, `@tailwindcss/typography` |
+| Components | **shadcn/ui** (Radix primitives) |
+| Server state | **TanStack React Query** v5 (stale 5m, gc 10m, retries w/ exponential backoff max 30s) |
+| Forms | **react-hook-form**, **Zod**, `@hookform/resolvers` |
+| Rich text / UX | **TipTap**, **@dnd-kit**, **recharts**, **@tanstack/react-virtual** |
+| Theming / toasts | **next-themes**, **sonner**, shadcn toaster |
+| Login UI | `@supabase/auth-ui-react` |
+| Client | `@supabase/supabase-js` |
 
 ### Path Aliases
+
 - `@/*` → `src/*`
-- `~shared/*` → `shared/*`
+- `~shared/*` → `shared/*` (shared types: payroll, company, sped)
 
-## Key Architectural Patterns
+### TypeScript
 
-### Authentication & RBAC
-Auth is managed via `AuthContext` ([src/contexts/AuthContext.tsx](src/contexts/AuthContext.tsx)). Role-based permissions:
+Relaxed strictness on purpose: `noImplicitAny: false`, `strictNullChecks: false` (see `tsconfig.json`). Do not assume full strict mode when refactoring.
 
-| Role | Permissions |
-|------|-------------|
-| `administrator`, `it`, `advogado_adm` | Full access (`all`) |
+---
+
+## Repository Layout (high level)
+
+```text
+src/
+  App.tsx           # Routes + QueryClientProvider
+  components/       # Shared UI, layout, payroll, assistants, ...
+  config/           # aiAgents.ts (N8N agents/themes)
+  contexts/         # AuthContext, ...
+  features/         # Domain modules (see below)
+  hooks/
+  lib/              # Supabase client, helpers
+  pages/            # Route-level pages
+  services/         # Supabase + integrations (timeout pattern)
+shared/types/
+supabase/functions/ # Edge Functions (Deno)
+supabase/migrations/
+docs/               # Implementation notes, API docs (e.g. Judit)
+```
+
+### Feature modules (`src/features/`)
+
+| Folder | Responsibility |
+|--------|----------------|
+| `leads/` | Leads CRUD, templates, CSV, forms, N8N messaging |
+| `legal-kanban/` | Legal board, TipTap, dedicated service |
+| `processes/` | Process queries, case details, Judit adapters/services |
+
+New features: prefer `components/`, `hooks/`, `pages/`, `services/`, `types.ts`, `utils/`.
+
+---
+
+## Authentication & RBAC
+
+Auth: [AuthContext.tsx](src/contexts/AuthContext.tsx), `useAuth()`, **`hasPermission(permission)`**. Routes: [ProtectedRoute](src/components/ProtectedRoute.tsx) with `requiredPermission`.
+
+| Role | Typical permissions |
+|------|---------------------|
+| `administrator`, `it`, `advogado_adm` | `admin`, `users`, `companies`, `modules`, `all` |
 | `advogado` | `modules`, `companies` |
 | `contabil` | `modules`, `companies`, `view_companies`, `add_companies` |
-| `financeiro` | `modules` only |
+| `financeiro` | `modules` |
 
-Use `hasPermission(permission)` from `useAuth()` hook. Routes are protected via `ProtectedRoute` component with `requiredPermission` prop.
+**Rules:** user `status` must be **`ativo`**; **first access** forces password change (`FirstAccessGuard` / [firstAccessService.ts](src/services/firstAccessService.ts)); **session** ends after **30 minutes** of inactivity.
 
-### Service Layer Pattern
-All database operations go through static service classes in `src/services/`:
-- `ChatService` - Chat CRUD and management
-- `CompanyService` - Company operations
-- `PayrollService` - Payroll file processing
-- `UserService` - User management
-- `N8NAgentService` - AI agent webhook calls
+---
 
-Services use a timeout wrapper pattern:
+## Service Layer
+
+Database and integrations go through modules in **`src/services/`** (often with a **timeout** wrapper):
+
+- [chatService.ts](src/services/chatService.ts) — chats, `LLMModel`
+- [companyService.ts](src/services/companyService.ts)
+- [payrollService.ts](src/services/payrollService.ts)
+- [spedService.ts](src/services/spedService.ts)
+- [userService.ts](src/services/userService.ts), [firstAccessService.ts](src/services/firstAccessService.ts), [userSyncService.ts](src/services/userSyncService.ts)
+- [n8nAgentService.ts](src/services/n8nAgentService.ts) — N8N webhooks
+- [llmService.ts](src/services/llmService.ts)
+
+Example pattern:
+
 ```typescript
 const { data, error } = await withTimeout(
   supabase.from('table').select('*'),
@@ -57,50 +126,85 @@ const { data, error } = await withTimeout(
 );
 ```
 
-### Two AI Chat Systems
+---
 
-1. **Standard Chats** (5 types): Use Supabase Edge Function `chat-completion` with selectable LLM models (GPT-4, GPT-5.2, Gemini, Claude). Located at `src/pages/assistants/` - `ChatGeneral`, `TaxLaw`, `CivilLaw`, `Financial`, `Accounting`.
+## Two AI Product Lines
 
-2. **AI Library Agents**: Use N8N webhooks via `n8nAgentService.ts`. Configured in `src/config/aiAgents.ts` (50+ agents across 11 themes). Accessed via `AgentChat.tsx`.
+1. **Standard chats (5 entry points):** Edge Function **`chat-completion`**, selectable models per chat. Pages: [src/pages/assistants/](src/pages/assistants/) — `ChatGeneral`, `TaxLaw`, `CivilLaw`, `Financial`, `Accounting`.
 
-### Adding/Modifying LLM Models
-When adding a new LLM model, update:
-1. `src/services/chatService.ts` - Add to `LLMModel` type
-2. `src/components/assistants/ModelSelector.tsx` - Add to `MODEL_INFO`
-3. Supabase migration - Update `chats.llm_model` CHECK constraint
-4. `supabase/functions/chat-completion/index.ts` - Add routing/mapping
+2. **AI library (N8N):** [n8nAgentService.ts](src/services/n8nAgentService.ts) + [aiAgents.ts](src/config/aiAgents.ts). UI: library pages and [AgentChat](src/pages/assistants/AgentChat.tsx). Not the same persistence/model flow as Supabase chats.
 
-### Realtime Subscriptions
-Chats use Supabase realtime for live updates. The `useChatHistory` hook manages subscriptions and message deduplication.
+### Adding or Changing LLM Models
 
-### React Query Configuration
-- Stale time: 5 minutes
-- GC time: 10 minutes
-- Retry: 3 attempts with exponential backoff (max 30s)
+Keep these in sync:
 
-## Database Schema (Supabase)
+1. [chatService.ts](src/services/chatService.ts) — `LLMModel` type
+2. [ModelSelector.tsx](src/components/assistants/ModelSelector.tsx) — `MODEL_INFO`
+3. Supabase migration — `chats.llm_model` CHECK constraint
+4. [supabase/functions/chat-completion/index.ts](supabase/functions/chat-completion/index.ts) — routing/mapping
 
-Key tables with RLS enabled:
-- `users` - User profiles linked to `auth.users`, includes `role` and `status`
-- `companies` - Client companies with CNPJ validation
-- `chats` / `chat_messages` - Chat system with `llm_model` per chat
-- `payroll_files` / `payroll_processing` - Payroll document processing
-- `processing_logs` - Audit trail for payroll processing
+---
+
+## Routing (source of truth: [App.tsx](src/App.tsx))
+
+- `/login` — public (Supabase Auth UI)
+- `/` — dashboard (protected, `AppLayout`)
+- **Assistants:** `/assistants/chat`, `/assistants/tax`, `/assistants/civil`, `/assistants/financial`, `/assistants/accounting`
+- **Library:** `/assistants/library`, `/assistants/library/:themeId`, `/assistants/library/agent/:agentId`
+- **Documents:** `/documents/payroll`, `/documents/sped`, `/documents/cases`, `/documents/cases/kanban`, `/documents/cases/queries`, `/documents/cases/:caseId`, `/documents/reports`
+- **Payroll detail:** `/payroll/processing/:processingId`
+- **Integrations:** `/integrations/powerbi`, `/integrations/calendar`
+- **Leads:** `/leads`, `/leads/templates`
+- **Companies:** `/companies` (`companies` permission), `/companies/:companyId/payrolls`
+- **Admin:** `/admin`, `/admin/users` (`admin` permission)
+- **Dev/QA:** `/test`, `/test/payroll-workflow`
+- `*` — `NotFound`
+
+---
+
+## Realtime & React Query
+
+- Chats may use **Supabase Realtime**; [useChatHistory](src/hooks/useChatHistory.ts) (or equivalent) handles subscriptions and message deduplication.
+- **QueryClient** defaults in `App.tsx`: stale 5m, gc 10m, refetch on focus/reconnect, retry 3 with exponential backoff.
+
+---
+
+## Supabase
+
+### Edge Functions (`supabase/functions/`)
+
+| Function | Purpose |
+|----------|---------|
+| `chat-completion` | Multi-provider chat completions |
+| `download-file` | File download handling |
+| `admin-create-user`, `admin-update-user-password` | Admin user operations |
+| `judit-processes`, `judit-process-agent`, `judit-consumption-report` | Judit integration |
+
+Judit API details: **`docs/api-judit-docs/`** when needed.
+
+### Key Tables & Domains (non-exhaustive, RLS)
+
+`users`, `companies`, `chats`, `chat_messages`, `payroll_files`, `payroll_processing`, `processing_logs`, **leads**, **legal kanban**, **Judit/process** tables, **SPED**, first-access/audit. Schema changes: **always** versioned migrations under `supabase/migrations/` with coherent RLS.
+
+---
 
 ## Environment Variables
+
+**Vite (`.env`, never commit secrets):**
 
 ```bash
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
-VITE_N8N_WEBHOOK_DINAMICO=...  # Dynamic agent webhook
+VITE_N8N_WEBHOOK_DINAMICO=...  # Dynamic N8N webhook for agents
 ```
 
-Edge Functions require: `OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`
+**Edge Functions** (Supabase project secrets): `OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, plus integration secrets (e.g. Judit) per function.
 
-## Important Conventions
+---
 
-- User status must be `ativo` to access the app
-- First-time users must change password via `FirstAccessGuard` modal
-- Session timeout: 30 minutes of inactivity
-- All API calls should use the timeout wrapper utilities
-- File uploads for payroll go through N8N webhooks for processing
+## Conventions
+
+- Prefer **timeout wrappers** on API/Supabase calls where the codebase already does.
+- Payroll file processing often flows through **N8N** webhooks (confirm current path in services/pages before changing).
+- **UI copy and domain language** are primarily **Portuguese (Brazil)**.
+- For deep dives (routes tables, RBAC verbatim, history of features), use **`docs/Documentacao-PRJ.md`** and dated notes under **`docs/`**.
