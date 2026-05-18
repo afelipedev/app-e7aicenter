@@ -43,6 +43,7 @@ import { useCurrentProfileId } from "../../hooks/useCurrentProfileId";
 import type { PostAttachment } from "../../types";
 import { CreateCardFromPostDialog } from "./CreateCardFromPostDialog";
 import { legalKanbanService } from "@/features/legal-kanban/services/legalKanbanService";
+import { MentionHighlightedText } from "../MentionHighlightedText";
 import {
   collectMentionUserIdsFromText,
   extractMentionQuery,
@@ -61,6 +62,7 @@ interface KanbanComment {
   created_at: string;
   author_user_id: string | null;
   author: { name: string | null; avatar_url: string | null } | null;
+  mentions?: Array<{ user: { name: string | null } | null }>;
 }
 
 interface KanbanActivity {
@@ -126,7 +128,11 @@ export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
             .select("id, activity_type, message, created_at")
             .eq("card_id", card.id).order("created_at", { ascending: false }).limit(8),
           supabase.from("legal_kanban_comments")
-            .select("id, content, created_at, author_user_id, author:users!legal_kanban_comments_author_user_id_fkey(name, avatar_url)")
+            .select(`
+              id, content, created_at, author_user_id,
+              author:users!legal_kanban_comments_author_user_id_fkey(name, avatar_url),
+              mentions:legal_kanban_comment_mentions(user:users(name))
+            `)
             .eq("card_id", card.id).order("created_at", { ascending: false }).limit(8),
         ]);
       return {
@@ -553,7 +559,17 @@ export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
                             </Button>
                           )}
                         </div>
-                        <p className="text-xs text-foreground/80 mt-0.5 whitespace-pre-wrap">{c.content}</p>
+                        <p className="text-xs text-foreground/80 mt-0.5 whitespace-pre-wrap">
+                          <MentionHighlightedText
+                            content={c.content}
+                            mentionNames={[
+                              ...cardMentionCandidates.map((m) => m.name),
+                              ...(c.mentions ?? [])
+                                .map((m) => m.user?.name)
+                                .filter((name): name is string => Boolean(name)),
+                            ]}
+                          />
+                        </p>
                       </div>
                     </li>
                   );

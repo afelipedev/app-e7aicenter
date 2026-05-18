@@ -290,7 +290,12 @@ export default function PostPage() {
               {msgLoading ? (
                 <div className="text-sm text-muted-foreground">Carregando…</div>
               ) : (
-                <MessageList postId={postId!} messages={messages} currentUserId={profileId ?? null} />
+                <MessageList
+                  postId={postId!}
+                  messages={messages}
+                  currentUserId={profileId ?? null}
+                  mentionNames={postMentionCandidates.map((c) => c.name)}
+                />
               )}
             </div>
             {profileId && <MessageComposer postId={postId!} mentionCandidates={postMentionCandidates} />}

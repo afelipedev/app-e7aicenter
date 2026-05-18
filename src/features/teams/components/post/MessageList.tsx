@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { messageService } from "../../services/messageService";
 import { teamsKeys } from "../../hooks/useTeamsTree";
+import { MentionHighlightedText } from "../MentionHighlightedText";
 import { groupMessagesByDay, formatRelativeTime } from "../../utils";
 import { DEFAULT_REACTIONS } from "../../constants";
 import type { PostMessageWithAuthor } from "../../types";
@@ -22,6 +23,8 @@ interface MessageListProps {
   postId: string;
   messages: PostMessageWithAuthor[];
   currentUserId: string | null;
+  /** Nomes conhecidos para destacar menções com múltiplas palavras (ex.: @Advogado Padrao). */
+  mentionNames?: string[];
 }
 
 function initials(name?: string) {
@@ -29,7 +32,7 @@ function initials(name?: string) {
   return name.split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
 }
 
-export function MessageList({ postId, messages, currentUserId }: MessageListProps) {
+export function MessageList({ postId, messages, currentUserId, mentionNames = [] }: MessageListProps) {
   const qc = useQueryClient();
   const groups = useMemo(() => groupMessagesByDay(messages), [messages]);
   const [searchParams] = useSearchParams();
@@ -115,7 +118,9 @@ export function MessageList({ postId, messages, currentUserId }: MessageListProp
                       <span className="text-xs text-muted-foreground">{formatRelativeTime(m.created_at)}</span>
                       {m.edited_at && <span className="text-xs text-muted-foreground italic">(editado)</span>}
                     </div>
-                    <p className="text-sm whitespace-pre-wrap break-words">{m.content_text}</p>
+                    <p className="text-sm whitespace-pre-wrap break-words">
+                      <MentionHighlightedText content={m.content_text} mentionNames={mentionNames} />
+                    </p>
                     {reactionCounts.size > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {Array.from(reactionCounts.entries()).map(([emoji, count]) => (
