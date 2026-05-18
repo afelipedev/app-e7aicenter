@@ -14,9 +14,6 @@ import {
   Users,
   ChevronDown,
   BookOpen,
-  DatabaseZap,
-  History,
-  Bell,
 } from "lucide-react";
 import {
   Sidebar,
@@ -88,9 +85,6 @@ const menuItems: SidebarEntry[] = [
           { title: "Dashboard", url: "/documents/cases", icon: Briefcase },
           { title: "Kanban", url: "/documents/cases/kanban", icon: Trello },
           { title: "Consultas Processuais", url: "/documents/cases/queries", icon: Scale },
-          { title: "Consultas Históricas", url: "/documents/cases/history", icon: History },
-          { title: "Monitoramentos", url: "/documents/cases/monitoring", icon: Bell },
-          { title: "Consumo API", url: "/documents/cases/api-consumption", icon: DatabaseZap },
         ],
       },
       { title: "Relatórios", url: "/documents/reports", icon: BarChart3 },

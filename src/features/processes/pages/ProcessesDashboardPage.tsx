@@ -1,4 +1,4 @@
-import { ArrowRight, Bell, History, SearchCheck, Sparkles } from "lucide-react";
+import { ArrowRight, SearchCheck, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,16 +21,6 @@ export default function ProcessesDashboardPage() {
       label: "Consultas processuais",
       helper: "Busca direta por CNJ e acesso rápido ao detalhe.",
       href: processRoutes.queries,
-    },
-    {
-      label: "Consultas históricas",
-      helper: "Localização por CPF, CNPJ ou OAB com consolidação.",
-      href: processRoutes.history,
-    },
-    {
-      label: "Monitoramentos",
-      helper: "Acompanhamento ativo de processos e documentos.",
-      href: processRoutes.monitoring,
     },
   ];
 
@@ -55,8 +45,8 @@ export default function ProcessesDashboardPage() {
                   Organização, consulta e leitura processual em um fluxo mais claro e consistente.
                 </h1>
                 <p className="max-w-3xl text-sm leading-7 text-muted-foreground">
-                  Acompanhe o volume operacional, retome processos priorizados e navegue entre consultas,
-                  histórico e monitoramentos com a mesma linguagem visual aplicada na página de detalhes.
+                  Acompanhe o volume operacional, retome processos priorizados e navegue entre consultas
+                  e painel Kanban com a mesma linguagem visual aplicada na página de detalhes.
                 </p>
               </div>
 
@@ -65,8 +55,8 @@ export default function ProcessesDashboardPage() {
                   Ir para consultas
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
-                <Button variant="outline" className="rounded-full px-5" onClick={() => navigate(processRoutes.monitoring)}>
-                  Ver monitoramentos
+                <Button variant="outline" className="rounded-full px-5" onClick={() => navigate(processRoutes.kanban)}>
+                  Abrir Kanban
                 </Button>
               </div>
             </div>
@@ -112,33 +102,17 @@ export default function ProcessesDashboardPage() {
           <h2 className="text-xl font-semibold tracking-[-0.02em] text-foreground">Panorama da base consultada</h2>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-1">
           {isLoading || !data ? (
-            Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-56 w-full rounded-[24px]" />)
+            Array.from({ length: 1 }).map((_, index) => <Skeleton key={index} className="h-56 w-full rounded-[24px]" />)
           ) : (
-            <>
-              <ProcessMetricCard
-                title="Processos consultados"
-                value={data.stats.queriedProcesses}
-                helper="Base pronta para filtros, detalhamento e retomada das análises mais recentes."
-                icon={SearchCheck}
-                onViewAll={() => navigate(processRoutes.queries)}
-              />
-              <ProcessMetricCard
-                title="Consultas históricas"
-                value={data.stats.historicalQueries}
-                helper="Resultados consolidados por CPF, CNPJ e OAB com leitura unificada."
-                icon={History}
-                onViewAll={() => navigate(processRoutes.history)}
-              />
-              <ProcessMetricCard
-                title="Monitoramentos"
-                value={data.stats.monitorings}
-                helper="Processos e documentos acompanhados continuamente pela operação."
-                icon={Bell}
-                onViewAll={() => navigate(processRoutes.monitoring)}
-              />
-            </>
+            <ProcessMetricCard
+              title="Processos consultados"
+              value={data.stats.queriedProcesses}
+              helper="Base pronta para filtros, detalhamento e retomada das análises mais recentes."
+              icon={SearchCheck}
+              onViewAll={() => navigate(processRoutes.queries)}
+            />
           )}
         </div>
       </section>
