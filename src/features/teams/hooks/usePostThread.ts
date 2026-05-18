@@ -7,12 +7,33 @@ import type { PostMessageWithAuthor } from "../types";
 import { teamsKeys } from "./useTeamsTree";
 
 export function usePost(postId: string | undefined) {
-  return useQuery({
+  const qc = useQueryClient();
+  const query = useQuery({
     queryKey: teamsKeys.post(postId ?? ""),
     queryFn: () => postService.getById(postId!),
     enabled: !!postId,
     staleTime: 30_000,
   });
+
+  useEffect(() => {
+    if (!postId) return;
+    const channel = supabase
+      .channel(`post-row:${postId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "posts", filter: `id=eq.${postId}` },
+        () => qc.invalidateQueries({ queryKey: teamsKeys.post(postId) }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "post_attachments", filter: `post_id=eq.${postId}` },
+        () => qc.invalidateQueries({ queryKey: teamsKeys.post(postId) }),
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [postId, qc]);
+
+  return query;
 }
 
 export function usePostMessages(postId: string | undefined) {

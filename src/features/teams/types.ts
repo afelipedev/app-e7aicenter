@@ -65,10 +65,24 @@ export interface Post {
   deleted_at: string | null;
 }
 
+export interface PostAttachment {
+  id: string;
+  post_id: string;
+  uploaded_by_user_id: string | null;
+  kind: "image" | "file" | "link";
+  name: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  storage_path: string | null;
+  url: string | null;
+  created_at: string;
+}
+
 export interface PostWithAuthor extends Post {
-  author?: { id: string; name: string; email: string };
+  author?: { id: string; name: string; email: string; avatar_url?: string | null };
   reply_count?: number;
   is_favorited?: boolean;
+  attachments?: PostAttachment[];
 }
 
 export interface PostMessage {
@@ -83,7 +97,7 @@ export interface PostMessage {
 }
 
 export interface PostMessageWithAuthor extends PostMessage {
-  author?: { id: string; name: string; email: string };
+  author?: { id: string; name: string; email: string; avatar_url?: string | null };
   reactions?: MessageReaction[];
 }
 

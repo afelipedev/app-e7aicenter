@@ -45,13 +45,13 @@ export default function ChannelPage() {
       </div>
 
       <div className="mb-4">
-        <ChannelSearchBox channelId={channel?.id} />
+        <ChannelSearchBox channelId={channel?.id} teamSlug={teamSlug!} channelSlug={channelSlug!} />
       </div>
 
       {isLoading ? (
         <div className="text-sm text-muted-foreground">Carregando postagens…</div>
       ) : (
-        <PostList posts={posts} teamSlug={teamSlug!} channelSlug={channelSlug!} />
+        <PostList posts={posts} teamSlug={teamSlug!} channelSlug={channelSlug!} channelId={channel?.id} />
       )}
 
       {channel?.id && profileId && (

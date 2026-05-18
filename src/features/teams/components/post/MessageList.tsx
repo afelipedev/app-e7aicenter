@@ -1,10 +1,12 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Smile, Star, Trash2 } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { messageService } from "../../services/messageService";
 import { teamsKeys } from "../../hooks/useTeamsTree";
 import { groupMessagesByDay, formatRelativeTime } from "../../utils";
@@ -30,6 +32,15 @@ function initials(name?: string) {
 export function MessageList({ postId, messages, currentUserId }: MessageListProps) {
   const qc = useQueryClient();
   const groups = useMemo(() => groupMessagesByDay(messages), [messages]);
+  const [searchParams] = useSearchParams();
+  const highlightId = searchParams.get("messageId");
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (highlightId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightId, messages.length]);
 
   const reactMutation = useMutation({
     mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) => {
@@ -80,9 +91,18 @@ export function MessageList({ postId, messages, currentUserId }: MessageListProp
                 reactionCounts.set(r.emoji, (reactionCounts.get(r.emoji) ?? 0) + 1);
                 if (r.user_id === currentUserId) reactedByMe.add(r.emoji);
               }
+              const isHighlight = highlightId === m.id;
               return (
-                <div key={m.id} className="flex gap-3 group">
+                <div
+                  key={m.id}
+                  ref={isHighlight ? highlightRef : undefined}
+                  className={cn(
+                    "flex gap-3 group rounded-md p-1 -m-1 transition-colors",
+                    isHighlight && "bg-yellow-500/10 ring-1 ring-yellow-500/40",
+                  )}
+                >
                   <Avatar className="h-8 w-8 mt-0.5">
+                    {m.author?.avatar_url && <AvatarImage src={m.author.avatar_url} alt={m.author?.name ?? ""} />}
                     <AvatarFallback>{initials(m.author?.name)}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">

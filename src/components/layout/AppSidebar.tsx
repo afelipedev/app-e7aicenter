@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -17,7 +16,6 @@ import {
   BookOpen,
   UsersRound,
 } from "lucide-react";
-import { TeamsTreeSidebar } from "@/features/teams/components/sidebar/TeamsTreeSidebar";
 import {
   Sidebar,
   SidebarContent,
@@ -92,6 +90,12 @@ const menuItems: SidebarEntry[] = [
       },
       { title: "Relatórios", url: "/documents/reports", icon: BarChart3 },
     ],
+  },
+  {
+    title: "Equipes",
+    icon: UsersRound,
+    url: "/teams",
+    color: "text-ai-cyan",
   },
   {
     title: "Integrações",
@@ -211,54 +215,36 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarMenu>
             {menuItems.map((item) => (
-              <Fragment key={item.title}>
-                <SidebarMenuItem>
-                  {item.items ? (
-                    <Collapsible defaultOpen={isEntryActive(item)} className="group/collapsible">
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton className={cn("w-full", isEntryActive(item) && "bg-sidebar-accent")}>
-                          <item.icon className={`${item.color}`} />
-                          <span>{item.title}</span>
-                          <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <SidebarMenuSub>
-                          {item.items.map((subItem) => renderSubEntry(subItem))}
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  ) : (
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={item.url}
-                        className={({ isActive }) =>
-                          isActive ? "bg-sidebar-accent" : ""
-                        }
-                      >
-                        <item.icon className={item.color} />
+              <SidebarMenuItem key={item.title}>
+                {item.items ? (
+                  <Collapsible defaultOpen={isEntryActive(item)} className="group/collapsible">
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton className={cn("w-full", isEntryActive(item) && "bg-sidebar-accent")}>
+                        <item.icon className={`${item.color}`} />
                         <span>{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  )}
-                </SidebarMenuItem>
-                {item.title === "Documentos & Processos" && (
-                  <SidebarMenuItem>
-                    <Collapsible defaultOpen={location.pathname.startsWith("/teams")} className="group/collapsible">
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton className={cn("w-full", location.pathname.startsWith("/teams") && "bg-sidebar-accent")}>
-                          <UsersRound className="text-ai-cyan" />
-                          <span>Equipes</span>
-                          <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <TeamsTreeSidebar />
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </SidebarMenuItem>
+                        <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {item.items.map((subItem) => renderSubEntry(subItem))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
+                ) : (
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      className={({ isActive }) =>
+                        isActive ? "bg-sidebar-accent" : ""
+                      }
+                    >
+                      <item.icon className={item.color} />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
                 )}
-              </Fragment>
+              </SidebarMenuItem>
             ))}
           </SidebarMenu>
         </SidebarGroup>

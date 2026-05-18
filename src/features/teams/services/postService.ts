@@ -19,7 +19,9 @@ export const postService = {
     const { data, error } = await withTimeout(
       supabase
         .from("posts")
-        .select("*, author:users!posts_author_user_id_fkey(id, name, email)")
+        .select(
+          "*, author:users!posts_author_user_id_fkey(id, name, email, avatar_url), attachments:post_attachments(*), reply_count:post_messages(count)",
+        )
         .eq("channel_id", channelId)
         .is("deleted_at", null)
         .order("is_pinned", { ascending: false })
@@ -27,14 +29,25 @@ export const postService = {
         .range(offset, offset + limit - 1),
     );
     if (error) throw new Error(error.message);
-    return (data ?? []) as PostWithAuthor[];
+    return ((data ?? []) as unknown[]).map((row) => {
+      const r = row as Record<string, unknown> & {
+        reply_count?: Array<{ count: number }> | number;
+      };
+      const rc = r.reply_count;
+      return {
+        ...(r as object),
+        reply_count: Array.isArray(rc) ? (rc[0]?.count ?? 0) : (typeof rc === "number" ? rc : 0),
+      } as PostWithAuthor;
+    });
   },
 
   async getById(postId: string): Promise<PostWithAuthor | null> {
     const { data, error } = await withTimeout(
       supabase
         .from("posts")
-        .select("*, author:users!posts_author_user_id_fkey(id, name, email)")
+        .select(
+          "*, author:users!posts_author_user_id_fkey(id, name, email, avatar_url), attachments:post_attachments(*)",
+        )
         .eq("id", postId)
         .maybeSingle(),
     );
@@ -86,12 +99,12 @@ export const postService = {
     const { data, error } = await withTimeout(
       supabase
         .from("post_favorites")
-        .select("post:posts(*, author:users!posts_author_user_id_fkey(id, name, email))")
+        .select("post:posts(*, author:users!posts_author_user_id_fkey(id, name, email, avatar_url))")
         .eq("user_id", userId)
         .order("created_at", { ascending: false }),
     );
     if (error) throw new Error(error.message);
-    return ((data ?? []) as { post: PostWithAuthor | null }[])
+    return ((data ?? []) as unknown as { post: PostWithAuthor | null }[])
       .map((row) => row.post)
       .filter((p): p is PostWithAuthor => Boolean(p));
   },

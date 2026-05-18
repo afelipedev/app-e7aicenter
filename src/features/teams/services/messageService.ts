@@ -17,7 +17,7 @@ export const messageService = {
     const limit = opts?.limit ?? 100;
     let query = supabase
       .from("post_messages")
-      .select("*, author:users!post_messages_author_user_id_fkey(id, name, email)")
+      .select("*, author:users!post_messages_author_user_id_fkey(id, name, email, avatar_url)")
       .eq("post_id", postId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })

@@ -56,4 +56,22 @@ export const attachmentService = {
     if (error) return null;
     return data?.signedUrl ?? null;
   },
+
+  async listForPost(postId: string) {
+    const { data, error } = await supabase
+      .from("post_attachments")
+      .select("*")
+      .eq("post_id", postId)
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
+
+  async deleteAttachment(attachmentId: string, storagePath: string | null) {
+    if (storagePath) {
+      await supabase.storage.from(TEAMS_ATTACHMENTS_BUCKET).remove([storagePath]);
+    }
+    const { error } = await supabase.from("post_attachments").delete().eq("id", attachmentId);
+    if (error) throw new Error(error.message);
+  },
 };
