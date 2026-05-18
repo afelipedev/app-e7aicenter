@@ -30,7 +30,7 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,8 +61,9 @@ type ActiveDragState =
 
 export default function LegalKanbanPage() {
   const navigate = useNavigate();
+  const { boardSlug = "setor-juridico" } = useParams<{ boardSlug: string }>();
   const { user } = useAuth();
-  const boardQuery = useLegalKanbanBoard();
+  const boardQuery = useLegalKanbanBoard(boardSlug);
   const createCard = useCreateLegalKanbanCard();
   const moveCard = useMoveLegalKanbanCard();
   const reorderColumns = useReorderLegalKanbanColumns();
@@ -71,7 +72,7 @@ export default function LegalKanbanPage() {
   const [boardSettingsOpen, setBoardSettingsOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState<ActiveDragState>(null);
 
-  const canManageBoard = user?.role === "administrator" || user?.role === "advogado_adm";
+  const canManageBoard = ["administrator", "it", "advogado_adm"].includes(user?.role || "");
   const { filters, setFilters, filteredColumns, filteredCardsCount, totalCardsCount, resetFilters } =
     useLegalKanbanFilters(boardQuery.data, user?.id || null);
 
@@ -179,7 +180,7 @@ export default function LegalKanbanPage() {
             Fluxo jurídico compartilhado
           </p>
           <h1 className="text-2xl font-semibold tracking-[-0.03em] text-foreground sm:text-[2rem]">
-            Kanban de processos internos
+            {boardData?.board.title || "Quadro"}
           </h1>
           <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
             Priorize o acompanhamento do board, filtros e movimentação das etapas com um layout mais limpo.
@@ -191,11 +192,19 @@ export default function LegalKanbanPage() {
             Dashboard de processos
             <ArrowUpRight className="ml-2 h-4 w-4" />
           </Button>
+          <Button variant="outline" className="rounded-full px-4" onClick={() => navigate(processRoutes.quadros)}>
+            Voltar para Quadros
+          </Button>
           {boardData && canManageBoard ? (
             <LegalKanbanBoardSettingsSheet
               board={boardData}
               open={boardSettingsOpen}
               onOpenChange={setBoardSettingsOpen}
+              onSaved={(nextSlug) => {
+                if (nextSlug !== boardSlug) {
+                  navigate(processRoutes.boardDetail(nextSlug));
+                }
+              }}
             />
           ) : null}
         </div>
@@ -226,7 +235,7 @@ export default function LegalKanbanPage() {
             <div
               className="w-full min-w-0 max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-[28px] border border-border/70 bg-card/80 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.55)] [-webkit-overflow-scrolling:touch]"
               role="region"
-              aria-label="Raias do Kanban"
+              aria-label="Raias do Quadro"
             >
               <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
                 <div className="flex w-max min-h-[calc(100vh-15rem)] gap-4 p-4 md:p-5">
@@ -261,7 +270,7 @@ export default function LegalKanbanPage() {
         </>
       ) : (
         <Card className="rounded-[32px] border-border/70 bg-card/95 p-10 text-center text-muted-foreground">
-          Não foi possível carregar o board do Kanban jurídico.
+          Não foi possível carregar o quadro selecionado.
         </Card>
       )}
     </div>

@@ -22,6 +22,7 @@ import Reports from "./pages/documents/Reports";
 import ProcessQueriesPage from "./features/processes/pages/ProcessQueriesPage";
 import ProcessDetailsPage from "./features/processes/pages/ProcessDetailsPage";
 import LegalKanbanPage from "./features/legal-kanban/pages/LegalKanbanPage";
+import LegalBoardsHomePage from "./features/legal-kanban/pages/LegalBoardsHomePage";
 import PowerBI from "./pages/integrations/PowerBI";
 import CalendarIntegration from "./pages/integrations/CalendarIntegration";
 import Users from "./pages/admin/Users";
@@ -96,7 +97,8 @@ const App = () => (
               <Route path="/documents/payroll" element={<Payroll />} />
               <Route path="/documents/sped" element={<Sped />} />
               <Route path="/documents/cases" element={<Cases />} />
-              <Route path="/documents/cases/kanban" element={<LegalKanbanPage />} />
+              <Route path="/documents/cases/quadros" element={<LegalBoardsHomePage />} />
+              <Route path="/documents/cases/quadros/:boardSlug" element={<LegalKanbanPage />} />
               <Route path="/documents/cases/queries" element={<ProcessQueriesPage />} />
               <Route path="/documents/cases/:caseId" element={<ProcessDetailsPage />} />
               <Route path="/documents/reports" element={<Reports />} />

@@ -2,7 +2,8 @@ import type { DocumentSearchType, ProcessTag } from "./types";
 
 export const processRoutes = {
   dashboard: "/documents/cases",
-  kanban: "/documents/cases/kanban",
+  quadros: "/documents/cases/quadros",
+  boardDetail: (boardSlug: string) => `/documents/cases/quadros/${boardSlug}`,
   queries: "/documents/cases/queries",
   detail: (caseId: string) => `/documents/cases/${caseId}`,
 };

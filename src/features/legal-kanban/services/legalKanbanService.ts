@@ -1,6 +1,7 @@
 import { supabase, type User } from "@/lib/supabase";
 import {
-  LEGAL_KANBAN_BOARD_SLUG,
+  LEGAL_KANBAN_DEFAULT_BOARD_SLUG,
+  LEGAL_KANBAN_BOARD_COVER_BUCKET,
   LEGAL_KANBAN_INLINE_IMAGE_BUCKET,
   LEGAL_KANBAN_DEFAULT_COLUMNS,
   LEGAL_KANBAN_STORAGE_BUCKET,
@@ -27,6 +28,7 @@ import type {
   LegalKanbanLabel,
   LegalKanbanUser,
   RichTextDoc,
+  UpsertLegalKanbanBoardInput,
   UpdateLegalKanbanCardInput,
 } from "../types";
 import { buildColorFromName, normalizeRichTextDoc, reindexByHundreds, sortByPosition } from "../utils";
@@ -72,6 +74,10 @@ function mapBoard(row: any): LegalKanbanBoard {
     description: row.description,
     icon: row.icon,
     isLocked: row.is_locked,
+    coverImagePath: row.cover_image_path || null,
+    coverImageUrl: row.cover_image_url || null,
+    isFavorite: Boolean(row.is_favorite),
+    accessLevel: row.access_level || "viewer",
   };
 }
 
@@ -159,6 +165,7 @@ function mapComment(row: any): LegalKanbanComment {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     author: row.author ? mapUser(row.author) : null,
+    mentions: maybeArray(row.mentions).map((item: any) => mapUser(item.user)),
   };
 }
 
@@ -219,6 +226,45 @@ async function getCurrentPublicUser() {
   return mapUser(ensureData(response as QueryResponse<User>, "Perfil do usuário não encontrado."));
 }
 
+function normalizeBoardSlug(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+async function buildUniqueBoardSlug(baseValue: string, boardId?: string) {
+  const baseSlug = normalizeBoardSlug(baseValue);
+  if (!baseSlug) {
+    throw new Error("Informe um nome de quadro válido.");
+  }
+
+  const slugResponse = await db.from("legal_kanban_boards").select("id, slug").ilike("slug", `${baseSlug}%`);
+  const existing = maybeArray(slugResponse.data).filter((row: any) => row.id !== boardId).map((row: any) => row.slug);
+
+  if (!existing.includes(baseSlug)) {
+    return baseSlug;
+  }
+
+  let suffix = 2;
+  while (existing.includes(`${baseSlug}-${suffix}`)) {
+    suffix += 1;
+  }
+
+  return `${baseSlug}-${suffix}`;
+}
+
+function isBoardManagerRole(role: string) {
+  return ["administrator", "it", "advogado_adm"].includes(role);
+}
+
+function canForceConcludedStatus(role: string) {
+  return ["administrator", "advogado_adm"].includes(role);
+}
+
 async function logActivity(
   cardId: string,
   actorUserId: string,
@@ -249,29 +295,96 @@ async function updateRowsSequentially<T extends { id: string }>(
   }
 }
 
-async function ensureBoardExists() {
+function buildBoardMemberIds(actorId: string, inputMemberIds: string[] = []) {
+  return Array.from(new Set([actorId, ...inputMemberIds]));
+}
+
+async function syncBoardMembers(boardId: string, actorId: string, memberIds: string[]) {
+  const normalizedMemberIds = buildBoardMemberIds(actorId, memberIds);
+
+  const upsertResponse = await db.from("legal_kanban_board_members").upsert(
+    normalizedMemberIds.map((memberId) => ({
+      board_id: boardId,
+      user_id: memberId,
+      access_level: memberId === actorId ? "admin" : "editor",
+      created_by_user_id: actorId,
+    })),
+    { onConflict: "board_id,user_id" },
+  );
+
+  if (upsertResponse.error) {
+    throw new Error(upsertResponse.error.message || "Não foi possível salvar os membros do quadro.");
+  }
+
+  const currentMembersResponse = await db
+    .from("legal_kanban_board_members")
+    .select("user_id")
+    .eq("board_id", boardId);
+
+  if (currentMembersResponse.error) {
+    throw new Error(currentMembersResponse.error.message || "Não foi possível validar os membros do quadro.");
+  }
+
+  const usersToRemove = maybeArray(currentMembersResponse.data)
+    .map((row: any) => row.user_id)
+    .filter((userId: string) => !normalizedMemberIds.includes(userId));
+
+  if (usersToRemove.length > 0) {
+    const deleteResponse = await db
+      .from("legal_kanban_board_members")
+      .delete()
+      .eq("board_id", boardId)
+      .in("user_id", usersToRemove);
+
+    if (deleteResponse.error) {
+      throw new Error(deleteResponse.error.message || "Não foi possível remover membros antigos do quadro.");
+    }
+  }
+}
+
+async function ensureBoardExists(slug: string) {
+  const actor = await getCurrentPublicUser();
   const boardResponse = await db
     .from("legal_kanban_boards")
-    .select("*")
-    .eq("slug", LEGAL_KANBAN_BOARD_SLUG)
+    .select("*, legal_kanban_board_favorites!left(id,user_id), legal_kanban_board_members!left(access_level, user_id)")
+    .eq("slug", slug)
     .maybeSingle();
 
   if (boardResponse.data) {
-    return mapBoard(boardResponse.data);
+    const membership = maybeArray(boardResponse.data.legal_kanban_board_members).find((item: any) => item.user_id === actor.id);
+    const favoriteByUser = maybeArray(boardResponse.data.legal_kanban_board_favorites).some(
+      (item: any) => item.user_id === actor.id,
+    );
+    return mapBoard({
+      ...boardResponse.data,
+      is_favorite: favoriteByUser,
+      access_level: membership?.access_level || "viewer",
+    });
+  }
+
+  if (slug !== LEGAL_KANBAN_DEFAULT_BOARD_SLUG || !isBoardManagerRole(actor.role)) {
+    throw new Error("Quadro não encontrado ou sem permissão de acesso.");
   }
 
   const insertedBoard = await db
     .from("legal_kanban_boards")
     .insert({
-      slug: LEGAL_KANBAN_BOARD_SLUG,
-      title: "Kanban Jurídico",
-      description: "Board compartilhado do setor jurídico.",
+      slug: LEGAL_KANBAN_DEFAULT_BOARD_SLUG,
+      title: "Quadro Jurídico",
+      description: "Quadro compartilhado do setor jurídico.",
       icon: "briefcase",
     })
     .select("*")
     .single();
 
-  const board = mapBoard(ensureData(insertedBoard, "Não foi possível criar o board jurídico."));
+  const board = mapBoard(ensureData(insertedBoard, "Não foi possível criar o quadro inicial."));
+
+  await db.from("legal_kanban_board_members").upsert({
+    board_id: board.id,
+    user_id: actor.id,
+    access_level: "admin",
+    created_by_user_id: actor.id,
+  });
 
   await db.from("legal_kanban_columns").insert(
     LEGAL_KANBAN_DEFAULT_COLUMNS.map((column) => ({
@@ -284,24 +397,45 @@ async function ensureBoardExists() {
     })),
   );
 
-  return board;
+  return {
+    ...board,
+    accessLevel: "admin",
+  };
 }
 
-async function getBoardContext() {
-  const board = await ensureBoardExists();
+async function getBoardContext(boardSlug: string) {
+  const board = await ensureBoardExists(boardSlug);
 
   const [columnsResponse, labelsResponse, customFieldsResponse, cardsResponse, membersResponse] = await Promise.all([
     db.from("legal_kanban_columns").select("*").eq("board_id", board.id).order("position"),
-    db.from("legal_kanban_labels").select("*").eq("board_id", board.id).order("position"),
+    db.from("legal_kanban_labels").select("*").order("name", { ascending: true }),
     db.from("legal_kanban_custom_fields").select("*").eq("board_id", board.id).order("position"),
     db.from("legal_kanban_cards").select("*").eq("board_id", board.id).order("position"),
-    supabase
-      .from("users")
-      .select("*")
-      .eq("status", "ativo")
-      .in("role", ["advogado", "advogado_adm"])
-      .order("name"),
+    db
+      .from("legal_kanban_board_members")
+      .select("user_id, user:users!legal_kanban_board_members_user_id_fkey(id,name,email,role,status)")
+      .eq("board_id", board.id),
   ]);
+
+  if (columnsResponse.error) {
+    throw new Error(columnsResponse.error.message || "Não foi possível carregar as raias do quadro.");
+  }
+
+  if (labelsResponse.error) {
+    throw new Error(labelsResponse.error.message || "Não foi possível carregar as etiquetas do quadro.");
+  }
+
+  if (customFieldsResponse.error) {
+    throw new Error(customFieldsResponse.error.message || "Não foi possível carregar os campos personalizados do quadro.");
+  }
+
+  if (cardsResponse.error) {
+    throw new Error(cardsResponse.error.message || "Não foi possível carregar os cards do quadro.");
+  }
+
+  if (membersResponse.error) {
+    throw new Error(membersResponse.error.message || "Não foi possível carregar os membros do quadro.");
+  }
 
   return {
     board,
@@ -309,7 +443,10 @@ async function getBoardContext() {
     labels: maybeArray(labelsResponse.data).map(mapLabel),
     customFields: maybeArray(customFieldsResponse.data).map(mapCustomField),
     cards: maybeArray(cardsResponse.data).map(mapCardBase),
-    members: maybeArray(membersResponse.data).map(mapUser),
+    members: maybeArray(membersResponse.data)
+      .map((row: any) => row.user)
+      .filter(Boolean)
+      .map(mapUser),
   };
 }
 
@@ -407,8 +544,147 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
 }
 
 export const legalKanbanService = {
-  async getBoardData(): Promise<LegalKanbanBoardData> {
-    const context = await getBoardContext();
+  async listBoards() {
+    const actor = await getCurrentPublicUser();
+    const membershipsResponse = await db
+      .from("legal_kanban_board_members")
+      .select(
+        `
+          access_level,
+          board:legal_kanban_boards (
+            id, slug, title, description, icon, is_locked, cover_image_path, cover_image_url,
+            legal_kanban_board_favorites!left(id,user_id)
+          )
+        `,
+      )
+      .eq("user_id", actor.id);
+
+    const boards = maybeArray(membershipsResponse.data)
+      .map((row: any) =>
+        mapBoard({
+          ...(row.board || {}),
+          access_level: row.access_level,
+          is_favorite: maybeArray(row.board?.legal_kanban_board_favorites).some((item: any) => item.user_id === actor.id),
+        }),
+      )
+      .filter((board: LegalKanbanBoard) => board?.id);
+
+    return boards.sort((a: LegalKanbanBoard, b: LegalKanbanBoard) => a.title.localeCompare(b.title, "pt-BR"));
+  },
+
+  async upsertBoard(input: UpsertLegalKanbanBoardInput, boardId?: string) {
+    const actor = await getCurrentPublicUser();
+    if (!isBoardManagerRole(actor.role)) {
+      throw new Error("Você não possui permissão para criar ou configurar quadros.");
+    }
+
+    const normalizedSlug = await buildUniqueBoardSlug(input.slug || input.title, boardId);
+
+    if (boardId) {
+      const updateResponse = await db
+        .from("legal_kanban_boards")
+        .update({
+          title: input.title,
+          description: input.description || null,
+          slug: normalizedSlug,
+          cover_image_path: input.coverImagePath || null,
+          cover_image_url: input.coverImageUrl || null,
+        })
+        .eq("id", boardId)
+        .select("*")
+        .single();
+
+      const board = mapBoard(ensureData(updateResponse, "Não foi possível atualizar o quadro."));
+      await syncBoardMembers(board.id, actor.id, input.memberIds || []);
+
+      return board;
+    }
+
+    const insertResponse = await db
+      .from("legal_kanban_boards")
+      .insert({
+        title: input.title,
+        description: input.description || null,
+        slug: normalizedSlug,
+        icon: "briefcase",
+        cover_image_path: input.coverImagePath || null,
+        cover_image_url: input.coverImageUrl || null,
+      })
+      .select("*")
+      .single();
+
+    const board = mapBoard(ensureData(insertResponse, "Não foi possível criar o quadro."));
+    await syncBoardMembers(board.id, actor.id, input.memberIds || []);
+
+    await db.from("legal_kanban_columns").insert(
+      LEGAL_KANBAN_DEFAULT_COLUMNS.map((column) => ({
+        board_id: board.id,
+        title: column.title,
+        color: column.color,
+        position: column.position,
+        kind: column.kind,
+        is_default: true,
+      })),
+    );
+
+    return board;
+  },
+
+  async toggleBoardFavorite(boardId: string, isFavorite: boolean) {
+    const actor = await getCurrentPublicUser();
+    if (isFavorite) {
+      await db.from("legal_kanban_board_favorites").delete().eq("board_id", boardId).eq("user_id", actor.id);
+      return;
+    }
+
+    await db.from("legal_kanban_board_favorites").insert({
+      board_id: boardId,
+      user_id: actor.id,
+    });
+  },
+
+  async deleteBoard(boardId: string) {
+    const actor = await getCurrentPublicUser();
+    if (!isBoardManagerRole(actor.role)) {
+      throw new Error("Você não possui permissão para excluir quadros.");
+    }
+
+    const response = await db.from("legal_kanban_boards").delete().eq("id", boardId);
+    if (response.error) {
+      throw new Error(response.error.message || "Não foi possível excluir o quadro.");
+    }
+  },
+
+  async uploadBoardCover(boardId: string, file: File) {
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+    const filePath = `${boardId}/${Date.now()}-${safeName}`;
+    const uploadResponse = await supabase.storage
+      .from(LEGAL_KANBAN_BOARD_COVER_BUCKET)
+      .upload(filePath, file, { upsert: true });
+
+    if (uploadResponse.error) {
+      throw new Error(uploadResponse.error.message);
+    }
+
+    const { data } = supabase.storage.from(LEGAL_KANBAN_BOARD_COVER_BUCKET).getPublicUrl(filePath);
+    return {
+      coverImagePath: filePath,
+      coverImageUrl: data.publicUrl || null,
+    };
+  },
+
+  async listAssignableUsers() {
+    const actor = await getCurrentPublicUser();
+    if (!isBoardManagerRole(actor.role)) {
+      return [];
+    }
+
+    const response = await db.from("users").select("*").eq("status", "ativo").order("name");
+    return maybeArray(response.data).map(mapUser);
+  },
+
+  async getBoardData(boardSlug: string = LEGAL_KANBAN_DEFAULT_BOARD_SLUG): Promise<LegalKanbanBoardData> {
+    const context = await getBoardContext(boardSlug);
     const cards = await hydrateCards(context.cards);
 
     const columns = sortByPosition(context.columns).map((column) => ({
@@ -439,7 +715,7 @@ export const legalKanbanService = {
           .eq("card_id", cardId),
         db
           .from("legal_kanban_comments")
-          .select("*, author:users ( id, name, email, role, status )")
+          .select("*, author:users ( id, name, email, role, status ), mentions:legal_kanban_comment_mentions ( user:users ( id, name, email, role, status ) )")
           .eq("card_id", cardId)
           .order("created_at", { ascending: true }),
         db
@@ -533,6 +809,13 @@ export const legalKanbanService = {
 
   async updateCard(cardId: string, input: UpdateLegalKanbanCardInput) {
     const actor = await getCurrentPublicUser();
+    const cardResponse = await db.from("legal_kanban_cards").select("*").eq("id", cardId).single();
+    const currentCard = ensureData(cardResponse, "Card não encontrado.");
+
+    if ((input.status === "concluido" || input.status === "arquivado") && !canForceConcludedStatus(actor.role)) {
+      throw new Error("Somente Administrador e Advogado Administrativo podem concluir ou arquivar cards.");
+    }
+
     const payload: Record<string, unknown> = {
       updated_by_user_id: actor.id,
     };
@@ -551,11 +834,46 @@ export const legalKanbanService = {
 
     const response = await db.from("legal_kanban_cards").update(payload).eq("id", cardId).select("*").single();
     const card = mapCardBase(ensureData(response, "Não foi possível atualizar o card."));
+
+    if (input.status === "concluido") {
+      const doneColumnResponse = await db
+        .from("legal_kanban_columns")
+        .select("id")
+        .eq("board_id", currentCard.board_id)
+        .eq("kind", "done")
+        .maybeSingle();
+
+      if (doneColumnResponse.data && doneColumnResponse.data.id !== card.columnId) {
+        const doneCardsResponse = await db
+          .from("legal_kanban_cards")
+          .select("id, position")
+          .eq("column_id", doneColumnResponse.data.id)
+          .order("position");
+
+        const nextPosition =
+          maybeArray(doneCardsResponse.data).reduce((max: number, item: any) => Math.max(max, item.position || 0), 0) + 100;
+
+        await db
+          .from("legal_kanban_cards")
+          .update({
+            column_id: doneColumnResponse.data.id,
+            position: nextPosition,
+            updated_by_user_id: actor.id,
+          })
+          .eq("id", cardId);
+      }
+    }
+
     await logActivity(cardId, actor.id, "card_updated", `Atualizou o card "${card.title}".`);
     return card;
   },
 
   async deleteCard(cardId: string) {
+    const actor = await getCurrentPublicUser();
+    if (!canForceConcludedStatus(actor.role)) {
+      throw new Error("Somente Administrador e Advogado Administrativo podem excluir cards.");
+    }
+
     const response = await db.from("legal_kanban_cards").delete().eq("id", cardId);
 
     if (response.error) {
@@ -681,11 +999,17 @@ export const legalKanbanService = {
   },
 
   async createLabel(input: CreateLegalKanbanLabelInput) {
-    const current = await db
+    const existingLabelResponse = await db
       .from("legal_kanban_labels")
-      .select("position")
-      .eq("board_id", input.boardId)
-      .order("position");
+      .select("*")
+      .ilike("name", input.name.trim())
+      .maybeSingle();
+
+    if (existingLabelResponse.data) {
+      return mapLabel(existingLabelResponse.data);
+    }
+
+    const current = await db.from("legal_kanban_labels").select("position").order("position");
 
     const nextPosition =
       maybeArray(current.data).reduce((max: number, item: any) => Math.max(max, item.position || 0), 0) + 100;
@@ -772,7 +1096,7 @@ export const legalKanbanService = {
     await logActivity(cardId, actor.id, "labels_updated", "Atualizou as etiquetas do card.", { labelIds });
   },
 
-  async addComment(cardId: string, content: string) {
+  async addComment(cardId: string, content: string, mentionUserIds: string[] = []) {
     const actor = await getCurrentPublicUser();
     const response = await db
       .from("legal_kanban_comments")
@@ -784,7 +1108,24 @@ export const legalKanbanService = {
       .select("*, author:author_user_id ( id, name, email, role, status )")
       .single();
 
-    return mapComment(ensureData(response, "Não foi possível salvar o comentário."));
+    const comment = ensureData(response, "Não foi possível salvar o comentário.");
+
+    if (mentionUserIds.length > 0) {
+      await db.from("legal_kanban_comment_mentions").insert(
+        Array.from(new Set(mentionUserIds)).map((mentionedUserId) => ({
+          comment_id: comment.id,
+          mentioned_user_id: mentionedUserId,
+        })),
+      );
+    }
+
+    const detailsResponse = await db
+      .from("legal_kanban_comments")
+      .select("*, author:users ( id, name, email, role, status ), mentions:legal_kanban_comment_mentions ( user:users ( id, name, email, role, status ) )")
+      .eq("id", comment.id)
+      .single();
+
+    return mapComment(ensureData(detailsResponse, "Não foi possível carregar o comentário."));
   },
 
   async deleteComment(commentId: string) {

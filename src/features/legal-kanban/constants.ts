@@ -1,8 +1,9 @@
 import type { KanbanPriority, KanbanStatus, LegalKanbanFiltersState } from "./types";
 
-export const LEGAL_KANBAN_BOARD_SLUG = "setor-juridico";
+export const LEGAL_KANBAN_DEFAULT_BOARD_SLUG = "setor-juridico";
 export const LEGAL_KANBAN_STORAGE_BUCKET = "legal-kanban-attachments";
 export const LEGAL_KANBAN_INLINE_IMAGE_BUCKET = "legal-kanban-inline-images";
+export const LEGAL_KANBAN_BOARD_COVER_BUCKET = "legal-kanban-board-covers";
 
 export const LEGAL_KANBAN_PRIORITY_META: Record<
   KanbanPriority,

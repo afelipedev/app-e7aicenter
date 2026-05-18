@@ -13,9 +13,9 @@ export default function ProcessesDashboardPage() {
   const { data, isLoading } = useProcessesDashboard();
   const quickLinks = [
     {
-      label: "Kanban jurídico",
-      helper: "Board operacional compartilhado com cards, raias, prazos e responsáveis.",
-      href: processRoutes.kanban,
+      label: "Quadros",
+      helper: "Acesse os quadros com cards, raias, prazos e responsáveis por equipe.",
+      href: processRoutes.quadros,
     },
     {
       label: "Consultas processuais",
@@ -46,7 +46,7 @@ export default function ProcessesDashboardPage() {
                 </h1>
                 <p className="max-w-3xl text-sm leading-7 text-muted-foreground">
                   Acompanhe o volume operacional, retome processos priorizados e navegue entre consultas
-                  e painel Kanban com a mesma linguagem visual aplicada na página de detalhes.
+                  e os quadros de trabalho com a mesma linguagem visual aplicada na página de detalhes.
                 </p>
               </div>
 
@@ -55,8 +55,8 @@ export default function ProcessesDashboardPage() {
                   Ir para consultas
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
-                <Button variant="outline" className="rounded-full px-5" onClick={() => navigate(processRoutes.kanban)}>
-                  Abrir Kanban
+                <Button variant="outline" className="rounded-full px-5" onClick={() => navigate(processRoutes.quadros)}>
+                  Abrir Quadros
                 </Button>
               </div>
             </div>

@@ -5,80 +5,21 @@ import type {
   CreateLegalKanbanColumnInput,
   CreateLegalKanbanCustomFieldInput,
   CreateLegalKanbanLabelInput,
-  LegalKanbanBoardData,
   LegalKanbanCard,
   LegalKanbanCardBase,
   LegalKanbanCardDetails,
   LegalKanbanColumn,
+  UpsertLegalKanbanBoardInput,
   UpdateLegalKanbanCardInput,
 } from "../types";
-import { reindexByHundreds } from "../utils";
 
 const legalKanbanKeys = {
   all: ["legal-kanban"] as const,
-  board: () => [...legalKanbanKeys.all, "board"] as const,
+  boards: () => [...legalKanbanKeys.all, "boards"] as const,
+  boardPrefix: () => [...legalKanbanKeys.all, "board"] as const,
+  board: (boardSlug: string) => [...legalKanbanKeys.all, "board", boardSlug] as const,
   card: (cardId: string) => [...legalKanbanKeys.all, "card", cardId] as const,
 };
-
-function moveCardInCache(
-  board: LegalKanbanBoardData,
-  cardId: string,
-  sourceColumnId: string,
-  destinationColumnId: string,
-  destinationIndex: number,
-) {
-  const columns = board.columns.map((column) => ({
-    ...column,
-    cards: [...column.cards],
-  }));
-
-  const sourceColumn = columns.find((column) => column.id === sourceColumnId);
-  const destinationColumn = columns.find((column) => column.id === destinationColumnId);
-
-  if (!sourceColumn || !destinationColumn) {
-    return board;
-  }
-
-  const sourceIndex = sourceColumn.cards.findIndex((card) => card.id === cardId);
-  if (sourceIndex === -1) {
-    return board;
-  }
-
-  const [movedCard] = sourceColumn.cards.splice(sourceIndex, 1);
-  destinationColumn.cards.splice(destinationIndex, 0, {
-    ...movedCard,
-    columnId: destinationColumnId,
-  });
-
-  sourceColumn.cards = reindexByHundreds(sourceColumn.cards).map((card) => ({
-    ...card,
-  }));
-  destinationColumn.cards = reindexByHundreds(destinationColumn.cards).map((card) => ({
-    ...card,
-  }));
-
-  return {
-    ...board,
-    columns,
-  };
-}
-
-function patchCardInBoardCache(board: LegalKanbanBoardData, updatedCard: LegalKanbanCardBase) {
-  return {
-    ...board,
-    columns: board.columns.map((column) => ({
-      ...column,
-      cards: column.cards.map((card) =>
-        card.id === updatedCard.id
-          ? {
-              ...card,
-              ...updatedCard,
-            }
-          : card,
-      ),
-    })),
-  };
-}
 
 function patchCardDetailsCache(previous: LegalKanbanCardDetails | undefined, updatedCard: LegalKanbanCardBase) {
   if (!previous || previous.id !== updatedCard.id) {
@@ -91,10 +32,59 @@ function patchCardDetailsCache(previous: LegalKanbanCardDetails | undefined, upd
   };
 }
 
-export function useLegalKanbanBoard() {
+export function useLegalKanbanBoards() {
   return useQuery({
-    queryKey: legalKanbanKeys.board(),
-    queryFn: () => legalKanbanService.getBoardData(),
+    queryKey: legalKanbanKeys.boards(),
+    queryFn: () => legalKanbanService.listBoards(),
+  });
+}
+
+export function useLegalKanbanBoard(boardSlug: string) {
+  return useQuery({
+    queryKey: legalKanbanKeys.board(boardSlug),
+    queryFn: () => legalKanbanService.getBoardData(boardSlug),
+  });
+}
+
+export function useUpsertLegalKanbanBoard() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ input, boardId }: { input: UpsertLegalKanbanBoardInput; boardId?: string }) =>
+      legalKanbanService.upsertBoard(input, boardId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.all });
+    },
+  });
+}
+
+export function useToggleLegalKanbanBoardFavorite() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ boardId, isFavorite }: { boardId: string; isFavorite: boolean }) =>
+      legalKanbanService.toggleBoardFavorite(boardId, isFavorite),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.all });
+    },
+  });
+}
+
+export function useDeleteLegalKanbanBoard() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (boardId: string) => legalKanbanService.deleteBoard(boardId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.all });
+    },
+  });
+}
+
+export function useAssignableLegalKanbanUsers() {
+  return useQuery({
+    queryKey: [...legalKanbanKeys.all, "assignable-users"],
+    queryFn: () => legalKanbanService.listAssignableUsers(),
   });
 }
 
@@ -112,7 +102,7 @@ export function useCreateLegalKanbanCard() {
   return useMutation({
     mutationFn: (input: CreateLegalKanbanCardInput) => legalKanbanService.createCard(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
     },
   });
 }
@@ -133,32 +123,8 @@ export function useMoveLegalKanbanCard() {
       destinationIndex: number;
     }) =>
       legalKanbanService.moveCard(cardId, sourceColumnId, destinationColumnId, destinationIndex),
-    onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: legalKanbanKeys.board() });
-      const previous = queryClient.getQueryData<LegalKanbanBoardData>(legalKanbanKeys.board());
-
-      if (previous) {
-        queryClient.setQueryData(
-          legalKanbanKeys.board(),
-          moveCardInCache(
-            previous,
-            variables.cardId,
-            variables.sourceColumnId,
-            variables.destinationColumnId,
-            variables.destinationIndex,
-          ),
-        );
-      }
-
-      return { previous };
-    },
-    onError: (_error, _variables, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(legalKanbanKeys.board(), context.previous);
-      }
-    },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(variables.cardId) });
     },
   });
@@ -170,13 +136,11 @@ export function useUpdateLegalKanbanCard(cardId: string) {
   return useMutation({
     mutationFn: (input: UpdateLegalKanbanCardInput) => legalKanbanService.updateCard(cardId, input),
     onSuccess: (updatedCard) => {
-      queryClient.setQueryData<LegalKanbanBoardData>(legalKanbanKeys.board(), (previous) =>
-        previous ? patchCardInBoardCache(previous, updatedCard) : previous,
-      );
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.setQueryData<LegalKanbanCardDetails>(legalKanbanKeys.card(cardId), (previous) =>
         patchCardDetailsCache(previous, updatedCard),
       );
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -189,7 +153,7 @@ export function useDeleteLegalKanbanCard() {
     mutationFn: (deletedCardId: string) => legalKanbanService.deleteCard(deletedCardId),
     onSuccess: (_data, deletedCardId) => {
       queryClient.removeQueries({ queryKey: legalKanbanKeys.card(deletedCardId) });
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
     },
   });
 }
@@ -200,7 +164,7 @@ export function useCreateLegalKanbanColumn() {
   return useMutation({
     mutationFn: (input: CreateLegalKanbanColumnInput) => legalKanbanService.createColumn(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
     },
   });
 }
@@ -212,7 +176,7 @@ export function useUpdateLegalKanbanColumn() {
     mutationFn: ({ columnId, input }: { columnId: string; input: Partial<CreateLegalKanbanColumnInput> }) =>
       legalKanbanService.updateColumn(columnId, input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
     },
   });
 }
@@ -223,7 +187,7 @@ export function useReorderLegalKanbanColumns() {
   return useMutation({
     mutationFn: (columns: LegalKanbanColumn[]) => legalKanbanService.reorderColumns(columns),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
     },
   });
 }
@@ -234,7 +198,7 @@ export function useDeleteLegalKanbanColumn() {
   return useMutation({
     mutationFn: (columnId: string) => legalKanbanService.deleteColumn(columnId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
     },
   });
 }
@@ -245,7 +209,7 @@ export function useCreateLegalKanbanLabel() {
   return useMutation({
     mutationFn: (input: CreateLegalKanbanLabelInput) => legalKanbanService.createLabel(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
     },
   });
 }
@@ -256,7 +220,7 @@ export function useDeleteLegalKanbanLabel() {
   return useMutation({
     mutationFn: (labelId: string) => legalKanbanService.deleteLabel(labelId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
     },
   });
 }
@@ -267,7 +231,7 @@ export function useCreateLegalKanbanCustomField() {
   return useMutation({
     mutationFn: (input: CreateLegalKanbanCustomFieldInput) => legalKanbanService.createCustomField(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
     },
   });
 }
@@ -278,7 +242,7 @@ export function useDeleteLegalKanbanCustomField() {
   return useMutation({
     mutationFn: (fieldId: string) => legalKanbanService.deleteCustomField(fieldId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
     },
   });
 }
@@ -289,7 +253,7 @@ export function useSetLegalKanbanCardMembers(cardId: string) {
   return useMutation({
     mutationFn: (memberIds: string[]) => legalKanbanService.setCardMembers(cardId, memberIds),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -301,7 +265,7 @@ export function useSetLegalKanbanCardLabels(cardId: string) {
   return useMutation({
     mutationFn: (labelIds: string[]) => legalKanbanService.setCardLabels(cardId, labelIds),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -311,9 +275,10 @@ export function useAddLegalKanbanComment(cardId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (content: string) => legalKanbanService.addComment(cardId, content),
+    mutationFn: ({ content, mentionUserIds }: { content: string; mentionUserIds?: string[] }) =>
+      legalKanbanService.addComment(cardId, content, mentionUserIds || []),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -328,7 +293,7 @@ export function useDeleteLegalKanbanTimelineItem(cardId: string) {
         ? legalKanbanService.deleteComment(input.id)
         : legalKanbanService.deleteActivity(input.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -340,7 +305,7 @@ export function useAddLegalKanbanChecklist(cardId: string) {
   return useMutation({
     mutationFn: (title: string) => legalKanbanService.addChecklist(cardId, title),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -352,7 +317,7 @@ export function useDeleteLegalKanbanChecklist(cardId: string) {
   return useMutation({
     mutationFn: (checklistId: string) => legalKanbanService.deleteChecklist(checklistId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -365,7 +330,7 @@ export function useAddLegalKanbanChecklistItem(cardId: string) {
     mutationFn: ({ checklistId, content }: { checklistId: string; content: string }) =>
       legalKanbanService.addChecklistItem(checklistId, content),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -378,7 +343,7 @@ export function useToggleLegalKanbanChecklistItem(cardId: string) {
     mutationFn: ({ itemId, completed }: { itemId: string; completed: boolean }) =>
       legalKanbanService.toggleChecklistItem(itemId, completed),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -398,7 +363,7 @@ export function useSaveLegalKanbanCustomFieldValue(cardId: string) {
       valueJson: Record<string, unknown>;
     }) => legalKanbanService.saveCustomFieldValue(cardId, customFieldId, valueText, valueJson),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -410,7 +375,7 @@ export function useDeleteLegalKanbanCustomFieldValue(cardId: string) {
   return useMutation({
     mutationFn: (customFieldId: string) => legalKanbanService.deleteCustomFieldValue(cardId, customFieldId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -423,7 +388,7 @@ export function useAddLegalKanbanLinkAttachment(cardId: string) {
     mutationFn: ({ name, url }: { name: string; url: string }) =>
       legalKanbanService.addLinkAttachment(cardId, name, url),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -435,7 +400,7 @@ export function useUploadLegalKanbanAttachment(cardId: string) {
   return useMutation({
     mutationFn: (file: File) => legalKanbanService.uploadAttachment(cardId, file),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });
@@ -447,7 +412,7 @@ export function useDeleteLegalKanbanAttachment(cardId: string) {
   return useMutation({
     mutationFn: (attachmentId: string) => legalKanbanService.deleteAttachment(attachmentId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.board() });
+      queryClient.invalidateQueries({ queryKey: legalKanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: legalKanbanKeys.card(cardId) });
     },
   });

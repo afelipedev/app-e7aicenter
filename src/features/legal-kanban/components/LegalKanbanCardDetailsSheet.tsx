@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Archive,
   Bell,
@@ -161,6 +161,7 @@ export function LegalKanbanCardDetailsSheet({
   const [dueDate, setDueDate] = useState("");
   const [reminderAt, setReminderAt] = useState("");
   const [commentDraft, setCommentDraft] = useState("");
+  const [mentionSearch, setMentionSearch] = useState<string | null>(null);
   const [checklistDraft, setChecklistDraft] = useState("");
   const [linkDraft, setLinkDraft] = useState({ name: "", url: "" });
   const [attachmentLoadingId, setAttachmentLoadingId] = useState<string | null>(null);
@@ -336,6 +337,7 @@ export function LegalKanbanCardDetailsSheet({
     moveCard.isPending ||
     deleteCard.isPending ||
     setMembers.isPending;
+  const canFinalizeOrArchive = ["administrator", "advogado_adm"].includes(authUser?.role || "");
   const archiveActionDisabled =
     !archivedColumn ||
     (Boolean(data?.columnId === archivedColumn?.id) && status === "arquivado");
@@ -349,6 +351,14 @@ export function LegalKanbanCardDetailsSheet({
     if (!normalized) return board.members;
     return board.members.filter((member) => member.name.toLowerCase().includes(normalized));
   }, [board.members, memberSearch]);
+  const mentionCandidates = useMemo(() => {
+    if (mentionSearch == null) return [];
+    const query = mentionSearch.trim().toLowerCase();
+    if (!query) return board.members.slice(0, 6);
+    return board.members
+      .filter((member) => member.name.toLowerCase().includes(query))
+      .slice(0, 6);
+  }, [board.members, mentionSearch]);
   const statusKeys = useMemo(
     () => Object.keys(LEGAL_KANBAN_STATUS_META) as KanbanStatus[],
     [],
@@ -368,6 +378,7 @@ export function LegalKanbanCardDetailsSheet({
       author: comment.author,
       title: comment.author?.name || "Usuário removido",
       body: comment.content,
+      mentions: comment.mentions.map((member) => member.name),
     }));
 
     const activities = data.activities
@@ -384,6 +395,7 @@ export function LegalKanbanCardDetailsSheet({
         author: activity.actor,
         title: activity.actor?.name || "Sistema",
         body: activity.message,
+        mentions: [] as string[],
       }));
 
     return [...comments, ...activities].sort(
@@ -433,6 +445,10 @@ export function LegalKanbanCardDetailsSheet({
 
   async function handleToggleCompleted() {
     if (!data) return;
+    if (!canFinalizeOrArchive) {
+      toast.error("Somente Administrador e Advogado Administrativo podem concluir cards.");
+      return;
+    }
 
     const nextStatus = data.status === "concluido" ? "ativo" : "concluido";
 
@@ -450,6 +466,10 @@ export function LegalKanbanCardDetailsSheet({
 
   async function handleStatusChange(next: KanbanStatus) {
     if (!cardId || next === status) return;
+    if ((next === "concluido" || next === "arquivado") && !canFinalizeOrArchive) {
+      toast.error("Somente Administrador e Advogado Administrativo podem concluir ou arquivar cards.");
+      return;
+    }
     try {
       await updateCard.mutateAsync({
         status: next,
@@ -506,6 +526,10 @@ export function LegalKanbanCardDetailsSheet({
 
   async function confirmArchiveCard() {
     if (!cardId || !data || !archivedColumn) return;
+    if (!canFinalizeOrArchive) {
+      toast.error("Somente Administrador e Advogado Administrativo podem arquivar cards.");
+      return;
+    }
     try {
       const needsMove = data.columnId !== archivedColumn.id;
       if (needsMove) {
@@ -531,6 +555,10 @@ export function LegalKanbanCardDetailsSheet({
 
   async function confirmDeleteCard() {
     if (!cardId) return;
+    if (!canFinalizeOrArchive) {
+      toast.error("Somente Administrador e Advogado Administrativo podem excluir cards.");
+      return;
+    }
     try {
       await deleteCard.mutateAsync(cardId);
       setDeleteConfirmOpen(false);
@@ -578,8 +606,15 @@ export function LegalKanbanCardDetailsSheet({
   async function handleAddComment() {
     if (!commentDraft.trim()) return;
     try {
-      await addComment.mutateAsync(commentDraft.trim());
+      const mentionUserIds = board.members
+        .filter((member) =>
+          new RegExp(`(^|\\s)@${member.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=\\s|$)`, "i").test(commentDraft),
+        )
+        .map((member) => member.id);
+
+      await addComment.mutateAsync({ content: commentDraft.trim(), mentionUserIds });
       setCommentDraft("");
+      setMentionSearch(null);
       setTimelinePage(1);
       toast.success("Comentário adicionado.");
     } catch (error) {
@@ -755,6 +790,18 @@ export function LegalKanbanCardDetailsSheet({
     }, 0);
   }
 
+  function extractMentionQuery(value: string) {
+    const match = value.match(/(?:^|\s)@([^\s@]*)$/);
+    return match ? match[1] : null;
+  }
+
+  function replaceLastMentionWithUser(value: string, selectedUserName: string) {
+    return value.replace(/(?:^|\s)@([^\s@]*)$/, (full) => {
+      const hasLeadingSpace = full.startsWith(" ");
+      return `${hasLeadingSpace ? " " : ""}@${selectedUserName} `;
+    });
+  }
+
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -819,7 +866,7 @@ export function LegalKanbanCardDetailsSheet({
                       Ingressar
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      disabled={cardActionsBusy || archiveActionDisabled}
+                      disabled={cardActionsBusy || archiveActionDisabled || !canFinalizeOrArchive}
                       onClick={() => setArchiveConfirmOpen(true)}
                     >
                       <Archive className="mr-2 h-4 w-4" />
@@ -828,7 +875,7 @@ export function LegalKanbanCardDetailsSheet({
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
-                      disabled={cardActionsBusy}
+                      disabled={cardActionsBusy || !canFinalizeOrArchive}
                       onClick={() => setDeleteConfirmOpen(true)}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
@@ -860,6 +907,7 @@ export function LegalKanbanCardDetailsSheet({
                     <button
                       type="button"
                       onClick={handleToggleCompleted}
+                      disabled={!canFinalizeOrArchive}
                       className="mt-0.5 shrink-0 rounded-full text-muted-foreground transition-colors hover:text-primary"
                       title={cardData.status === "concluido" ? "Reabrir card" : "Concluir card"}
                     >
@@ -908,6 +956,7 @@ export function LegalKanbanCardDetailsSheet({
                               <DropdownMenuItem
                                 key={key}
                                 className="w-full cursor-pointer justify-between gap-2 rounded-lg"
+                                disabled={(key === "concluido" || key === "arquivado") && !canFinalizeOrArchive}
                                 onSelect={() => void handleStatusChange(key)}
                               >
                                 <span className={key === status ? "font-semibold" : undefined}>
@@ -1539,11 +1588,38 @@ export function LegalKanbanCardDetailsSheet({
                         <Textarea
                           ref={commentTextareaRef}
                           value={commentDraft}
-                          onChange={(event) => setCommentDraft(event.target.value)}
-                          placeholder="Escreva um comentário..."
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+                            setCommentDraft(nextValue);
+                            const query = extractMentionQuery(nextValue);
+                            setMentionSearch(query);
+                          }}
+                          placeholder="Escreva um comentário... use @ para mencionar alguém"
                           rows={3}
                           className="min-h-[96px] resize-y"
                         />
+                        {mentionSearch !== null && mentionCandidates.length > 0 ? (
+                          <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
+                            <p className="mb-2 text-xs text-muted-foreground">Mencionar usuário</p>
+                            <div className="space-y-1">
+                              {mentionCandidates.map((member) => (
+                                <button
+                                  key={member.id}
+                                  type="button"
+                                  className="w-full rounded-md px-2 py-1 text-left text-sm hover:bg-background"
+                                  onClick={() => {
+                                    const replaced = replaceLastMentionWithUser(commentDraft, member.name);
+                                    setCommentDraft(replaced);
+                                    setMentionSearch(null);
+                                    commentTextareaRef.current?.focus();
+                                  }}
+                                >
+                                  {member.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                         <div className="flex justify-end">
                           <Button type="button" size="sm" onClick={() => void handleAddComment()}>
                             <Plus className="mr-2 h-4 w-4" />
@@ -1572,7 +1648,7 @@ export function LegalKanbanCardDetailsSheet({
                                       {item.kind === "comment" ? (
                                         <>
                                           {" "}
-                                          comentou: <span className="text-muted-foreground">{item.body}</span>
+                                          comentou: {renderCommentWithMentionHighlight(item.body, item.mentions)}
                                         </>
                                       ) : (
                                         <span className="text-muted-foreground"> {item.body}</span>
@@ -2100,6 +2176,76 @@ function EmptyState({ text }: { text: string }) {
       {text}
     </div>
   );
+}
+
+function renderCommentWithMentionHighlight(content: string, mentionNames: string[]): ReactNode {
+  const explicitMentions = Array.from(
+    new Set(
+      mentionNames
+        .map((name) => name.trim())
+        .filter(Boolean)
+        .map((name) => `@${name}`),
+    ),
+  );
+
+  const inferredMentions =
+    explicitMentions.length === 0
+      ? Array.from(new Set(content.match(/@[\p{L}\p{N}._-]+/gu) || []))
+      : [];
+
+  const mentions = [...explicitMentions, ...inferredMentions].sort((left, right) => right.length - left.length);
+
+  if (!mentions.length) {
+    return <span className="text-muted-foreground">{content}</span>;
+  }
+
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  let key = 0;
+  const lowerContent = content.toLowerCase();
+  const lowerMentions = mentions.map((mention) => mention.toLowerCase());
+
+  while (cursor < content.length) {
+    let nextIndex = -1;
+    let nextMentionIndex = -1;
+
+    for (let i = 0; i < lowerMentions.length; i += 1) {
+      const currentIndex = lowerContent.indexOf(lowerMentions[i], cursor);
+      if (currentIndex === -1) continue;
+      if (nextIndex === -1 || currentIndex < nextIndex) {
+        nextIndex = currentIndex;
+        nextMentionIndex = i;
+      }
+    }
+
+    if (nextIndex === -1 || nextMentionIndex === -1) {
+      parts.push(
+        <span key={`text-${key++}`} className="text-muted-foreground">
+          {content.slice(cursor)}
+        </span>,
+      );
+      break;
+    }
+
+    if (nextIndex > cursor) {
+      parts.push(
+        <span key={`text-${key++}`} className="text-muted-foreground">
+          {content.slice(cursor, nextIndex)}
+        </span>,
+      );
+    }
+
+    const matchedMention = content.slice(nextIndex, nextIndex + mentions[nextMentionIndex].length);
+    parts.push(
+      <span key={`mention-${key++}`} className="font-medium text-blue-600 dark:text-blue-400">
+        {matchedMention}
+      </span>,
+    );
+
+    cursor = nextIndex + mentions[nextMentionIndex].length;
+  }
+
+  return <>{parts}</>;
 }
 
 function attachmentKindLabel(attachment: LegalKanbanAttachment) {

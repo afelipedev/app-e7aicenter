@@ -97,11 +97,11 @@ const quickActions = [
     url: "/documents/payroll",
   },
   {
-    title: "Ver Processos",
-    description: "Acompanhar andamentos",
+    title: "Quadros",
+    description: "Acompanhar andamentos em quadros",
     icon: Trello,
     color: "bg-gradient-blue",
-    url: "/documents/cases/kanban",
+    url: "/documents/cases/quadros",
   },
   {
     title: "Relatórios",

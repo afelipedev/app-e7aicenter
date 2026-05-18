@@ -24,6 +24,10 @@ export interface LegalKanbanBoard {
   description: string | null;
   icon: string;
   isLocked: boolean;
+  coverImagePath: string | null;
+  coverImageUrl: string | null;
+  isFavorite: boolean;
+  accessLevel: "viewer" | "editor" | "admin";
 }
 
 export interface LegalKanbanColumn {
@@ -97,6 +101,7 @@ export interface LegalKanbanComment {
   createdAt: string;
   updatedAt: string;
   author: LegalKanbanUser | null;
+  mentions: LegalKanbanUser[];
 }
 
 export interface LegalKanbanActivity {
@@ -168,6 +173,15 @@ export interface LegalKanbanBoardData {
   labels: LegalKanbanLabel[];
   customFields: LegalKanbanCustomField[];
   members: LegalKanbanUser[];
+}
+
+export interface UpsertLegalKanbanBoardInput {
+  title: string;
+  description?: string | null;
+  slug?: string;
+  coverImagePath?: string | null;
+  coverImageUrl?: string | null;
+  memberIds?: string[];
 }
 
 export interface LegalKanbanFiltersState {
