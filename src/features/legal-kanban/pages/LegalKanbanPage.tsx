@@ -23,6 +23,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ArrowUpRight,
   CalendarDays,
+  Hash,
   ListChecks,
   MessageSquare,
   Paperclip,
@@ -30,7 +31,7 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,7 @@ type ActiveDragState =
 export default function LegalKanbanPage() {
   const navigate = useNavigate();
   const { boardSlug = "setor-juridico" } = useParams<{ boardSlug: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const boardQuery = useLegalKanbanBoard(boardSlug);
   const createCard = useCreateLegalKanbanCard();
@@ -171,6 +173,15 @@ export default function LegalKanbanPage() {
   const activeColumn = activeDrag?.type === "column" ? findColumnById(filteredColumns, activeDrag.columnId) : null;
   const activeCard =
     activeDrag?.type === "card" && boardData ? findCardById(boardData.columns, activeDrag.cardId)?.card || null : null;
+  const cardFromUrl = searchParams.get("card");
+
+  React.useEffect(() => {
+    if (!boardData || !cardFromUrl) return;
+    const exists = boardData.columns.some((column) => column.cards.some((card) => card.id === cardFromUrl));
+    if (exists) {
+      setSelectedCardId(cardFromUrl);
+    }
+  }, [boardData, cardFromUrl]);
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-4 pb-6">
@@ -244,7 +255,14 @@ export default function LegalKanbanPage() {
                       key={column.id}
                       column={column}
                       onCreateCard={handleCreateCard}
-                      onOpenCard={setSelectedCardId}
+                      onOpenCard={(cardId) => {
+                        setSelectedCardId(cardId);
+                        setSearchParams((prev) => {
+                          const next = new URLSearchParams(prev);
+                          next.set("card", cardId);
+                          return next;
+                        }, { replace: true });
+                      }}
                     />
                   ))}
                 </div>
@@ -265,7 +283,18 @@ export default function LegalKanbanPage() {
             cardId={selectedCardId}
             open={selectedCardId != null}
             board={boardData}
-            onOpenChange={(open) => setSelectedCardId(open ? selectedCardId : null)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setSelectedCardId(null);
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.delete("card");
+                  return next;
+                }, { replace: true });
+                return;
+              }
+              setSelectedCardId(selectedCardId);
+            }}
           />
         </>
       ) : (
@@ -571,6 +600,15 @@ function CardPreview({ card }: { card: LegalKanbanCard }) {
             <Paperclip className="h-3.5 w-3.5" />
             {card.attachmentsCount}
           </span>
+          {card.hasLinkedPost ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-primary"
+              title="Card vinculado a uma postagem"
+            >
+              <Hash className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-semibold uppercase">Postagem</span>
+            </span>
+          ) : null}
         </div>
       </div>
     </div>

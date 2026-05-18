@@ -20,6 +20,7 @@ export const messageService = {
       .select("*, author:users!post_messages_author_user_id_fkey(id, name, email, avatar_url)")
       .eq("post_id", postId)
       .is("deleted_at", null)
+      .is("mirrored_card_comment_id", null)
       .order("created_at", { ascending: false })
       .limit(limit);
     if (opts?.before) query = query.lt("created_at", opts.before);
@@ -42,9 +43,14 @@ export const messageService = {
   async sendMessage(input: {
     post_id: string;
     content_json: Record<string, unknown>;
+    mention_user_ids?: string[];
   }): Promise<PostMessage> {
     const { data, error } = await supabase.functions.invoke("teams-message-send", {
-      body: { post_id: input.post_id, content_json: input.content_json },
+      body: {
+        post_id: input.post_id,
+        content_json: input.content_json,
+        mention_user_ids: input.mention_user_ids ?? [],
+      },
     });
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(typeof data.error === "string" ? data.error : "Erro");
@@ -53,9 +59,18 @@ export const messageService = {
 
   async deleteMessage(messageId: string): Promise<void> {
     const { error } = await withTimeout(
-      supabase.from("post_messages").update({ deleted_at: new Date().toISOString() }).eq("id", messageId),
+      supabase.from("post_messages").delete().eq("id", messageId),
     );
     if (error) throw new Error(error.message);
+
+    // Propaga para o comentário espelhado, se houver
+    try {
+      await supabase.functions.invoke("teams-kanban-bridge", {
+        body: { action: "mirror_delete_comment", payload: { post_message_id: messageId } },
+      });
+    } catch (e) {
+      console.warn("Mirror delete post→card falhou:", (e as Error).message);
+    }
   },
 
   async toggleReaction(messageId: string, userId: string, emoji: string): Promise<boolean> {

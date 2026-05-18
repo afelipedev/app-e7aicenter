@@ -165,6 +165,35 @@ async function canReadPost(ctx: Ctx, postId: string): Promise<{ channelId: strin
   return { channelId: post.channel_id as string, teamId: channel.team_id as string };
 }
 
+async function filterMentionableUsers(ctx: Ctx, postId: string, mentionUserIds: string[]) {
+  if (!mentionUserIds.length) return [];
+  const access = await canReadPost(ctx, postId);
+  if (!access) return [];
+  const uniqueIds = Array.from(new Set(mentionUserIds.filter(Boolean)));
+  if (!uniqueIds.length) return [];
+
+  const { data: users, error } = await ctx.admin
+    .from("users")
+    .select("id")
+    .in("id", uniqueIds)
+    .eq("status", "ativo");
+  if (error) throw new Error(error.message);
+  const activeSet = new Set((users ?? []).map((row: { id: string }) => row.id));
+
+  if (access.teamId) {
+    const { data: teamRows, error: teamErr } = await ctx.admin
+      .from("team_members")
+      .select("user_id")
+      .eq("team_id", access.teamId)
+      .in("user_id", uniqueIds);
+    if (teamErr) throw new Error(teamErr.message);
+    const teamSet = new Set((teamRows ?? []).map((row: { user_id: string }) => row.user_id));
+    return uniqueIds.filter((id) => activeSet.has(id) && teamSet.has(id));
+  }
+
+  return uniqueIds.filter((id) => activeSet.has(id));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Método não permitido" }, 405);
@@ -172,7 +201,7 @@ Deno.serve(async (req) => {
   try {
     const ctx = await ensureCaller(req);
     const body = await req.json();
-    const { post_id, content_json } = body ?? {};
+    const { post_id, content_json, mention_user_ids } = body ?? {};
     if (!post_id || !content_json) throw new Error("post_id e content_json obrigatórios");
 
     const access = await canReadPost(ctx, post_id);
@@ -198,9 +227,13 @@ Deno.serve(async (req) => {
     if (error) throw new Error(error.message);
 
     // mentions
-    const mentions = extractMentions(sanitized);
-    if (mentions.length) {
-      const rows = mentions.map((mentioned_user_id) => ({
+    const mentionsFromDoc = extractMentions(sanitized);
+    const mentionsFromPayload = Array.isArray(mention_user_ids)
+      ? await filterMentionableUsers(ctx, post_id, mention_user_ids.map(String))
+      : [];
+    const mentionIds = Array.from(new Set([...mentionsFromDoc, ...mentionsFromPayload]));
+    if (mentionIds.length) {
+      const rows = mentionIds.map((mentioned_user_id) => ({
         message_id: message.id,
         mentioned_user_id,
       }));

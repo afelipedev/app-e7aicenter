@@ -12,6 +12,7 @@ import {
   ExternalLink,
   File,
   FileText,
+  Hash,
   History,
   Image as ImageIcon,
   Link2,
@@ -99,6 +100,9 @@ import {
   useUploadLegalKanbanAttachment,
 } from "../hooks/useLegalKanbanBoard";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
 import { legalKanbanService } from "../services/legalKanbanService";
 import type {
   KanbanPriority,
@@ -118,6 +122,19 @@ import {
 } from "../utils";
 
 const TIMELINE_PAGE_SIZE = 5;
+const ROLE_LABELS: Record<string, string> = {
+  administrator: "Administrador",
+  it: "TI",
+  advogado_adm: "Advogado administrador",
+  advogado: "Advogado",
+  contabil: "Contábil",
+  financeiro: "Financeiro",
+};
+
+function getRoleDisplayName(role: string | null | undefined) {
+  if (!role) return "Perfil não informado";
+  return ROLE_LABELS[role] ?? role;
+}
 
 interface LegalKanbanCardDetailsSheetProps {
   cardId: string | null;
@@ -136,6 +153,30 @@ export function LegalKanbanCardDetailsSheet({
 
   const { data, isLoading, isFetching } = useLegalKanbanCardDetails(cardId);
   const { user: authUser } = useAuth();
+  const navigate = useNavigate();
+
+  const { data: linkedPost } = useQuery({
+    queryKey: ["legal-kanban", "card-post-link", cardId],
+    queryFn: async () => {
+      if (!cardId) return null;
+      const { data: link } = await supabase
+        .from("post_kanban_links")
+        .select("post_id, post:posts(id, channel_id, channel:channels(slug, team:teams(slug)))")
+        .eq("card_id", cardId)
+        .maybeSingle();
+      if (!link?.post_id) return null;
+      const post = Array.isArray(link.post) ? link.post[0] : (link.post as unknown as {
+        id: string;
+        channel: { slug: string; team: { slug: string } | { slug: string }[] | null } | null;
+      } | null);
+      if (!post) return { postId: link.post_id, url: null as string | null };
+      const ch = Array.isArray(post.channel) ? post.channel[0] : post.channel;
+      const team = ch ? (Array.isArray(ch.team) ? ch.team[0] : ch.team) : null;
+      const url = ch && team ? `/teams/${team.slug}/${ch.slug}/${post.id}` : null;
+      return { postId: link.post_id, url };
+    },
+    enabled: !!cardId && open,
+  });
   const updateCard = useUpdateLegalKanbanCard(cardId || "");
   const moveCard = useMoveLegalKanbanCard();
   const deleteCard = useDeleteLegalKanbanCard();
@@ -895,6 +936,21 @@ export function LegalKanbanCardDetailsSheet({
                 </Button>
               </div>
             </div>
+
+            {linkedPost?.url ? (
+              <div className="flex shrink-0 items-center justify-end border-b border-border/70 px-4 py-2 sm:px-5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { onOpenChange(false); navigate(linkedPost.url!); }}
+                >
+                  <Hash className="mr-1.5 h-3.5 w-3.5" />
+                  Ver Postagem
+                  <ExternalLink className="ml-1.5 h-3 w-3" />
+                </Button>
+              </div>
+            ) : null}
 
             <div
               className={cn(
@@ -1930,9 +1986,7 @@ export function LegalKanbanCardDetailsSheet({
                         </span>
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-medium">{member.user.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {member.user.role === "advogado_adm" ? "Advogado administrador" : "Advogado"}
-                          </p>
+                          <p className="truncate text-xs text-muted-foreground">{getRoleDisplayName(member.user.role)}</p>
                         </div>
                         <Button
                           type="button"
@@ -1955,22 +2009,31 @@ export function LegalKanbanCardDetailsSheet({
               <Separator />
 
               <div>
-                <p className="mb-2 text-sm font-semibold text-muted-foreground">Advogados</p>
+                <p className="mb-2 text-sm font-semibold text-muted-foreground">Membros</p>
                 <div className="space-y-2 pr-1">
                   {filteredMembers.length === 0 ? (
-                    <EmptyState text="Nenhum advogado encontrado com a pesquisa." />
+                    <EmptyState text="Nenhum membro encontrado com a pesquisa." />
                   ) : (
                     filteredMembers.map((member) => {
                       const active = selectedMemberIds.has(member.id);
                       return (
-                        <button
+                        <div
                           key={member.id}
-                          type="button"
                           onClick={() => void handleToggleMember(member.id)}
-                          disabled={setMembers.isPending}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              void handleToggleMember(member.id);
+                            }
+                          }}
+                          role="button"
+                          tabIndex={setMembers.isPending ? -1 : 0}
+                          aria-disabled={setMembers.isPending}
+                          data-disabled={setMembers.isPending}
                           className={cn(
                             "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
                             active ? "border-primary bg-primary/10" : "border-border/70 bg-background",
+                            setMembers.isPending && "cursor-not-allowed opacity-70",
                           )}
                         >
                           <span
@@ -1981,12 +2044,10 @@ export function LegalKanbanCardDetailsSheet({
                           </span>
                           <div className="min-w-0 flex-1">
                             <p className="truncate font-medium">{member.name}</p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {member.role === "advogado_adm" ? "Advogado administrador" : "Advogado"}
-                            </p>
+                            <p className="truncate text-xs text-muted-foreground">{getRoleDisplayName(member.role)}</p>
                           </div>
                           <Checkbox checked={active} className="pointer-events-none shrink-0" />
-                        </button>
+                        </div>
                       );
                     })
                   )}
@@ -2031,9 +2092,16 @@ function LabelOptionRow({
   onToggle: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <div
       onClick={onToggle}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onToggle();
+        }
+      }}
+      role="button"
+      tabIndex={0}
       className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-background px-3 py-3 text-left transition-colors hover:border-primary/25"
     >
       <Checkbox checked={checked} />
@@ -2043,7 +2111,7 @@ function LabelOptionRow({
       >
         {label.name}
       </span>
-    </button>
+    </div>
   );
 }
 

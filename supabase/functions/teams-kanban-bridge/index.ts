@@ -233,12 +233,22 @@ async function actionMirrorComment(ctx: BridgeCtx, payload: Record<string, unkno
     if (cErr || !card) throw new Error("Card não encontrado");
     await assertCanEditBoard(admin, ctx, card.board_id as string);
 
+    const source_message_id = typeof payload?.source_message_id === "string" ? payload.source_message_id : null;
+
     const { data, error } = await admin.from("legal_kanban_comments").insert({
       card_id,
       author_user_id: ctx.profileId,
       content: content_text,
+      mirrored_post_message_id: source_message_id,
     }).select().single();
     if (error) throw new Error(error.message);
+
+    // Atualiza a ponta oposta para fechar o cross-ref
+    if (source_message_id && data?.id) {
+      await admin.from("post_messages")
+        .update({ mirrored_card_comment_id: data.id })
+        .eq("id", source_message_id);
+    }
 
     const post_id = typeof payload?.post_id === "string" ? payload.post_id : undefined;
     await admin.from("legal_kanban_activities").insert({
@@ -246,7 +256,7 @@ async function actionMirrorComment(ctx: BridgeCtx, payload: Record<string, unkno
       actor_user_id: ctx.profileId,
       activity_type: "comment_mirrored_from_post",
       message: "Comentário espelhado a partir do Teams.",
-      metadata: { source_event_id: event_id, post_id },
+      metadata: { source_event_id: event_id, post_id, source_message_id },
     });
     return { mirrored: data };
   }
@@ -264,20 +274,29 @@ async function actionMirrorComment(ctx: BridgeCtx, payload: Record<string, unkno
       ? payload.content_json as Record<string, unknown>
       : { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: content_text }] }] };
 
+    const source_comment_id = typeof payload?.source_comment_id === "string" ? payload.source_comment_id : null;
+
     const { data, error } = await admin.from("post_messages").insert({
       post_id,
       author_user_id: ctx.profileId,
       content_json,
       content_text,
+      mirrored_card_comment_id: source_comment_id,
     }).select().single();
     if (error) throw new Error(error.message);
+
+    if (source_comment_id && data?.id) {
+      await admin.from("legal_kanban_comments")
+        .update({ mirrored_post_message_id: data.id })
+        .eq("id", source_comment_id);
+    }
 
     const card_id = typeof payload?.card_id === "string" ? payload.card_id : undefined;
     await admin.from("post_activities").insert({
       post_id,
       actor_user_id: ctx.profileId,
       activity_type: "comment_mirrored_from_card",
-      metadata: { source_event_id: event_id, card_id },
+      metadata: { source_event_id: event_id, card_id, source_comment_id },
     });
     return { mirrored: data };
   }
@@ -285,10 +304,55 @@ async function actionMirrorComment(ctx: BridgeCtx, payload: Record<string, unkno
   throw new Error("direction inválido");
 }
 
+async function actionMirrorDeleteComment(ctx: BridgeCtx, payload: Record<string, unknown>) {
+  const admin = ctx.admin;
+  const card_comment_id = typeof payload?.card_comment_id === "string" ? payload.card_comment_id : null;
+  const post_message_id = typeof payload?.post_message_id === "string" ? payload.post_message_id : null;
+
+  if (!card_comment_id && !post_message_id) {
+    throw new Error("card_comment_id ou post_message_id obrigatório");
+  }
+
+  // Direção 1: comentário do card excluído → buscar e remover post_message pareado
+  if (card_comment_id) {
+    const { data: msg } = await admin.from("post_messages")
+      .select("id, post_id")
+      .eq("mirrored_card_comment_id", card_comment_id)
+      .maybeSingle();
+    if (!msg) return { deleted: false, reason: "no_mirror_found" };
+
+    const { data: post } = await admin.from("posts").select("channel_id").eq("id", msg.post_id).single();
+    if (post) await assertCanReadChannel(admin, ctx, post.channel_id as string);
+
+    await admin.from("post_messages")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", msg.id);
+    return { deleted: true, post_message_id: msg.id };
+  }
+
+  // Direção 2: post_message excluído → remover comentário do card pareado
+  if (post_message_id) {
+    const { data: cm } = await admin.from("legal_kanban_comments")
+      .select("id, card_id")
+      .eq("mirrored_post_message_id", post_message_id)
+      .maybeSingle();
+    if (!cm) return { deleted: false, reason: "no_mirror_found" };
+
+    const { data: card } = await admin.from("legal_kanban_cards").select("board_id").eq("id", cm.card_id).single();
+    if (card) await assertCanEditBoard(admin, ctx, card.board_id as string);
+
+    await admin.from("legal_kanban_comments").delete().eq("id", cm.id);
+    return { deleted: true, card_comment_id: cm.id };
+  }
+
+  return { deleted: false };
+}
+
 const ACTIONS: Record<string, (ctx: BridgeCtx, payload: Record<string, unknown>) => Promise<unknown>> = {
   create_card_from_post: actionCreateCardFromPost,
   unlink: actionUnlink,
   mirror_comment: actionMirrorComment,
+  mirror_delete_comment: actionMirrorDeleteComment,
 };
 
 Deno.serve(async (req) => {

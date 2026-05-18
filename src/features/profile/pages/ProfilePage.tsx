@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { UserCircle2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -110,9 +111,12 @@ export default function ProfilePage() {
   if (!user) return null;
 
   return (
-    <main className="container mx-auto max-w-4xl p-4 md:p-6 space-y-6">
+    <main className="w-full max-w-5xl space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Meu perfil</h1>
+        <h1 className="text-2xl font-semibold flex items-center gap-2">
+          <UserCircle2 className="h-6 w-6 text-primary" />
+          Meu perfil
+        </h1>
         <p className="text-sm text-muted-foreground">
           Atualize seus dados pessoais, foto de perfil e senha de acesso.
         </p>

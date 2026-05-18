@@ -79,7 +79,7 @@ export const postService = {
 
   async softDelete(postId: string): Promise<void> {
     const { error } = await withTimeout(
-      supabase.from("posts").update({ deleted_at: new Date().toISOString() }).eq("id", postId),
+      supabase.rpc("teams_soft_delete_post", { p_post_id: postId }),
     );
     if (error) throw new Error(error.message);
   },

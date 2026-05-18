@@ -1,8 +1,18 @@
-import { useParams, NavLink } from "react-router-dom";
+import { useParams, NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { ArrowLeft, FileText, Image as ImageIcon, Pin, Star, Trash2, UserPlus } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,6 +27,7 @@ import { postService } from "../services/postService";
 import { attachmentService } from "../services/attachmentService";
 import { teamsKeys } from "../hooks/useTeamsTree";
 import type { PostAttachment } from "../types";
+import type { MentionCandidate } from "../utils";
 
 function initials(name?: string) {
   if (!name) return "?";
@@ -42,8 +53,10 @@ async function openAttachment(att: PostAttachment) {
 
 export default function PostPage() {
   const { teamSlug, channelSlug, postId } = useParams<{ teamSlug: string; channelSlug: string; postId: string }>();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const { data: post } = usePost(postId);
   const { messages, isLoading: msgLoading } = usePostMessages(postId);
   const { data: profileId } = useCurrentProfileId();
@@ -53,10 +66,46 @@ export default function PostPage() {
     queryKey: ["teams", "channel-row", post?.channel_id],
     queryFn: async () => {
       const { data } = await supabase
-        .from("channels").select("id, team_id").eq("id", post!.channel_id).maybeSingle();
-      return data as { id: string; team_id: string } | null;
+        .from("channels").select("id, team_id, visibility").eq("id", post!.channel_id).maybeSingle();
+      return data as { id: string; team_id: string; visibility: "public" | "private" } | null;
     },
     enabled: !!post?.channel_id,
+  });
+
+  const { data: postMentionCandidates = [] } = useQuery({
+    queryKey: ["teams", "post-mention-candidates", channelRow?.id, channelRow?.team_id, channelRow?.visibility],
+    queryFn: async () => {
+      if (!channelRow) return [] as MentionCandidate[];
+
+      if (channelRow.visibility === "private") {
+        const { data, error } = await supabase
+          .from("channel_members")
+          .select("user_id, user:users!channel_members_user_id_fkey(id, name, status)")
+          .eq("channel_id", channelRow.id);
+        if (error) throw new Error(error.message);
+        return ((data ?? []) as Array<{
+          user_id: string;
+          user: { id: string; name: string | null; status: string | null } | null;
+        }>)
+          .filter((row) => row.user?.status === "ativo" && Boolean(row.user?.name))
+          .map((row) => ({ id: row.user_id, name: row.user!.name! }))
+          .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+      }
+
+      const { data, error } = await supabase
+        .from("team_members")
+        .select("user_id, user:users!team_members_user_id_fkey(id, name, status)")
+        .eq("team_id", channelRow.team_id);
+      if (error) throw new Error(error.message);
+      return ((data ?? []) as Array<{
+        user_id: string;
+        user: { id: string; name: string | null; status: string | null } | null;
+      }>)
+        .filter((row) => row.user?.status === "ativo" && Boolean(row.user?.name))
+        .map((row) => ({ id: row.user_id, name: row.user!.name! }))
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    },
+    enabled: !!channelRow,
   });
 
   const togglePin = useMutation({
@@ -95,7 +144,20 @@ export default function PostPage() {
 
   const remove = useMutation({
     mutationFn: () => postService.softDelete(postId!),
-    onSuccess: () => toast.success("Postagem removida"),
+    onSuccess: async () => {
+      if (post?.channel_id) {
+        qc.setQueryData(teamsKeys.posts(post.channel_id), (old: unknown) =>
+          Array.isArray(old) ? old.filter((item) => (item as { id?: string }).id !== postId) : old,
+        );
+      }
+      qc.removeQueries({ queryKey: teamsKeys.post(postId!) });
+      qc.invalidateQueries({ queryKey: teamsKeys.favorites() });
+      if (post?.channel_id) {
+        await qc.invalidateQueries({ queryKey: teamsKeys.posts(post.channel_id) });
+      }
+      toast.success("Postagem removida");
+      navigate(`/teams/${teamSlug}/${channelSlug}`);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -107,7 +169,7 @@ export default function PostPage() {
   const attachments = (post.attachments ?? []) as PostAttachment[];
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-4 py-4">
+    <div className="w-full max-w-[1400px]">
       <NavLink
         to={`/teams/${teamSlug}/${channelSlug}`}
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
@@ -147,7 +209,12 @@ export default function PostPage() {
                   <Pin className={post.is_pinned ? "h-4 w-4 text-primary" : "h-4 w-4"} />
                 </Button>
                 {isAuthor && (
-                  <Button variant="ghost" size="icon" onClick={() => remove.mutate()} title="Remover">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setConfirmDeleteOpen(true)}
+                    title="Excluir postagem"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 )}
@@ -213,7 +280,7 @@ export default function PostPage() {
                 <MessageList postId={postId!} messages={messages} currentUserId={profileId ?? null} />
               )}
             </div>
-            {profileId && <MessageComposer postId={postId!} />}
+            {profileId && <MessageComposer postId={postId!} mentionCandidates={postMentionCandidates} />}
           </div>
         </div>
 
@@ -229,6 +296,31 @@ export default function PostPage() {
           channelId={channelRow.id}
         />
       )}
+
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir postagem?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação remove a postagem e não poderá ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={remove.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={remove.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                remove.mutate();
+                setConfirmDeleteOpen(false);
+              }}
+            >
+              {remove.isPending ? "Excluindo..." : "Excluir postagem"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

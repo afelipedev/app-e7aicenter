@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, NavLink } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Settings2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -110,13 +110,16 @@ export default function TeamDetailAdminPage() {
   const availableUsers = (allUsers as { id: string; name: string; email: string }[]).filter((u) => !memberIds.has(u.id));
 
   return (
-    <div className="container mx-auto px-4 py-6">
+    <div className="w-full max-w-7xl">
       <NavLink to="/admin/teams" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
         <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
       </NavLink>
 
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold">{team?.name ?? "—"}</h1>
+        <h1 className="text-2xl font-semibold flex items-center gap-2">
+          <Settings2 className="h-6 w-6 text-primary" />
+          {team?.name ?? "—"}
+        </h1>
         {team?.description && <p className="text-sm text-muted-foreground mt-1">{team.description}</p>}
       </div>
 

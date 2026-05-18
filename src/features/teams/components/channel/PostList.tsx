@@ -1,12 +1,24 @@
 import { NavLink } from "react-router-dom";
-import { ChevronRight, FileText, Image as ImageIcon, MessageSquare, Pin, PinOff, Star } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, FileText, Image as ImageIcon, MessageSquare, Pin, PinOff, Star, Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useCurrentProfileId } from "../../hooks/useCurrentProfileId";
 import { postService } from "../../services/postService";
 import { attachmentService } from "../../services/attachmentService";
 import { teamsKeys } from "../../hooks/useTeamsTree";
@@ -70,6 +82,8 @@ function AttachmentChip({ att }: { att: PostAttachment }) {
 
 export function PostList({ posts, teamSlug, channelSlug, channelId }: PostListProps) {
   const qc = useQueryClient();
+  const { data: profileId } = useCurrentProfileId();
+  const [postToDelete, setPostToDelete] = useState<PostWithAuthor | null>(null);
 
   const togglePin = useMutation({
     mutationFn: async ({ id, pinned }: { id: string; pinned: boolean }) =>
@@ -93,6 +107,30 @@ export function PostList({ posts, teamSlug, channelSlug, channelId }: PostListPr
     },
   });
 
+  const removePost = useMutation({
+    mutationFn: (id: string) => postService.softDelete(id),
+    onMutate: async (id) => {
+      if (!channelId) return;
+      await qc.cancelQueries({ queryKey: teamsKeys.posts(channelId) });
+      const prev = qc.getQueryData<PostWithAuthor[]>(teamsKeys.posts(channelId));
+      qc.setQueryData<PostWithAuthor[]>(
+        teamsKeys.posts(channelId),
+        (old) => (old ?? []).filter((p) => p.id !== id),
+      );
+      return { prev };
+    },
+    onError: (_err, _id, ctx) => {
+      if (channelId && ctx?.prev) qc.setQueryData(teamsKeys.posts(channelId), ctx.prev);
+      toast.error("Falha ao excluir postagem");
+    },
+    onSuccess: () => {
+      toast.success("Postagem removida");
+      if (channelId) qc.invalidateQueries({ queryKey: teamsKeys.posts(channelId) });
+      qc.invalidateQueries({ queryKey: teamsKeys.favorites() });
+    },
+    onSettled: () => setPostToDelete(null),
+  });
+
   if (!posts.length) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
@@ -107,6 +145,7 @@ export function PostList({ posts, teamSlug, channelSlug, channelId }: PostListPr
     <div className="flex flex-col gap-3">
       {posts.map((p) => {
         const postPath = `/teams/${teamSlug}/${channelSlug}/${p.id}`;
+        const canDelete = p.author_user_id === profileId;
         return (
           <Card
             key={p.id}
@@ -180,12 +219,54 @@ export function PostList({ posts, teamSlug, channelSlug, channelId }: PostListPr
                 >
                   {p.is_pinned ? <PinOff className="h-4 w-4 text-primary" /> : <Pin className="h-4 w-4" />}
                 </Button>
+                {canDelete && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Excluir postagem"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setPostToDelete(p);
+                    }}
+                    disabled={removePost.isPending}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                )}
                 {p.is_favorited && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
               </div>
             </div>
           </Card>
         );
       })}
+
+      <AlertDialog open={postToDelete != null} onOpenChange={(open) => !open && setPostToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir postagem?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação remove a postagem "{postToDelete?.title ?? ""}" e não poderá ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removePost.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={removePost.isPending || !postToDelete}
+              onClick={(event) => {
+                event.preventDefault();
+                if (postToDelete) {
+                  removePost.mutate(postToDelete.id);
+                }
+              }}
+            >
+              {removePost.isPending ? "Excluindo..." : "Excluir postagem"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

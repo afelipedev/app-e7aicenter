@@ -29,7 +29,12 @@ export const kanbanBridgeService = {
     card_id?: string;
     content_text: string;
     content_json?: Record<string, unknown>;
+    source_message_id?: string;
+    source_comment_id?: string;
   }) {
     return invoke("mirror_comment", input);
+  },
+  mirrorDeleteComment(input: { card_comment_id?: string; post_message_id?: string; post_id?: string }) {
+    return invoke("mirror_delete_comment", input);
   },
 };

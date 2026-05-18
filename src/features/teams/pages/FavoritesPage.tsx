@@ -92,7 +92,7 @@ export default function FavoritesPage() {
   });
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-4xl">
+    <div className="w-full max-w-5xl">
       <div className="mb-4">
         <NavLink to="/teams" className="text-sm text-muted-foreground hover:text-foreground">← Equipes</NavLink>
         <h1 className="mt-1 text-2xl font-semibold flex items-center gap-2">

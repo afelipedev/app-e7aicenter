@@ -456,7 +456,7 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
   }
 
   const cardIds = cards.map((card) => card.id);
-  const [membersResponse, labelsResponse, commentsResponse, attachmentsResponse, checklistsResponse, customValuesResponse] =
+  const [membersResponse, labelsResponse, commentsResponse, attachmentsResponse, checklistsResponse, customValuesResponse, postLinksResponse] =
     await Promise.all([
       db
         .from("legal_kanban_card_members")
@@ -473,6 +473,7 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
         .from("legal_kanban_card_custom_field_values")
         .select("*")
         .in("card_id", cardIds),
+      db.from("post_kanban_links").select("card_id").in("card_id", cardIds),
     ]);
 
   const checklistItemsResponse =
@@ -532,6 +533,10 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
     customValuesMap.set(row.card_id, current);
   });
 
+  const linkedCardIds = new Set<string>(
+    maybeArray(postLinksResponse.data).map((row: { card_id: string }) => row.card_id),
+  );
+
   return cards.map((card) => ({
     ...card,
     members: membersMap.get(card.id) || [],
@@ -540,6 +545,7 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
     commentsCount: commentsCountMap.get(card.id) || 0,
     attachmentsCount: attachmentsCountMap.get(card.id) || 0,
     customFieldValues: customValuesMap.get(card.id) || [],
+    hasLinkedPost: linkedCardIds.has(card.id),
   }));
 }
 
@@ -1141,6 +1147,7 @@ export const legalKanbanService = {
               post_id: link.post_id,
               card_id: cardId,
               content_text: content,
+              source_comment_id: comment.id,
             },
           },
         });
@@ -1153,8 +1160,36 @@ export const legalKanbanService = {
   },
 
   async deleteComment(commentId: string) {
+    // Busca o card_id antes de deletar para podermos propagar o delete pelo bridge.
+    const { data: comment } = await db
+      .from("legal_kanban_comments")
+      .select("id, card_id")
+      .eq("id", commentId)
+      .maybeSingle();
+
     const response = await db.from("legal_kanban_comments").delete().eq("id", commentId).select("id").single();
     ensureData(response, "Não foi possível excluir o comentário.");
+
+    // Propaga delete para o post_message espelhado, se houver postagem vinculada
+    if (comment?.card_id) {
+      try {
+        const { data: link } = await db
+          .from("post_kanban_links")
+          .select("post_id")
+          .eq("card_id", comment.card_id)
+          .maybeSingle();
+        if (link?.post_id) {
+          await supabase.functions.invoke("teams-kanban-bridge", {
+            body: {
+              action: "mirror_delete_comment",
+              payload: { card_comment_id: commentId, post_id: link.post_id },
+            },
+          });
+        }
+      } catch (e) {
+        console.warn("Mirror delete card→post falhou:", (e as Error).message);
+      }
+    }
   },
 
   async deleteActivity(activityId: string) {

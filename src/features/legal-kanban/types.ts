@@ -154,6 +154,7 @@ export interface LegalKanbanCard extends LegalKanbanCardBase {
   commentsCount: number;
   attachmentsCount: number;
   customFieldValues: LegalKanbanCustomFieldValue[];
+  hasLinkedPost: boolean;
 }
 
 export interface LegalKanbanCardDetails extends LegalKanbanCard {

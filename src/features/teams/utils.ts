@@ -74,3 +74,32 @@ export function formatRelativeTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
+
+export interface MentionCandidate {
+  id: string;
+  name: string;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function extractMentionQuery(value: string) {
+  const match = value.match(/(?:^|\s)@([^\s@]*)$/);
+  return match ? match[1] : null;
+}
+
+export function replaceLastMentionWithUser(value: string, selectedUserName: string) {
+  return value.replace(/(?:^|\s)@([^\s@]*)$/, (full) => {
+    const hasLeadingSpace = full.startsWith(" ");
+    return `${hasLeadingSpace ? " " : ""}@${selectedUserName} `;
+  });
+}
+
+export function collectMentionUserIdsFromText(content: string, candidates: MentionCandidate[]) {
+  return candidates
+    .filter((candidate) =>
+      new RegExp(`(^|\\s)@${escapeRegExp(candidate.name)}(?=\\s|$)`, "i").test(content),
+    )
+    .map((candidate) => candidate.id);
+}

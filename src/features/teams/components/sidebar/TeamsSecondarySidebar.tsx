@@ -10,7 +10,7 @@ export function TeamsSecondarySidebar() {
 
   return (
     <aside className="hidden md:flex w-64 flex-shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <div className="px-4 py-4 border-b border-sidebar-border">
+      <div className="h-16 px-4 flex items-center border-b border-sidebar-border">
         <div className="flex items-center gap-2">
           <UsersRound className="h-5 w-5 text-ai-cyan" />
           <h2 className="text-sm font-semibold">Equipes</h2>

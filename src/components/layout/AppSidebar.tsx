@@ -11,10 +11,15 @@ import {
   BarChart3,
   Calendar,
   Trello,
-  Users,
   ChevronDown,
   BookOpen,
   UsersRound,
+  Target,
+  Hash,
+  ShieldCheck,
+  UserCog,
+  UsersIcon as UsersGroupIcon,
+  UserSquare2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -48,7 +53,7 @@ const menuItems: SidebarEntry[] = [
   },
   {
     title: "Leads",
-    icon: Users,
+    icon: Target,
     url: "/leads",
     color: "text-ai-cyan",
   },
@@ -93,7 +98,7 @@ const menuItems: SidebarEntry[] = [
   },
   {
     title: "Equipes",
-    icon: UsersRound,
+    icon: Hash,
     url: "/teams",
     color: "text-ai-cyan",
   },
@@ -108,11 +113,11 @@ const menuItems: SidebarEntry[] = [
   },
   {
     title: "Administração",
-    icon: Users,
+    icon: ShieldCheck,
     color: "text-ai-pink",
     items: [
-      { title: "Usuários", url: "/admin/users", icon: Users },
-      { title: "Gestão de Equipes", url: "/admin/teams", icon: UsersRound },
+      { title: "Usuários", url: "/admin/users", icon: UserCog },
+      { title: "Gestão de Equipes", url: "/admin/teams", icon: UsersGroupIcon },
     ],
   },
 ];
@@ -194,12 +199,12 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarContent>
-        <div className="px-4 py-6">
-          <div className="flex items-center gap-2">
+        <div className={cn("py-6", isCollapsed ? "px-0" : "px-4")}>
+          <div className={cn("flex items-center", isCollapsed ? "justify-center" : "gap-2")}>
             <div className={`${isCollapsed ? 'w-8 h-8' : 'w-10 h-10'} rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0`}>
-              <img 
-                src="/logo-e7-login-modal.png" 
-                alt="Logo E7" 
+              <img
+                src="/logo-e7-login-modal.png"
+                alt="Logo E7"
                 className="w-full h-full object-contain"
               />
             </div>
