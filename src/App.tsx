@@ -23,7 +23,6 @@ import ProcessQueriesPage from "./features/processes/pages/ProcessQueriesPage";
 import ProcessDetailsPage from "./features/processes/pages/ProcessDetailsPage";
 import LegalKanbanPage from "./features/legal-kanban/pages/LegalKanbanPage";
 import PowerBI from "./pages/integrations/PowerBI";
-import Trello from "./pages/integrations/Trello";
 import CalendarIntegration from "./pages/integrations/CalendarIntegration";
 import Users from "./pages/admin/Users";
 import { Companies as CompaniesManagement } from "./pages/Companies";
@@ -107,7 +106,6 @@ const App = () => (
               
               {/* Integrations - accessible to all authenticated users */}
               <Route path="/integrations/powerbi" element={<PowerBI />} />
-              <Route path="/integrations/trello" element={<Trello />} />
               <Route path="/integrations/calendar" element={<CalendarIntegration />} />
 
               {/* Leads - accessible to all authenticated users */}

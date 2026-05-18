@@ -96,7 +96,6 @@ const menuItems: SidebarEntry[] = [
     color: "text-ai-orange",
     items: [
       { title: "PowerBI", url: "/integrations/powerbi", icon: BarChart3 },
-      { title: "Trello", url: "/integrations/trello", icon: Trello },
       { title: "Agenda", url: "/integrations/calendar", icon: Calendar },
     ],
   },
