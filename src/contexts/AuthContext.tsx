@@ -25,6 +25,7 @@ interface AuthContextType {
   logout: () => Promise<void>
   hasPermission: (permission: string) => boolean
   refreshSession: () => Promise<void>
+  refreshUserProfile: () => Promise<void>
   checkFirstAccessStatus: () => Promise<FirstAccessStatus | null>
   completeFirstAccess: (newPassword: string) => Promise<boolean>
 }
@@ -89,7 +90,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [user])
 
   // Função para buscar perfil do usuário (com proteção contra chamadas duplicadas)
-  const fetchUserProfile = useCallback(async (authUser: SupabaseUser): Promise<User | null> => {
+  const fetchUserProfile = useCallback(async (authUser: SupabaseUser, forceRefresh = false): Promise<User | null> => {
     // Evitar chamadas duplicadas para o mesmo usuário
     if (fetchingProfileForRef.current === authUser.id) {
       console.log('[Auth] fetchUserProfile já em execução para este usuário, ignorando')
@@ -97,7 +98,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     // Se já temos o perfil deste usuário carregado, retornar
-    if (currentUserRef.current?.auth_user_id === authUser.id) {
+    if (!forceRefresh && currentUserRef.current?.auth_user_id === authUser.id) {
       console.log('[Auth] Perfil já carregado para este usuário')
       return currentUserRef.current
     }
@@ -405,6 +406,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
+  const refreshUserProfile = async (): Promise<void> => {
+    try {
+      const currentSession = currentSessionRef.current
+      if (!currentSession?.user) return
+
+      const profile = await fetchUserProfile(currentSession.user, true)
+      if (profile && mountedRef.current) {
+        setUser(profile)
+      }
+    } catch (error) {
+      console.error('[Auth] Erro ao atualizar perfil em memória:', error)
+    }
+  }
+
   const checkFirstAccessStatus = async (): Promise<FirstAccessStatus | null> => {
     try {
       if (!user?.email) {
@@ -581,6 +596,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     hasPermission,
     refreshSession,
+    refreshUserProfile,
     checkFirstAccessStatus,
     completeFirstAccess
   }

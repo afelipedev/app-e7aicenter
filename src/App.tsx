@@ -41,6 +41,7 @@ import PostPage from "./features/teams/pages/PostPage";
 import FavoritesPage from "./features/teams/pages/FavoritesPage";
 import TeamsAdminPage from "./features/teams/pages/admin/TeamsAdminPage";
 import TeamDetailAdminPage from "./features/teams/pages/admin/TeamDetailAdminPage";
+import ProfilePage from "./features/profile/pages/ProfilePage";
 
 // Configuração do QueryClient com cache otimizado
 const queryClient = new QueryClient({
@@ -145,6 +146,7 @@ const App = () => (
               <Route path="/teams/favorites" element={<FavoritesPage />} />
               <Route path="/teams/:teamSlug/:channelSlug" element={<ChannelPage />} />
               <Route path="/teams/:teamSlug/:channelSlug/:postId" element={<PostPage />} />
+              <Route path="/perfil" element={<ProfilePage />} />
               <Route path="/admin/teams" element={
                 <ProtectedRoute requiredPermission="admin">
                   <TeamsAdminPage />

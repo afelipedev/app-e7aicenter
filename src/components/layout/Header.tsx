@@ -1,5 +1,5 @@
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Settings, User, LogOut, Loader2 } from "lucide-react";
+import { Settings, LogOut, Loader2 } from "lucide-react";
 import { NotificationsBell } from "@/features/teams/components/NotificationsBell";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
@@ -48,6 +49,13 @@ export function Header() {
     return roleNames[role] || role;
   };
 
+  const getInitials = (name?: string) => {
+    if (!name) return "U";
+    const chunks = name.trim().split(" ").filter(Boolean);
+    if (chunks.length === 1) return chunks[0].slice(0, 2).toUpperCase();
+    return `${chunks[0][0]}${chunks[chunks.length - 1][0]}`.toUpperCase();
+  };
+
   return (
     <header className="h-16 border-b border-border bg-card flex items-center justify-between px-4 md:px-6 sticky top-0 z-10">
       <div className="flex items-center gap-2">
@@ -57,14 +65,17 @@ export function Header() {
       <div className="flex items-center gap-2">
         <NotificationsBell />
 
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/perfil")}>
           <Settings className="w-5 h-5" />
         </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
-              <User className="w-5 h-5" />
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user?.avatar_url || undefined} alt={user?.name || "Usuário"} />
+                <AvatarFallback className="text-xs">{getInitials(user?.name)}</AvatarFallback>
+              </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 bg-popover">
@@ -80,8 +91,8 @@ export function Header() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Perfil</DropdownMenuItem>
-            <DropdownMenuItem>Configurações</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/perfil")}>Perfil</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/perfil")}>Configurações</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
               onClick={handleLogout} 

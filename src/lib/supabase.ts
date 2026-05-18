@@ -69,8 +69,12 @@ export interface Database {
           auth_user_id: string
           email: string
           name: string
+          phone: string | null
+          avatar_url: string | null
           role: 'administrator' | 'it' | 'advogado_adm' | 'advogado' | 'contabil' | 'financeiro'
           status: 'ativo' | 'inativo'
+          first_access_completed: boolean | null
+          first_access_at: string | null
           created_at: string
           updated_at: string
           last_access: string | null
@@ -80,8 +84,12 @@ export interface Database {
           auth_user_id: string
           email: string
           name: string
+          phone?: string | null
+          avatar_url?: string | null
           role: 'administrator' | 'it' | 'advogado_adm' | 'advogado' | 'contabil' | 'financeiro'
           status?: 'ativo' | 'inativo'
+          first_access_completed?: boolean | null
+          first_access_at?: string | null
           created_at?: string
           updated_at?: string
           last_access?: string | null
@@ -91,8 +99,12 @@ export interface Database {
           auth_user_id?: string
           email?: string
           name?: string
+          phone?: string | null
+          avatar_url?: string | null
           role?: 'administrator' | 'it' | 'advogado_adm' | 'advogado' | 'contabil' | 'financeiro'
           status?: 'ativo' | 'inativo'
+          first_access_completed?: boolean | null
+          first_access_at?: string | null
           created_at?: string
           updated_at?: string
           last_access?: string | null
