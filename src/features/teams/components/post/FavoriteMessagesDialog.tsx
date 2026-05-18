@@ -60,6 +60,8 @@ export function FavoriteMessagesDialog({ open, onOpenChange, postId, onSelectMes
 
   const { data: favorites = [], isLoading } = useQuery<FavoriteRow[]>({
     queryKey: favKey(postId, profileId),
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async () => {
       if (!profileId) return [];
       const { data, error } = await supabase

@@ -56,7 +56,11 @@ export function MessageList({ postId, messages, currentUserId }: MessageListProp
       if (!currentUserId) throw new Error("Sem usuário");
       return messageService.toggleMessageFavorite(messageId, currentUserId);
     },
-    onSuccess: () => toast.success("Favorito atualizado"),
+    onSuccess: () => {
+      toast.success("Favorito atualizado");
+      // Garante que o modal de mensagens favoritas reflita a mudança sem refresh
+      qc.invalidateQueries({ queryKey: ["teams", "favorite-messages", postId, currentUserId ?? "anon"] });
+    },
     onError: (err: Error) => toast.error(err.message),
   });
 
