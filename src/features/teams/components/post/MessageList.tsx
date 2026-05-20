@@ -40,9 +40,13 @@ export function MessageList({ postId, messages, currentUserId, mentionNames = []
   const highlightRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (highlightId && highlightRef.current) {
-      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
+    if (!highlightId) return;
+    const el = highlightRef.current;
+    if (!el) return;
+    const t = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+    return () => window.clearTimeout(t);
   }, [highlightId, messages.length]);
 
   const reactMutation = useMutation({

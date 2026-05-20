@@ -20,6 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { usePost, usePostMessages } from "../hooks/usePostThread";
 import { useCurrentProfileId } from "../hooks/useCurrentProfileId";
 import { MessageList } from "../components/post/MessageList";
+import { ThreadSearchBox } from "../components/post/ThreadSearchBox";
 import { FavoriteMessagesDialog } from "../components/post/FavoriteMessagesDialog";
 import { MessageComposer } from "../components/post/MessageComposer";
 import { PostRightSidebar } from "../components/post/PostRightSidebar";
@@ -271,14 +272,17 @@ export default function PostPage() {
           </Card>
 
           <div className="mt-4 border rounded-lg bg-card flex-1 flex flex-col">
-            <div className="px-4 py-2.5 border-b flex items-center justify-between gap-2">
-              <h2 className="text-sm font-medium">
+            <div className="px-4 py-2.5 border-b flex items-center gap-2">
+              <h2 className="text-sm font-medium shrink-0">
                 Respostas {messages.length > 0 && `(${messages.length})`}
               </h2>
+              <div className="flex-1 flex justify-center min-w-0 px-2">
+                <ThreadSearchBox messages={messages} className="w-full max-w-sm" />
+              </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 shrink-0"
                 title="Mensagens favoritas"
                 onClick={() => setFavMessagesOpen(true)}
                 disabled={!profileId}
