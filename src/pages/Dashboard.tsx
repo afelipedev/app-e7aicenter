@@ -4,80 +4,62 @@ import {
   FileText,
   Briefcase,
   TrendingUp,
-  Users,
   Building,
-  Clock,
-  CheckCircle,
   Trello,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { CompanyService } from "@/services/companyService";
 import { ChatService } from "@/services/chatService";
+import { DashboardService } from "@/services/dashboardService";
+import { getEvolutionColor } from "@/lib/monthlyEvolution";
 
-const getStats = (companiesCount: number, companiesEvolution: string, chatsCount: number, chatsEvolution: string) => [
+interface DashboardStat {
+  title: string;
+  value: string;
+  change: string;
+  evolutionPercent: number | null;
+  icon: typeof MessageSquare;
+  color: string;
+  bg: string;
+}
+
+const initialStats: DashboardStat[] = [
   {
     title: "Conversas IA",
-    value: chatsCount.toLocaleString('pt-BR'),
-    change: chatsEvolution,
+    value: "—",
+    change: "—",
+    evolutionPercent: null,
     icon: MessageSquare,
     color: "text-ai-blue",
     bg: "bg-ai-blue/10",
   },
   {
     title: "Documentos",
-    value: "856",
-    change: "+8%",
+    value: "—",
+    change: "—",
+    evolutionPercent: null,
     icon: FileText,
     color: "text-ai-green",
     bg: "bg-ai-green/10",
   },
   {
     title: "Processos Ativos",
-    value: "43",
-    change: "+5%",
+    value: "—",
+    change: "—",
+    evolutionPercent: null,
     icon: Briefcase,
     color: "text-ai-purple",
     bg: "bg-ai-purple/10",
   },
   {
     title: "Empresas",
-    value: companiesCount.toString(),
-    change: companiesEvolution,
+    value: "—",
+    change: "—",
+    evolutionPercent: null,
     icon: Building,
     color: "text-ai-orange",
     bg: "bg-ai-orange/10",
-  },
-];
-
-const recentActivities = [
-  {
-    title: "Análise de Holerite Completa",
-    description: "Empresa XYZ - Competência 01/2025",
-    time: "Há 5 minutos",
-    icon: FileText,
-    color: "text-ai-green",
-  },
-  {
-    title: "Nova Consulta Jurídica",
-    description: "Assistente Tributário - Cálculo de IRRF",
-    time: "Há 15 minutos",
-    icon: MessageSquare,
-    color: "text-ai-purple",
-  },
-  {
-    title: "Processo Atualizado",
-    description: "Processo #12345 - Nova movimentação",
-    time: "Há 1 hora",
-    icon: Briefcase,
-    color: "text-ai-blue",
-  },
-  {
-    title: "Relatório Gerado",
-    description: "Relatório Financeiro - Q4 2024",
-    time: "Há 2 horas",
-    icon: TrendingUp,
-    color: "text-ai-orange",
   },
 ];
 
@@ -90,22 +72,22 @@ const quickActions = [
     url: "/assistants/library",
   },
   {
-    title: "Upload Holerite",
-    description: "Importar novos documentos",
+    title: "Gestão de Holerites",
+    description: "Automatizar conversão dos holerites",
     icon: FileText,
     color: "bg-gradient-green",
     url: "/documents/payroll",
   },
   {
-    title: "Quadros",
-    description: "Acompanhar andamentos em quadros",
+    title: "Quadros Jurídicos",
+    description: "Acompanhar andamentos dos quadros jurídicos",
     icon: Trello,
     color: "bg-gradient-blue",
     url: "/documents/cases/quadros",
   },
   {
     title: "Relatórios",
-    description: "Gerar análises",
+    description: "Acompanhar e Gerar Relatórios",
     icon: TrendingUp,
     color: "bg-gradient-orange",
     url: "/documents/reports",
@@ -114,42 +96,72 @@ const quickActions = [
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [companiesCount, setCompaniesCount] = useState<number>(0);
-  const [companiesEvolution, setCompaniesEvolution] = useState<string>("—");
-  const [companiesEvolutionPercent, setCompaniesEvolutionPercent] = useState<number | null>(null);
-  const [chatsCount, setChatsCount] = useState<number>(0);
-  const [chatsEvolution, setChatsEvolution] = useState<string>("—");
-  const [chatsEvolutionPercent, setChatsEvolutionPercent] = useState<number | null>(null);
+  const [stats, setStats] = useState<DashboardStat[]>(initialStats);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Buscar dados de empresas e chats em paralelo
-        const [companies, companiesEvolutionData, chatsCountData, chatsEvolutionData] = await Promise.all([
+        const [
+          companies,
+          companiesEvolutionData,
+          chatsCountData,
+          chatsEvolutionData,
+          documentsCount,
+          documentsEvolutionData,
+          activeProcessesCount,
+          activeProcessesEvolutionData,
+        ] = await Promise.all([
           CompanyService.getAll(),
           CompanyService.getMonthlyEvolution(),
           ChatService.getAllChatsCount(),
-          ChatService.getMonthlyEvolution()
+          ChatService.getMonthlyEvolution(),
+          DashboardService.getDocumentsCount(),
+          DashboardService.getDocumentsMonthlyEvolution(),
+          DashboardService.getActiveProcessesCount(),
+          DashboardService.getActiveProcessesMonthlyEvolution(),
         ]);
-        
-        // Atualizar dados de empresas
-        setCompaniesCount(companies.length);
-        setCompaniesEvolution(companiesEvolutionData.evolutionText);
-        setCompaniesEvolutionPercent(companiesEvolutionData.evolutionPercent);
-        
-        // Atualizar dados de chats
-        setChatsCount(chatsCountData);
-        setChatsEvolution(chatsEvolutionData.evolutionText);
-        setChatsEvolutionPercent(chatsEvolutionData.evolutionPercent);
+
+        setStats([
+          {
+            title: "Conversas IA",
+            value: chatsCountData.toLocaleString("pt-BR"),
+            change: chatsEvolutionData.evolutionText,
+            evolutionPercent: chatsEvolutionData.evolutionPercent,
+            icon: MessageSquare,
+            color: "text-ai-blue",
+            bg: "bg-ai-blue/10",
+          },
+          {
+            title: "Documentos",
+            value: documentsCount.toLocaleString("pt-BR"),
+            change: documentsEvolutionData.evolutionText,
+            evolutionPercent: documentsEvolutionData.evolutionPercent,
+            icon: FileText,
+            color: "text-ai-green",
+            bg: "bg-ai-green/10",
+          },
+          {
+            title: "Processos Ativos",
+            value: activeProcessesCount.toLocaleString("pt-BR"),
+            change: activeProcessesEvolutionData.evolutionText,
+            evolutionPercent: activeProcessesEvolutionData.evolutionPercent,
+            icon: Briefcase,
+            color: "text-ai-purple",
+            bg: "bg-ai-purple/10",
+          },
+          {
+            title: "Empresas",
+            value: companies.length.toLocaleString("pt-BR"),
+            change: companiesEvolutionData.evolutionText,
+            evolutionPercent: companiesEvolutionData.evolutionPercent,
+            icon: Building,
+            color: "text-ai-orange",
+            bg: "bg-ai-orange/10",
+          },
+        ]);
       } catch (error) {
         console.error("Erro ao buscar dados do dashboard:", error);
-        // Em caso de erro, mantém os valores padrão
-        setCompaniesCount(0);
-        setCompaniesEvolution("—");
-        setCompaniesEvolutionPercent(null);
-        setChatsCount(0);
-        setChatsEvolution("—");
-        setChatsEvolutionPercent(null);
+        setStats(initialStats);
       }
     };
 
@@ -160,8 +172,6 @@ export default function Dashboard() {
     navigate(url);
   };
 
-  const stats = getStats(companiesCount, companiesEvolution, chatsCount, chatsEvolution);
-
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -171,53 +181,25 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => {
-          // Determinar cor do percentual de evolução para empresas e conversas IA
-          let changeColor = stat.color;
-          if (stat.title === "Empresas") {
-            const evolutionPercent = companiesEvolutionPercent;
-            if (evolutionPercent !== null) {
-              if (evolutionPercent > 0) {
-                changeColor = "text-green-600"; // Verde para crescimento
-              } else if (evolutionPercent < 0) {
-                changeColor = "text-red-600"; // Vermelho para queda
-              } else {
-                changeColor = stat.color; // Cor padrão para sem mudança
-              }
-            }
-          } else if (stat.title === "Conversas IA") {
-            const evolutionPercent = chatsEvolutionPercent;
-            if (evolutionPercent !== null) {
-              if (evolutionPercent > 0) {
-                changeColor = "text-green-600"; // Verde para crescimento
-              } else if (evolutionPercent < 0) {
-                changeColor = "text-red-600"; // Vermelho para queda
-              } else {
-                changeColor = stat.color; // Cor padrão para sem mudança
-              }
-            }
-          }
-          
-          return (
-            <Card key={stat.title} className="p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">{stat.title}</p>
-                  <p className="text-3xl font-bold text-foreground">{stat.value}</p>
-                  <p className={`text-sm mt-2 ${changeColor}`}>{stat.change}</p>
-                </div>
-                <div className={`p-3 rounded-lg ${stat.bg}`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
+        {stats.map((stat) => (
+          <Card key={stat.title} className="p-6 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">{stat.title}</p>
+                <p className="text-3xl font-bold text-foreground">{stat.value}</p>
+                <p className={`text-sm mt-2 ${getEvolutionColor(stat.evolutionPercent, stat.color)}`}>
+                  {stat.change}
+                </p>
               </div>
-            </Card>
-          );
-        })}
+              <div className={`p-3 rounded-lg ${stat.bg}`}>
+                <stat.icon className={`w-6 h-6 ${stat.color}`} />
+              </div>
+            </div>
+          </Card>
+        ))}
       </div>
 
-      {/* Quick Actions */}
       <div>
         <h2 className="text-xl font-semibold text-foreground mb-4">Ações Rápidas</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -235,30 +217,6 @@ export default function Dashboard() {
             </Card>
           ))}
         </div>
-      </div>
-
-      {/* Recent Activities */}
-      <div>
-        <h2 className="text-xl font-semibold text-foreground mb-4">Atividades Recentes</h2>
-        <Card className="p-6">
-          <div className="space-y-4">
-            {recentActivities.map((activity, index) => (
-              <div key={index} className="flex items-start gap-4 pb-4 border-b border-border last:border-0 last:pb-0">
-                <div className={`p-2 rounded-lg bg-muted`}>
-                  <activity.icon className={`w-5 h-5 ${activity.color}`} />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-medium text-foreground">{activity.title}</h4>
-                  <p className="text-sm text-muted-foreground">{activity.description}</p>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="w-3 h-3" />
-                  {activity.time}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
       </div>
     </div>
   );
