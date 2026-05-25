@@ -31,6 +31,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { teamService } from "../../services/teamService";
 import { channelService } from "../../services/channelService";
@@ -41,6 +52,8 @@ import type { TeamMemberRole } from "../../types";
 export default function TeamDetailAdminPage() {
   const { teamId } = useParams<{ teamId: string }>();
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canDeleteChannel = ["administrator", "it", "advogado_adm"].includes(user?.role ?? "");
 
   const { data: team } = useQuery({
     queryKey: ["teams", "team-detail", teamId],
@@ -75,6 +88,7 @@ export default function TeamDetailAdminPage() {
   const [chName, setChName] = useState("");
   const [chTopic, setChTopic] = useState("");
   const [chVisibility, setChVisibility] = useState<"public" | "private">("public");
+  const [channelToDelete, setChannelToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const addMember = useMutation({
     mutationFn: () =>
@@ -113,6 +127,16 @@ export default function TeamDetailAdminPage() {
       qc.invalidateQueries({ queryKey: teamsKeys.tree() });
       setChOpen(false);
       setChName(""); setChTopic("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const deleteChannel = useMutation({
+    mutationFn: (channelId: string) => channelService.deleteChannel(channelId),
+    onSuccess: () => {
+      toast.success("Canal excluído");
+      qc.invalidateQueries({ queryKey: ["teams", "team-channels", teamId] });
+      qc.invalidateQueries({ queryKey: teamsKeys.tree() });
+      setChannelToDelete(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -231,18 +255,31 @@ export default function TeamDetailAdminPage() {
           <div className="space-y-2">
             {channels.map((c) => (
               <div key={c.id} className="border rounded-md p-3">
-                <div className="flex items-center gap-1.5 text-sm font-medium min-w-0">
-                  {c.visibility === "private" ? (
-                    <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  ) : (
-                    <Hash className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  )}
-                  <span className="truncate">
-                    {c.name}
-                    {c.is_general && (
-                      <span className="text-xs text-muted-foreground font-normal"> (padrão)</span>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-sm font-medium min-w-0">
+                    {c.visibility === "private" ? (
+                      <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                    ) : (
+                      <Hash className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                     )}
-                  </span>
+                    <span className="truncate">
+                      {c.name}
+                      {c.is_general && (
+                        <span className="text-xs text-muted-foreground font-normal"> (padrão)</span>
+                      )}
+                    </span>
+                  </div>
+                  {canDeleteChannel && !c.is_general && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => setChannelToDelete({ id: c.id, name: c.name })}
+                      aria-label={`Excluir canal ${c.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
                 {c.topic && (
                   <p className="text-xs text-muted-foreground mt-1 break-words">
@@ -257,6 +294,42 @@ export default function TeamDetailAdminPage() {
           </div>
         </Card>
       </div>
+
+      <AlertDialog
+        open={channelToDelete != null}
+        onOpenChange={(open) => !open && !deleteChannel.isPending && setChannelToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir canal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {channelToDelete
+                ? `O canal "${channelToDelete.name}" será excluído permanentemente, incluindo postagens e anexos.`
+                : "Confirme a exclusão do canal."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteChannel.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteChannel.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!channelToDelete) return;
+                deleteChannel.mutate(channelToDelete.id);
+              }}
+            >
+              {deleteChannel.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Excluindo…
+                </>
+              ) : (
+                "Excluir"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={chOpen} onOpenChange={setChOpen}>
         <DialogContent className="sm:max-w-md">
