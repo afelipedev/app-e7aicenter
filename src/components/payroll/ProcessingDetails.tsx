@@ -20,12 +20,17 @@ import {
 } from "lucide-react";
 import { PayrollService } from "@/services/payrollService";
 import { toast } from "@/hooks/use-toast";
+import {
+  getCompetenciasFromWebhookResponse,
+  resolveHoleriteDownloadFilename,
+  resolveHoleriteDownloadUrl,
+} from "@/features/payroll/utils/holeriteWebhook";
 import type {
   PayrollProcessing,
   ProcessingLog,
   PayrollFile,
   ProcessingStatus
-} from "@/shared/types/payroll";
+} from "../../../shared/types/payroll";
 
 interface ProcessingDetailsProps {
   processingId: string;
@@ -116,11 +121,17 @@ export function ProcessingDetails({ processingId, onClose }: ProcessingDetailsPr
   };
 
   const downloadExcel = async () => {
-    if (!processing?.excel_url) return;
-    
+    const excelUrl =
+      processing?.result_file_url ||
+      resolveHoleriteDownloadUrl(processing?.webhook_response) ||
+      processing?.excel_url;
+    if (!excelUrl) return;
+
     try {
-      const filename = `holerite_${processing.competency || 'processado'}.xlsx`;
-      await PayrollService.downloadFile(processing.excel_url, filename);
+      const filename =
+        resolveHoleriteDownloadFilename(processing?.webhook_response) ||
+        `holerite_${processing?.competency || 'processado'}.xlsx`;
+      await PayrollService.downloadFile(excelUrl, filename);
       toast({
         title: "Download iniciado",
         description: "O arquivo Excel está sendo baixado automaticamente",
@@ -182,7 +193,13 @@ export function ProcessingDetails({ processingId, onClose }: ProcessingDetailsPr
               <div>
                 <CardTitle>Processamento #{processing.id.slice(0, 8)}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {processing.company_name} • {processing.competencia}
+                  {getCompetenciasFromWebhookResponse(
+                    processing.webhook_response,
+                    processing.competency
+                  )}
+                  {processing.webhook_response?.data?.total_arquivos
+                    ? ` • ${processing.webhook_response.data.total_arquivos} arquivo(s) no lote`
+                    : ''}
                 </p>
               </div>
             </div>
@@ -202,6 +219,27 @@ export function ProcessingDetails({ processingId, onClose }: ProcessingDetailsPr
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {Array.isArray(processing.webhook_response?.batch_validation?.warnings) &&
+            processing.webhook_response.batch_validation.warnings.length > 0 && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <p className="font-medium mb-1">Revise o Excel consolidado</p>
+                  <ul className="list-disc list-inside text-sm space-y-1">
+                    {processing.webhook_response.batch_validation.warnings.map(
+                      (w: string, i: number) => (
+                        <li key={i}>{w}</li>
+                      )
+                    )}
+                  </ul>
+                  <p className="text-xs mt-2 text-muted-foreground">
+                    O app enviou {processing.webhook_response.batch_validation.sentCount}{' '}
+                    PDF(s). Se o Excel tiver só uma competência, atualize o workflow N8N conforme{' '}
+                    docs/03-06-2026 - Diagnostico_Lote_Multiplas_Competencias.md.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
           {/* Status and Progress */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
@@ -231,7 +269,10 @@ export function ProcessingDetails({ processingId, onClose }: ProcessingDetailsPr
           </div>
 
           {/* Download Button */}
-          {processing.status === 'completed' && processing.excel_url && (
+          {processing.status === 'completed' &&
+            (processing.result_file_url ||
+              resolveHoleriteDownloadUrl(processing.webhook_response) ||
+              processing.excel_url) && (
             <div className="flex justify-end">
               <Button onClick={downloadExcel} className="gap-2">
                 <Download className="w-4 h-4" />
@@ -266,6 +307,7 @@ export function ProcessingDetails({ processingId, onClose }: ProcessingDetailsPr
               <TableHeader>
                 <TableRow>
                   <TableHead>Arquivo</TableHead>
+                  <TableHead>Competência</TableHead>
                   <TableHead>Tamanho</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Processado em</TableHead>
@@ -281,6 +323,7 @@ export function ProcessingDetails({ processingId, onClose }: ProcessingDetailsPr
                         <span className="font-medium">{file.filename}</span>
                       </div>
                     </TableCell>
+                    <TableCell>{file.competencia}</TableCell>
                     <TableCell>
                       {file.file_size ? formatFileSize(file.file_size) : '-'}
                     </TableCell>

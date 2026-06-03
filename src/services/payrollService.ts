@@ -1,10 +1,29 @@
 import { supabase } from '../lib/supabase';
+import { PayrollConfig } from '@/config/payrollConfig';
+import {
+  formatCompetenciaForStorage,
+  formatCompetenciaDisplay,
+  getHoleriteWebhookTimeoutMs,
+  isDuplicateWebhookResponse,
+  isHoleriteProcessingComplete,
+  isValidCompetencia,
+  MAX_HOLERITE_BATCH_FILES,
+  resolveHoleriteDownloadFilename,
+  resolveHoleriteDownloadUrl,
+  isWebhookGatewayTimeoutStatus,
+  isWebhookTransportError,
+  sortItemsByCompetencia,
+  validateBatchWebhookResponse,
+  WEBHOOK_DEFERRED_MESSAGE,
+} from '@/features/payroll/utils/holeriteWebhook';
 import type { 
   PayrollFile, 
   CreatePayrollFileData, 
   UpdatePayrollFileData, 
   PayrollStats,
   PayrollUploadData,
+  PayrollBatchUploadData,
+  HoleriteWebhookBatchPayload,
   // Enhanced types
   PayrollProcessing,
   CreatePayrollProcessingData,
@@ -12,13 +31,11 @@ import type {
   ProcessingLog,
   RubricPattern,
   ExtractedRubric,
-  BatchUploadData,
   BatchUploadResult,
   FileValidationResult,
   ProcessingStatus,
   EnhancedPayrollStats,
   ProcessingHistory,
-  WebhookPayload,
   WebhookResponse,
   WebhookStatusUpdate,
   ProcessingFilters,
@@ -27,6 +44,13 @@ import type {
   PayrollError,
   CompanyOption
 } from '../../shared/types/payroll';
+
+type ProcessedPayrollFile = {
+  payrollFile: PayrollFile;
+  base64Data: string;
+  originalFile: File;
+  competencia: string;
+};
 
 export class PayrollService {
   // =====================================================
@@ -164,47 +188,68 @@ export class PayrollService {
   // =====================================================
 
   /**
-   * Processa upload em lote de arquivos PDF
+   * Processa upload em lote de arquivos PDF (até 12, competência por arquivo)
    */
-  static async batchUpload(uploadData: BatchUploadData): Promise<BatchUploadResult> {
+  static async batchUpload(uploadData: PayrollBatchUploadData): Promise<BatchUploadResult> {
     try {
-      // Validar competência
-      if (!this.validateCompetencia(uploadData.competencia)) {
-        throw new Error('Competência inválida. Use o formato MM/AAAA');
+      const items = uploadData.items || [];
+
+      if (items.length === 0) {
+        throw new Error('Nenhum arquivo selecionado para upload');
       }
 
-      // Validar arquivos
+      if (items.length > MAX_HOLERITE_BATCH_FILES) {
+        throw new Error(`Máximo de ${MAX_HOLERITE_BATCH_FILES} arquivos por lote`);
+      }
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (!item.file) {
+          throw new Error(`Arquivo ${i + 1}: PDF obrigatório`);
+        }
+        if (!item.competencia?.trim()) {
+          throw new Error(`Arquivo ${item.file.name}: competência obrigatória (MM/AAAA)`);
+        }
+        if (!isValidCompetencia(item.competencia) && !this.validateCompetencia(item.competencia)) {
+          throw new Error(`Arquivo ${item.file.name}: competência inválida. Use MM/AAAA`);
+        }
+      }
+
       const validationResults = await Promise.all(
-        uploadData.files.map(file => this.validateFile(file))
+        items.map((item) => this.validateFile(item.file))
       );
 
-      const validFiles = validationResults.filter(result => result.isValid);
-      const invalidFiles = validationResults.filter(result => !result.isValid);
+      const validEntries = validationResults
+        .map((result, index) => ({ result, item: items[index] }))
+        .filter(({ result }) => result.isValid);
 
-      if (validFiles.length === 0) {
+      const invalidFiles = validationResults.filter((result) => !result.isValid);
+
+      if (validEntries.length === 0) {
         throw new Error('Nenhum arquivo válido encontrado');
       }
 
-      // Converter arquivos válidos para Base64 e criar registros temporários
-      const processPromises = validFiles.map(async (validation) => {
+      const competencyForRpc = formatCompetenciaForStorage(
+        validEntries.map((e) => e.item.competencia)
+      );
+
+      const processPromises = validEntries.map(async ({ result: validation, item }) => {
         try {
-          // Converter arquivo para Base64
           const base64Data = await this.fileToBase64(validation.file);
-          
-          // Criar registro temporário no banco de dados (sem s3_url)
+
           const payrollFile = await this.create({
             company_id: uploadData.company_id,
             filename: validation.file.name,
             original_filename: validation.file.name,
             file_size: validation.file.size,
-            competencia: uploadData.competencia,
-            // s3_url será preenchido pelo webhook de retorno do n8n
+            competencia: item.competencia,
           });
 
           return {
             payrollFile,
             base64Data,
-            originalFile: validation.file
+            originalFile: validation.file,
+            competencia: item.competencia,
           };
         } catch (error) {
           // Melhor tratamento de erro com informações específicas
@@ -229,8 +274,8 @@ export class PayrollService {
       });
 
       const processResults = await Promise.allSettled(processPromises);
-      
-      const processedFiles: { payrollFile: PayrollFile; base64Data: string; originalFile: File }[] = [];
+
+      const processedFiles: ProcessedPayrollFile[] = [];
       const failedFiles: { file: File; error: string }[] = [];
 
       processResults.forEach((result, index) => {
@@ -238,135 +283,153 @@ export class PayrollService {
           processedFiles.push(result.value);
         } else {
           failedFiles.push({
-            file: validFiles[index].file,
-            error: result.reason.message
+            file: validEntries[index].item.file,
+            error: result.reason?.message || 'Erro desconhecido',
           });
         }
       });
 
-      // Adicionar arquivos inválidos aos falhas
-      invalidFiles.forEach(validation => {
+      invalidFiles.forEach((validation) => {
         failedFiles.push({
           file: validation.file,
-          error: validation.errors.join(', ')
+          error: validation.errors.join(', '),
         });
       });
 
-      // Criar processamento e enviar diretamente para webhook se houver arquivos válidos
       let processingId = '';
-      if (processedFiles.length > 0) {
-        const fileIds = processedFiles.map(item => item.payrollFile.id);
-        
-        // Criar registro de processamento
-        processingId = await this.startProcessing({
-          company_id: uploadData.company_id,
-          competency: uploadData.competencia,
-          file_ids: fileIds
-        }, false); // autoProcess = false para não chamar processWithEnhancedWebhook
+      let duplicate = false;
 
-        // Enviar diretamente para o webhook n8n
-        await this.sendDirectToWebhook(processingId, processedFiles, uploadData);
+      if (processedFiles.length > 0) {
+        const fileIds = processedFiles.map((item) => item.payrollFile.id);
+
+        processingId = await this.startProcessing(
+          {
+            company_id: uploadData.company_id,
+            competency: competencyForRpc,
+            file_ids: fileIds,
+          },
+          false
+        );
+
+        try {
+          await this.sendDirectToWebhook(
+            processingId,
+            processedFiles,
+            uploadData.company_id
+          );
+        } catch (webhookError) {
+          if (
+            webhookError instanceof Error &&
+            webhookError.message.includes('DUPLICATE_PROCESSING')
+          ) {
+            duplicate = true;
+          } else {
+            throw webhookError;
+          }
+        }
       }
 
       return {
-        success: processedFiles.length > 0,
+        success: processedFiles.length > 0 && !duplicate,
         partial_success: processedFiles.length > 0 && failedFiles.length > 0,
         processing_id: processingId,
-        total_files: uploadData.files.length,
+        duplicate,
+        total_files: items.length,
         successful_files: processedFiles.length,
         failed_files: failedFiles.length,
-        uploaded_files: processedFiles.map(item => item.payrollFile),
-        failed_uploads: failedFiles.map(failed => ({
+        uploaded_files: processedFiles.map((item) => item.payrollFile),
+        failed_uploads: failedFiles.map((failed) => ({
           filename: failed.file.name,
-          error: failed.error
-        }))
+          error: failed.error,
+        })),
       };
-
     } catch (error) {
-      throw new Error(`Erro no upload em lote: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      throw new Error(
+        `Erro no upload em lote: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+      );
     }
   }
 
   /**
-   * Envia arquivos diretamente para o webhook n8n sem usar Supabase Storage
+   * N8N processa de forma síncrona; se o browser não receber a resposta HTTP,
+   * o lote pode ainda concluir no servidor — mantém status "processing" para polling.
+   */
+  private static async markWebhookAwaitingResponse(
+    processingId: string,
+    filesCount: number,
+    detail: string
+  ): Promise<void> {
+    await this.updateProcessing(processingId, {
+      status: 'processing',
+      progress: 50,
+      error_message: null,
+      webhook_response: {
+        status: 'processing',
+        message: WEBHOOK_DEFERRED_MESSAGE,
+        detail,
+      },
+    });
+
+    await this.addProcessingLog(processingId, 'WARN', WEBHOOK_DEFERRED_MESSAGE, {
+      files_count: filesCount,
+      detail,
+    });
+  }
+
+  /**
+   * Envia arquivos diretamente para o webhook n8n (contrato lote: arquivos[])
    */
   private static async sendDirectToWebhook(
-    processingId: string, 
-    processedFiles: { payrollFile: PayrollFile; base64Data: string; originalFile: File }[],
-    uploadData: BatchUploadData
+    processingId: string,
+    processedFiles: ProcessedPayrollFile[],
+    companyId: string
   ): Promise<void> {
+    const webhookUrl = PayrollConfig.getWebhookUrl();
+    const filesOrdered = sortItemsByCompetencia(processedFiles);
+    const sentCompetencias = filesOrdered.map((f) => f.competencia);
+
     try {
-      // Buscar dados completos da empresa
       const { data: companyData, error: companyError } = await supabase
         .from('companies')
-        .select('id, name, cnpj, status, is_active, created_at, updated_at')
-        .eq('id', uploadData.company_id)
+        .select('id, name, cnpj')
+        .eq('id', companyId)
         .single();
 
-      if (companyError) {
-        console.error('Erro ao buscar dados da empresa:', companyError);
+      if (companyError || !companyData) {
         throw new Error('Erro ao buscar dados da empresa');
       }
 
-      const filesData = processedFiles.map(item => ({
-        file_id: item.payrollFile.id,
-        pdf_base64: item.base64Data,
-        filename: item.originalFile.name
-      }));
-
-      // Payload melhorado com dados completos da empresa e competência
-      const webhookPayload = {
+      const webhookPayload: HoleriteWebhookBatchPayload = {
         processing_id: processingId,
-        files: filesData,
-        competency: uploadData.competencia,
-        company_id: uploadData.company_id,
-        company_data: {
-          id: companyData.id,
-          name: companyData.name,
-          cnpj: companyData.cnpj,
-          status: companyData.status,
-          is_active: companyData.is_active,
-          created_at: companyData.created_at,
-          updated_at: companyData.updated_at
-        },
-        competency_data: {
-          month: uploadData.competencia.split('/')[0],
-          year: uploadData.competencia.split('/')[1],
-          formatted: uploadData.competencia,
-          timestamp: new Date().toISOString()
-        },
-        callback_url: `${window.location.origin}/api/webhook/payroll-status`,
-        metadata: {
-          total_files: processedFiles.length,
-          upload_timestamp: new Date().toISOString(),
-          processing_initiated_at: new Date().toISOString()
-        }
+        company_id: companyData.id,
+        company_name: companyData.name,
+        company_cnpj: companyData.cnpj || '',
+        arquivos: filesOrdered.map((item) => ({
+          pdf_base64: item.base64Data,
+          competencia: item.competencia,
+          file_id: item.payrollFile.id,
+          filename: item.originalFile.name,
+        })),
       };
 
-      const webhookUrl = 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-holerite';
-      
-      // Log da requisição com detalhes do payload melhorado
-      await this.addProcessingLog(processingId, 'INFO', 'Enviando arquivos para webhook n8n com dados completos', {
+      const competencias = sentCompetencias;
+
+      await this.addProcessingLog(processingId, 'INFO', 'Enviando lote para webhook n8n', {
         webhook_url: webhookUrl,
-        files_count: processedFiles.length,
+        files_count: filesOrdered.length,
         payload_size: JSON.stringify(webhookPayload).length,
-        competency: webhookPayload.competency,
         company_id: webhookPayload.company_id,
-        company_name: webhookPayload.company_data.name,
-        company_cnpj: webhookPayload.company_data.cnpj,
-        competency_month: webhookPayload.competency_data.month,
-        competency_year: webhookPayload.competency_data.year,
-        callback_url: webhookPayload.callback_url
+        company_name: webhookPayload.company_name,
+        competencias,
       });
 
-      // Log detalhado dos arquivos sendo enviados
       await this.addProcessingLog(processingId, 'DEBUG', 'Detalhes dos arquivos no payload', {
-        files: webhookPayload.files.map(file => ({
+        arquivos: webhookPayload.arquivos.map((file) => ({
           file_id: file.file_id,
           filename: file.filename,
+          competencia: file.competencia,
           pdf_size_bytes: file.pdf_base64.length,
-          pdf_preview: file.pdf_base64.substring(0, 50) + '...'
-        }))
+        })),
       });
 
       // Implementar retry logic para webhook
@@ -383,17 +446,18 @@ export class PayrollService {
           });
 
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 segundos timeout
+          const timeoutMs = getHoleriteWebhookTimeoutMs(filesOrdered.length);
+          const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
           response = await fetch(webhookUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              'User-Agent': 'PayrollSystem/1.0'
+              'User-Agent': 'PayrollSystem/1.0',
             },
             body: JSON.stringify(webhookPayload),
-            signal: controller.signal
+            signal: controller.signal,
           });
 
           clearTimeout(timeoutId);
@@ -449,8 +513,15 @@ export class PayrollService {
         }
       }
 
-      // Verificar se todas as tentativas falharam
       if (!response) {
+        if (isWebhookTransportError(lastError)) {
+          await this.markWebhookAwaitingResponse(
+            processingId,
+            filesOrdered.length,
+            lastError?.message || 'timeout ou conexão interrompida aguardando resposta do N8N'
+          );
+          return;
+        }
         throw lastError || new Error('Falha em todas as tentativas de conexão com webhook');
       }
 
@@ -462,12 +533,20 @@ export class PayrollService {
       });
 
       if (!response.ok) {
-        // Tentar obter detalhes do erro da resposta
+        if (isWebhookGatewayTimeoutStatus(response.status)) {
+          await this.markWebhookAwaitingResponse(
+            processingId,
+            filesOrdered.length,
+            `HTTP ${response.status} ${response.statusText} — gateway/proxy; verifique execuções no N8N`
+          );
+          return;
+        }
+
         let errorDetails = '';
         try {
           const errorResponse = await response.text();
           const errorData = JSON.parse(errorResponse);
-          
+
           if (response.status === 404 && errorData.message?.includes('not registered')) {
             errorDetails = `Webhook n8n não está ativo ou configurado. ${errorData.hint || 'Verifique se o workflow está ativo no n8n.'}`;
           } else {
@@ -476,7 +555,7 @@ export class PayrollService {
         } catch {
           errorDetails = `${response.status} ${response.statusText}`;
         }
-        
+
         throw new Error(`Erro na requisição para webhook n8n: ${errorDetails}`);
       }
 
@@ -511,159 +590,210 @@ export class PayrollService {
         });
       }
 
-      // Verificar se a resposta contém dados para download automático
-      // A estrutura da resposta do n8n é: result.data.arquivos.excel.url e result.data.arquivos.pdf.url
-      const excelUrl = result?.data?.arquivos?.excel?.url || result?.data?.arquivo?.urls?.excel_download || null;
-      const pdfUrl = result?.data?.arquivos?.pdf?.url || result?.data?.arquivo?.urls?.pdf_download || result?.data?.arquivo?.urls?.s3_url || null;
-      
-      if (result && result.success && excelUrl) {
-        try {
-          const downloadUrl = excelUrl;
-          const filename = result.data?.arquivos?.excel?.nome || result.data?.arquivo?.excel_filename || 'holerite_processado.xlsx';
-          
-          // Atualizar progresso para 85% (iniciando download)
-          await this.updateProcessing(processingId, {
-            status: 'processing',
-            progress: 85
-          });
-
-          await this.addProcessingLog(processingId, 'INFO', 'Iniciando download automático do arquivo XLSX', {
-            download_url: downloadUrl,
-            filename: filename
-          });
-
-          // Fazer download automático do arquivo XLSX
-          await this.downloadFile(downloadUrl, filename);
-          
-          await this.addProcessingLog(processingId, 'INFO', 'Download automático concluído com sucesso', {
-            filename: filename
-          });
-
-          // Atualizar processamento como concluído com download
-          // Usar função do banco que atualiza tanto payroll_processing quanto payroll_files
-          const { error: rpcError } = await supabase.rpc('receive_processing_result', {
-            p_processing_id: processingId,
-            p_status: 'completed',
-            p_progress: 100,
-            p_result_file_url: excelUrl,
-            p_extracted_data: result.data || null,
-            p_error_message: null,
-            p_webhook_response: result
-          });
-
-          if (rpcError) {
-            console.error('Erro ao atualizar status via RPC:', rpcError);
-            // Fallback: atualizar apenas payroll_processing
-            await this.updateProcessing(processingId, {
-              status: 'completed',
-              progress: 100,
-              webhook_response: result,
-              estimated_time: result?.estimated_time,
-              completed_at: new Date().toISOString()
-            });
-            
-            // Atualizar arquivos manualmente como fallback
-            await this.updateFilesStatusByProcessingId(processingId, 'completed');
-          } else {
-            // Atualizar s3_url e excel_url nos arquivos relacionados
-            // Log para debug
-            console.log('Atualizando URLs dos arquivos:', {
-              processingId,
-              pdfUrl,
-              excelUrl,
-              webhookResponse: result.data
-            });
-            
-            if (pdfUrl || excelUrl) {
-              await this.updateFilesUrlsByProcessingId(
-                processingId,
-                pdfUrl,
-                excelUrl
-              );
-            } else {
-              console.warn('Nenhuma URL encontrada na resposta do webhook para atualizar arquivos');
-            }
-          }
-
-        } catch (downloadError) {
-          await this.addProcessingLog(processingId, 'ERROR', 'Erro no download automático do arquivo XLSX', {
-            error: downloadError instanceof Error ? downloadError.message : 'Erro desconhecido',
-            download_url: excelUrl
-          });
-
-          // Atualizar processamento como processando (sem download)
-          await this.updateProcessing(processingId, {
-            status: 'processing',
-            progress: 70,
-            webhook_response: result,
-            estimated_time: result?.estimated_time,
-            error_message: `Processamento concluído, mas erro no download: ${downloadError instanceof Error ? downloadError.message : 'Erro desconhecido'}`
-          });
+      if (result && isDuplicateWebhookResponse(result)) {
+        const cached = (result.cached_response || result) as WebhookResponse;
+        await this.addProcessingLog(processingId, 'WARN', 'Processamento duplicado detectado pelo webhook', {
+          duplicate: true,
+          status: result.status,
+        });
+        if (cached && isHoleriteProcessingComplete(cached)) {
+          await this.applyWebhookResult(processingId, cached, filesOrdered.length, sentCompetencias);
+        } else {
+          throw new Error(
+            'DUPLICATE_PROCESSING: Este processamento já está em andamento. Aguarde a conclusão antes de reenviar.'
+          );
         }
-      } else {
-        // Atualizar processamento com resposta inicial (sem download)
+        return;
+      }
+
+      if (result && isHoleriteProcessingComplete(result)) {
+        await this.applyWebhookResult(processingId, result, filesOrdered.length, sentCompetencias);
+      } else if (result?.success) {
         await this.updateProcessing(processingId, {
           status: 'processing',
           progress: 30,
-          webhook_response: result || { status: 'accepted', message: 'Webhook processou a requisição com sucesso' },
-          estimated_time: result?.estimated_time
+          webhook_response: result,
+          estimated_time: result?.estimated_time,
+        });
+      } else {
+        await this.updateProcessing(processingId, {
+          status: 'processing',
+          progress: 30,
+          webhook_response: result || {
+            status: 'accepted',
+            message: 'Webhook processou a requisição com sucesso',
+          },
+          estimated_time: result?.estimated_time,
         });
       }
 
-      // Log de sucesso
-      await this.addProcessingLog(processingId, 'INFO', `Arquivos enviados com sucesso para webhook n8n - ${processedFiles.length} arquivo(s)`, {
-        webhook_response: result,
-        files_count: processedFiles.length,
-        success: true,
-        download_available: !!(result && result.success && result.data?.arquivo?.urls?.excel_download)
-      });
+      await this.addProcessingLog(
+        processingId,
+        'INFO',
+        `Lote enviado ao webhook n8n - ${filesOrdered.length} arquivo(s)`,
+        {
+          webhook_response: result,
+          files_count: filesOrdered.length,
+          download_available: !!(result && resolveHoleriteDownloadUrl(result)),
+        }
+      );
 
     } catch (error) {
-      // Log detalhado do erro com informações de conectividade
-      const errorDetails = {
-        error_name: error instanceof Error ? error.constructor.name : 'Unknown',
-        error_message: error instanceof Error ? error.message : 'Erro desconhecido',
-        error_stack: error instanceof Error ? error.stack : undefined,
-        webhook_url: 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-holerite',
-        timestamp: new Date().toISOString(),
-        user_agent: navigator.userAgent,
-        connection_type: (navigator as any).connection?.effectiveType || 'unknown'
-      };
+      const err = error instanceof Error ? error : new Error('Erro desconhecido');
 
-      // Determinar o tipo específico de erro
-      let errorType = 'UNKNOWN_ERROR';
-      let userFriendlyMessage = 'Erro desconhecido ao conectar com o webhook n8n';
+      const isGatewayError =
+        isWebhookTransportError(err) ||
+        /502|503|504|524/.test(err.message) ||
+        err.message.includes('Falha em todas as tentativas');
 
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch')) {
-          errorType = 'NETWORK_ERROR';
-          userFriendlyMessage = 'Erro de conectividade. Verifique sua conexão com a internet e tente novamente.';
-        } else if (error.message.includes('not registered')) {
-          errorType = 'WEBHOOK_NOT_ACTIVE';
-          userFriendlyMessage = 'O workflow do n8n não está ativo. Entre em contato com o administrador do sistema para ativar o workflow.';
-        } else if (error.message.includes('timeout') || error.name === 'AbortError') {
-          errorType = 'TIMEOUT_ERROR';
-          userFriendlyMessage = 'Timeout na conexão com o webhook n8n. O servidor pode estar sobrecarregado.';
-        } else if (error.message.includes('CORS')) {
-          errorType = 'CORS_ERROR';
-          userFriendlyMessage = 'Erro de CORS. Configuração de segurança do navegador bloqueou a requisição.';
-        }
+      if (isGatewayError) {
+        await this.markWebhookAwaitingResponse(
+          processingId,
+          filesOrdered.length,
+          err.message
+        );
+        return;
       }
 
-      await this.addProcessingLog(processingId, 'ERROR', `Erro detalhado ao enviar para webhook n8n - ${errorType}`, {
-        ...errorDetails,
+      let errorType = 'UNKNOWN_ERROR';
+      let userFriendlyMessage = err.message || 'Erro ao processar resposta do webhook n8n';
+
+      if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+        errorType = 'NETWORK_ERROR';
+        userFriendlyMessage =
+          'Erro de conectividade com o webhook n8n. Verifique a rede e as execuções no N8N.';
+      } else if (err.message.includes('not registered')) {
+        errorType = 'WEBHOOK_NOT_ACTIVE';
+        userFriendlyMessage =
+          'O workflow do n8n não está ativo. Ative o workflow no N8N e tente novamente.';
+      } else if (err.message.includes('CORS')) {
+        errorType = 'CORS_ERROR';
+        userFriendlyMessage = 'Erro de CORS ao ler a resposta do webhook n8n.';
+      } else if (err.message.includes('DUPLICATE_PROCESSING')) {
+        userFriendlyMessage = err.message.replace('DUPLICATE_PROCESSING: ', '');
+      }
+
+      await this.addProcessingLog(processingId, 'ERROR', `Erro ao enviar para webhook n8n - ${errorType}`, {
+        error_message: err.message,
         error_type: errorType,
-        user_friendly_message: userFriendlyMessage
+        webhook_url: PayrollConfig.getWebhookUrl(),
       });
 
-      // Atualizar status para erro com mensagem específica
       await this.updateProcessing(processingId, {
         status: 'error',
-        error_message: userFriendlyMessage
+        error_message: userFriendlyMessage,
       });
 
-      // Lançar erro com mensagem mais específica
       throw new Error(userFriendlyMessage);
+    }
+  }
+
+  /**
+   * Persiste resultado do webhook e dispara download automático do XLSX consolidado
+   */
+  private static async applyWebhookResult(
+    processingId: string,
+    result: WebhookResponse,
+    filesCount: number,
+    sentCompetencias: string[] = []
+  ): Promise<void> {
+    let resultToPersist = result;
+
+    if (filesCount > 1 && sentCompetencias.length > 0) {
+      const validation = validateBatchWebhookResponse(
+        sentCompetencias,
+        filesCount,
+        result
+      );
+
+      if (!validation.ok) {
+        await this.addProcessingLog(
+          processingId,
+          'WARN',
+          'Validação do lote: metadados OK, mas revise o Excel consolidado',
+          { batch_validation: validation }
+        );
+        resultToPersist = {
+          ...result,
+          batch_validation: validation,
+        } as WebhookResponse;
+      } else {
+        await this.addProcessingLog(processingId, 'INFO', 'Lote validado na resposta do N8N', {
+          batch_validation: validation,
+        });
+      }
+    }
+
+    const excelUrl = resolveHoleriteDownloadUrl(resultToPersist);
+    const pdfUrl =
+      result.data?.arquivo?.urls?.pdf ||
+      (result.data as { arquivos?: { pdf?: { url?: string } } })?.arquivos?.pdf?.url ||
+      null;
+
+    if (!excelUrl) {
+      await this.updateProcessing(processingId, {
+        status: 'error',
+        progress: 70,
+        webhook_response: resultToPersist,
+        error_message:
+          'Processamento concluído, mas a URL do Excel não foi encontrada na resposta do webhook.',
+      });
+      return;
+    }
+
+    const filename = resolveHoleriteDownloadFilename(resultToPersist);
+
+    try {
+      await this.updateProcessing(processingId, {
+        status: 'processing',
+        progress: 85,
+      });
+
+      await this.addProcessingLog(processingId, 'INFO', 'Iniciando download automático do XLSX consolidado', {
+        download_url: excelUrl,
+        filename,
+        files_count: filesCount,
+      });
+
+      await this.downloadFile(excelUrl, filename);
+
+      const { error: rpcError } = await supabase.rpc('receive_processing_result', {
+        p_processing_id: processingId,
+        p_status: 'completed',
+        p_progress: 100,
+        p_result_file_url: excelUrl,
+        p_extracted_data: resultToPersist.data || null,
+        p_error_message: null,
+        p_webhook_response: resultToPersist,
+      });
+
+      if (rpcError) {
+        await this.updateProcessing(processingId, {
+          status: 'completed',
+          progress: 100,
+          result_file_url: excelUrl,
+          webhook_response: resultToPersist,
+          completed_at: new Date().toISOString(),
+        });
+        await this.updateFilesStatusByProcessingId(processingId, 'completed');
+      } else if (pdfUrl || excelUrl) {
+        await this.updateFilesUrlsByProcessingId(processingId, pdfUrl, excelUrl);
+      }
+    } catch (downloadError) {
+      await this.addProcessingLog(processingId, 'ERROR', 'Erro no download automático do XLSX', {
+        error: downloadError instanceof Error ? downloadError.message : 'Erro desconhecido',
+        download_url: excelUrl,
+      });
+
+      await this.updateProcessing(processingId, {
+        status: 'processing',
+        progress: 70,
+        webhook_response: resultToPersist,
+        result_file_url: excelUrl,
+        error_message: `Processamento concluído, mas erro no download: ${
+          downloadError instanceof Error ? downloadError.message : 'Erro desconhecido'
+        }`,
+      });
     }
   }
 
@@ -1070,7 +1200,7 @@ export class PayrollService {
     const processedData: ProcessingHistory[] = (data || []).map(item => ({
       id: item.id,
       company_name: (item.companies as any)?.name || 'N/A',
-      competency: item.competency,
+      competency: formatCompetenciaDisplay(item.competency),
       files_count: (item.payroll_files_processing as any)?.length || 0,
       status: item.status,
       progress: item.progress,
@@ -1160,15 +1290,13 @@ export class PayrollService {
           // Atualizar s3_url e excel_url nos arquivos relacionados quando completado
           // Extrair URLs do webhook_response se disponível
           // A estrutura pode ser: data.arquivos.pdf.url ou data.arquivo.urls.pdf_download
-          const webhookResponse = update.extracted_data as any;
-          const s3Url = webhookResponse?.arquivos?.pdf?.url || 
-                       webhookResponse?.arquivo?.urls?.pdf_download || 
-                       webhookResponse?.arquivo?.urls?.s3_url || 
-                       null;
-          const excelUrl = update.result_file_url || 
-                          webhookResponse?.arquivos?.excel?.url ||
-                          webhookResponse?.arquivo?.urls?.excel_download || 
-                          null;
+          const webhookResponse = update.extracted_data as WebhookResponse | undefined;
+          const s3Url =
+            webhookResponse?.data?.arquivo?.urls?.pdf ||
+            (webhookResponse as { arquivos?: { pdf?: { url?: string } } })?.arquivos?.pdf?.url ||
+            null;
+          const excelUrl =
+            update.result_file_url || resolveHoleriteDownloadUrl(webhookResponse) || null;
           
           if (s3Url || excelUrl) {
             await this.updateFilesUrlsByProcessingId(
@@ -1285,15 +1413,17 @@ export class PayrollService {
    */
   static async uploadPdf(uploadData: PayrollUploadData): Promise<PayrollFile> {
     try {
-      // Usar novo método de batch upload para um arquivo
       const batchResult = await this.batchUpload({
-        files: [uploadData.file],
-        competencia: uploadData.competencia,
-        company_id: uploadData.company_id
+        company_id: uploadData.company_id,
+        items: [{ file: uploadData.file, competencia: uploadData.competencia }],
       });
 
-      if (batchResult.failed_uploads > 0) {
-        throw new Error(batchResult.failed_files[0].error);
+      if (batchResult.failed_uploads && batchResult.failed_uploads.length > 0) {
+        throw new Error(batchResult.failed_uploads[0].error);
+      }
+
+      if (!batchResult.uploaded_files?.[0]) {
+        throw new Error('Upload não retornou arquivo processado');
       }
 
       return batchResult.uploaded_files[0];
@@ -1314,8 +1444,8 @@ export class PayrollService {
     try {
       await this.update(payrollFileId, { status: 'processing' });
 
-      const webhookUrl = 'https://n8n-lab-n8n.bjivvx.easypanel.host/webhook/processar-holerite';
-      
+      const webhookUrl = PayrollConfig.getWebhookUrl();
+
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
@@ -1323,23 +1453,24 @@ export class PayrollService {
         },
         body: JSON.stringify({
           payroll_file_id: payrollFileId,
+          pdf: base64Data,
           pdf_base64: base64Data,
-          competencia: competencia
+          competencia,
+          file_id: payrollFileId,
         }),
-        signal: AbortSignal.timeout(60000)
+        signal: AbortSignal.timeout(60000),
       });
 
       if (!response.ok) {
         throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as WebhookResponse;
+      const downloadUrl = resolveHoleriteDownloadUrl(result);
 
-      // Verificar se a resposta contém dados para download automático
-      if (result.success && result.data?.arquivo?.urls?.excel_download) {
+      if (isHoleriteProcessingComplete(result) && downloadUrl) {
         try {
-          const downloadUrl = result.data.arquivo.urls.excel_download;
-          const filename = result.data.arquivo.excel_filename || 'holerite_processado.xlsx';
+          const filename = resolveHoleriteDownloadFilename(result);
           
           // Fazer download automático do arquivo XLSX
           await this.downloadFile(downloadUrl, filename);
@@ -1347,27 +1478,28 @@ export class PayrollService {
           await this.update(payrollFileId, {
             status: 'completed',
             extracted_data: result.data,
-            excel_url: result.excel_url,
-            processed_at: new Date().toISOString()
+            excel_url: downloadUrl,
+            processed_at: new Date().toISOString(),
           });
-
         } catch (downloadError) {
           console.error('Erro no download automático:', downloadError);
-          
+
           await this.update(payrollFileId, {
             status: 'completed',
             extracted_data: result.data,
-            excel_url: result.excel_url,
+            excel_url: downloadUrl,
             processed_at: new Date().toISOString(),
-            error_message: `Processamento concluído, mas erro no download: ${downloadError instanceof Error ? downloadError.message : 'Erro desconhecido'}`
+            error_message: `Processamento concluído, mas erro no download: ${
+              downloadError instanceof Error ? downloadError.message : 'Erro desconhecido'
+            }`,
           });
         }
       } else {
         await this.update(payrollFileId, {
           status: 'completed',
           extracted_data: result.data,
-          excel_url: result.excel_url,
-          processed_at: new Date().toISOString()
+          excel_url: downloadUrl || result.excel_url,
+          processed_at: new Date().toISOString(),
         });
       }
 

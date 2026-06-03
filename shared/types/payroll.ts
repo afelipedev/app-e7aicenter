@@ -130,22 +130,21 @@ export interface PayrollFileProcessing {
 // BATCH UPLOAD TYPES
 // =====================================================
 
+export interface PayrollBatchFileItem {
+  file: File;
+  competencia: string;
+}
+
+export interface PayrollBatchUploadData {
+  company_id: string;
+  items: PayrollBatchFileItem[];
+}
+
+/** @deprecated Use PayrollBatchUploadData */
 export interface BatchUploadData {
   files: File[];
   competencia: string;
   company_id: string;
-}
-
-export interface BatchUploadResult {
-  processing_id: string;
-  uploaded_files: PayrollFile[];
-  failed_files: {
-    file: File;
-    error: string;
-  }[];
-  total_files: number;
-  successful_uploads: number;
-  failed_uploads: number;
 }
 
 export interface FileValidationResult {
@@ -153,16 +152,6 @@ export interface FileValidationResult {
   errors: string[];
   warnings: string[];
   file: File;
-}
-
-// =====================================================
-// BATCH UPLOAD TYPES (Updated)
-// =====================================================
-
-export interface PayrollUploadData {
-  files: File[];
-  competency: string;
-  company_id: string;
 }
 
 export interface BatchUploadResult {
@@ -178,6 +167,7 @@ export interface BatchUploadResult {
     error: string;
   }[];
   error?: string;
+  duplicate?: boolean;
 }
 
 // =====================================================
@@ -258,6 +248,34 @@ export interface ProcessingHistory {
 // WEBHOOK TYPES
 // =====================================================
 
+export interface HoleriteWebhookArquivoItem {
+  pdf_base64: string;
+  competencia: string;
+  file_id: string;
+  filename: string;
+}
+
+export interface HoleriteWebhookBatchPayload {
+  processing_id: string;
+  company_id: string;
+  company_name: string;
+  company_cnpj: string;
+  arquivos: HoleriteWebhookArquivoItem[];
+}
+
+/** Contrato legado (arquivo único) */
+export interface HoleriteWebhookSinglePayload {
+  processing_id: string;
+  company_id: string;
+  company_name: string;
+  company_cnpj: string;
+  pdf: string;
+  competencia: string;
+  file_id: string;
+  filename: string;
+}
+
+/** @deprecated Use HoleriteWebhookBatchPayload */
 export interface WebhookPayload {
   processing_id: string;
   files: {
@@ -272,11 +290,50 @@ export interface WebhookPayload {
 
 export interface WebhookResponse {
   success: boolean;
-  processing_id: string;
-  message: string;
+  ok?: boolean;
+  completed?: boolean;
+  duplicate?: boolean;
+  duplicate_execution?: boolean;
+  status?: string;
+  processing_id?: string;
+  file_id?: string;
+  filename?: string;
+  excel_filename?: string;
+  message?: string;
   estimated_time?: number;
   error?: string;
-  data?: any;
+  download_url?: string;
+  url?: string;
+  excel_url?: string;
+  file_url?: string;
+  fileUrl?: string;
+  downloadUrl?: string;
+  link?: string;
+  href?: string;
+  cached_response?: WebhookResponse;
+  data?: {
+    processing_id?: string;
+    competencia?: string;
+    total_arquivos?: number;
+    competencias?: string[];
+    processado_em?: string;
+    arquivo?: {
+      filename?: string;
+      excel_filename?: string;
+      download_url?: string;
+      url?: string;
+      excel_url?: string;
+      urls?: {
+        pdf?: string;
+        excel?: string;
+        excel_download?: string;
+        download?: string;
+      };
+    };
+    resumo?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
 }
 
 export interface WebhookStatusUpdate {

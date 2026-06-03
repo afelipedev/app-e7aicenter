@@ -157,7 +157,7 @@ export const PayrollProcessingDetails: React.FC<PayrollProcessingDetailsProps> =
 
       const link = document.createElement('a');
       link.href = url;
-      link.download = `processamento_${processing.competency}_${processing.id}.xlsx`;
+      link.download = `holerite_${processing.competency.replace(/\s—\s/g, '_')}.xlsx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

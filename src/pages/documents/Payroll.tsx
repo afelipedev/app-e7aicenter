@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,68 +8,42 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveProcessings } from "@/hooks/useProcessingUpdates";
-import { ValidationError, ProcessingError } from "@/utils/errorHandling";
 import { 
-  Upload, 
   FileText, 
   X, 
   Loader2, 
-  TrendingUp, 
   Clock, 
   CheckCircle, 
   Search, 
-  RefreshCw, 
-  Download, 
-  Eye,
-  AlertCircle,
-  Building2,
-  Calendar,
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 import { PayrollService } from '@/services/payrollService';
-import { CompanyService } from '@/services/companyService';
-import type { 
-  PayrollUploadData, 
-  PayrollStats, 
-  ProcessingHistory, 
+import {
+  PayrollBatchUploadForm,
+  createInitialUploadRows,
+  type UploadRow,
+} from '@/features/payroll/components/PayrollBatchUploadForm';
+import {
+  formatCompetenciaInput,
+  isHoleriteProcessingComplete,
+  resolveHoleriteDownloadUrl,
+} from '@/features/payroll/utils/holeriteWebhook';
+import type {
+  PayrollBatchUploadData,
+  ProcessingHistory,
   UploadProgress,
-  DragDropState,
   CompanyOption,
   BatchUploadResult,
-  ProcessingStatus,
   EnhancedPayrollStats,
-  PaginatedResult
+  PaginatedResult,
+  ProcessingFilters,
 } from '../../../shared/types/payroll';
 import type { Company } from '../../../shared/types/company';
 
-// Constants
-const MAX_FILES = 50;
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_TYPES = ['application/pdf'];
-
-// Função para formatar máscara MM/AAAA
-const formatCompetencia = (value: string): string => {
-  // Remove tudo que não é número
-  const numbers = value.replace(/\D/g, '');
-  
-  // Limita a 6 dígitos (MMAAAA)
-  const limitedNumbers = numbers.slice(0, 6);
-  
-  // Aplica a máscara MM/AAAA
-  if (limitedNumbers.length <= 2) {
-    return limitedNumbers;
-  } else {
-    return `${limitedNumbers.slice(0, 2)}/${limitedNumbers.slice(2)}`;
-  }
-};
-
 export default function Payroll() {
-  const { user } = useAuth();
   const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Use real-time processing updates hook
   const { 
@@ -84,15 +58,8 @@ export default function Payroll() {
   // State management
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
-  const [competencia, setCompetencia] = useState<string>('');
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadRows, setUploadRows] = useState<UploadRow[]>(createInitialUploadRows);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
-  const [dragState, setDragState] = useState<DragDropState>({
-    isDragOver: false,
-    isDragActive: false,
-    files: [],
-    errors: []
-  });
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'completed' | 'error'>('idle');
   const [stats, setStats] = useState<EnhancedPayrollStats | null>(null);
   const [processingHistory, setProcessingHistory] = useState<PaginatedResult<ProcessingHistory> | null>(null);
@@ -171,149 +138,6 @@ export default function Payroll() {
     initializeData();
   }, []); // Executar apenas uma vez na montagem do componente
 
-  // Handle competencia input with mask
-  const handleCompetenciaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formattedValue = formatCompetencia(e.target.value);
-    setCompetencia(formattedValue);
-  };
-
-  // Competencia validation
-  const validateCompetencia = (comp: string): boolean => {
-    const regex = /^(0[1-9]|1[0-2])\/\d{4}$/;
-    if (!regex.test(comp)) return false;
-    
-    const [month, year] = comp.split('/').map(Number);
-    const currentYear = new Date().getFullYear();
-    
-    return year >= 2020 && year <= currentYear + 1;
-  };
-
-  // Local validation functions to avoid dependency issues
-  const validateSingleFile = (file: File) => {
-    if (!file) {
-      throw new ValidationError('Nenhum arquivo selecionado');
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      throw new ValidationError(
-        `Arquivo muito grande. Tamanho máximo: ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB`
-      );
-    }
-
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      throw new ValidationError(
-        'Tipo de arquivo não suportado. Apenas arquivos PDF são aceitos.'
-      );
-    }
-  };
-
-  const validateFileBatch = (files: File[]) => {
-    if (!files || files.length === 0) {
-      throw new ValidationError('Nenhum arquivo selecionado para upload');
-    }
-
-    if (files.length > MAX_FILES) {
-      throw new ValidationError(
-        `Muitos arquivos selecionados. Máximo: ${MAX_FILES} arquivos`
-      );
-    }
-  };
-
-  // Handle file selection with enhanced validation
-  const handleFileSelect = (files: FileList) => {
-    try {
-      const fileArray = Array.from(files);
-      
-      // Validate batch upload
-      validateFileBatch([...selectedFiles, ...fileArray]);
-      
-      const validFiles: File[] = [];
-      const errors: string[] = [];
-
-      // Validate each file
-      fileArray.forEach(file => {
-        try {
-          validateSingleFile(file);
-          
-          // Check for duplicates
-          const isDuplicate = selectedFiles.some(existing => 
-            existing.name === file.name && existing.size === file.size
-          );
-          
-          if (!isDuplicate) {
-            validFiles.push(file);
-          } else {
-            errors.push(`Arquivo duplicado: ${file.name}`);
-          }
-        } catch (error) {
-          if (error instanceof ValidationError) {
-            errors.push(`${file.name}: ${error.message}`);
-          } else {
-            errors.push(`${file.name}: Erro de validação`);
-          }
-        }
-      });
-
-      // Show errors if any
-      if (errors.length > 0) {
-        toast({
-          title: "Alguns arquivos não foram adicionados",
-          description: errors.slice(0, 3).join(', ') + (errors.length > 3 ? '...' : ''),
-          variant: "destructive",
-        });
-      }
-
-      // Add valid files
-      if (validFiles.length > 0) {
-        setSelectedFiles(prev => [...prev, ...validFiles]);
-        toast({
-          title: "Arquivos adicionados",
-          description: `${validFiles.length} arquivo(s) adicionado(s) com sucesso`,
-        });
-      }
-    } catch (error) {
-      console.error('Error in file selection:', error);
-      toast({
-        title: "Erro na seleção de arquivos",
-        description: "Não foi possível processar os arquivos selecionados",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Drag and drop handlers
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragState(prev => ({ ...prev, isDragOver: true, isDragActive: true }));
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragState(prev => ({ ...prev, isDragOver: false, isDragActive: false }));
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragState(prev => ({ ...prev, isDragOver: false, isDragActive: false }));
-    
-    if (e.dataTransfer.files) {
-      handleFileSelect(e.dataTransfer.files);
-    }
-  };
-
-  // Remove file
-  const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
   // Cancel/delete upload in progress
   const handleCancelUpload = async (fileId: string) => {
     try {
@@ -346,66 +170,10 @@ export default function Payroll() {
     }
   };
 
-  // Handle file upload with enhanced error handling and n8n webhook integration
-  const handleUpload = async () => {
-    if (!selectedCompany || !competencia || selectedFiles.length === 0) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Selecione uma empresa, competência e pelo menos um arquivo",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const handleBatchUpload = async (uploadData: PayrollBatchUploadData) => {
     try {
       setUploadStatus('uploading');
-      
-      // Validate files before upload using local validation
-      try {
-        if (selectedFiles.length === 0) {
-          throw new Error('Nenhum arquivo selecionado para upload');
-        }
 
-        if (selectedFiles.length > MAX_FILES) {
-          throw new Error(`Muitos arquivos selecionados. Máximo: ${MAX_FILES} arquivos`);
-        }
-
-        selectedFiles.forEach((file, index) => {
-          if (!file) {
-            throw new Error('Arquivo inválido encontrado');
-          }
-
-          if (file.size > MAX_FILE_SIZE) {
-            throw new Error(
-              `Arquivo ${file.name} muito grande. Tamanho máximo: ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB`
-            );
-          }
-
-          if (!ALLOWED_TYPES.includes(file.type)) {
-            throw new Error(
-              `Arquivo ${file.name}: Tipo não suportado. Apenas arquivos PDF são aceitos.`
-            );
-          }
-        });
-      } catch (validationError) {
-        setUploadStatus('error');
-        toast({
-          title: "Erro de Validação",
-          description: validationError instanceof Error ? validationError.message : "Erro na validação dos arquivos",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const uploadData: PayrollUploadData = {
-        company_id: selectedCompany,
-        competencia,
-        files: selectedFiles,
-        user_id: user?.id || ''
-      };
-
-      // Perform upload
-      // O progresso será atualizado automaticamente pelo useEffect que monitora activeProcessings
       const result = await PayrollService.batchUpload(uploadData);
 
       if (!result) {
@@ -420,35 +188,33 @@ export default function Payroll() {
 
       setLastUploadResult(result);
 
+      if (result.duplicate) {
+        setUploadStatus('error');
+        toast({
+          title: "Processamento em andamento",
+          description:
+            "Este lote já está sendo processado. Aguarde a conclusão antes de reenviar.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (result.success) {
         setUploadStatus('completed');
-        
-        // N8N webhook is already being called by PayrollService.sendDirectToWebhook()
-        // No need for additional webhook call here
 
         const toastResult = toast({
-          title: "Upload realizado com sucesso!",
-          description: `${result.successful_files} arquivo(s) enviado(s) para processamento. O arquivo XLSX será baixado automaticamente quando o processamento for concluído.`,
+          title: "Lote enviado com sucesso!",
+          description: `${result.successful_files} holerite(s) enviado(s) ao N8N. O processamento pode levar vários minutos; o Excel será baixado automaticamente ao concluir ou estará no histórico.`,
         });
-        
-        // Fechar toast automaticamente após 5 segundos
+
         setTimeout(() => {
-          if (toastResult?.dismiss) {
-            toastResult.dismiss();
-          }
+          toastResult?.dismiss?.();
         }, 5000);
 
-        // Clear form
-        setSelectedFiles([]);
-        setCompetencia('');
+        setUploadRows(createInitialUploadRows());
         setUploadProgress([]);
-        
-        // Refresh data
-        await Promise.all([
-          initializeData(),
-          refreshProcessings()
-        ]);
-        
+
+        await Promise.all([initializeData(), refreshProcessings()]);
       } else if (result.partial_success) {
         setUploadStatus('completed');
         toast({
@@ -523,7 +289,7 @@ export default function Payroll() {
   };
 
   const handleHistoryCompetenciaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setHistoryCompetenciaFilter(formatCompetencia(e.target.value));
+    setHistoryCompetenciaFilter(formatCompetenciaInput(e.target.value));
   };
 
   const applyHistoryFilters = () => {
@@ -678,34 +444,21 @@ export default function Payroll() {
     }
   };
 
-  // Format file size
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
   const isUploading = uploadStatus === 'uploading';
 
-  // Escutar mudanças nos processamentos para detectar downloads automáticos
   useEffect(() => {
-    if (activeProcessings.length > 0) {
-      activeProcessings.forEach(processing => {
-        // Verificar se o processamento foi concluído com sucesso
-        if (processing.status === 'completed' && processing.progress === 100) {
-          // Verificar se há dados de resposta do webhook indicando download
-          const webhookResponse = processing.webhook_response as any;
-          if (webhookResponse?.success && webhookResponse?.data?.arquivo?.urls?.excel_download) {
-            toast({
-              title: "Download automático concluído!",
-              description: `O arquivo XLSX processado foi baixado automaticamente para sua pasta de downloads.`,
-            });
-          }
+    activeProcessings.forEach((processing) => {
+      if (processing.status === 'completed' && processing.progress === 100) {
+        const webhookResponse = processing.webhook_response;
+        if (isHoleriteProcessingComplete(webhookResponse) && resolveHoleriteDownloadUrl(webhookResponse)) {
+          toast({
+            title: "Download automático concluído!",
+            description:
+              "O XLSX consolidado foi baixado automaticamente para sua pasta de downloads.",
+          });
         }
-      });
-    }
+      }
+    });
   }, [activeProcessings, toast]);
 
   if (isLoading) {
@@ -734,181 +487,46 @@ export default function Payroll() {
 
 
 
-      {/* Upload Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Upload de Holerites</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Company Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="company">Empresa</Label>
-              <select
-                id="company"
-                value={selectedCompany}
-                onChange={(e) => setSelectedCompany(e.target.value)}
-                className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                disabled={isUploading}
-              >
-                <option value="">Selecione uma empresa</option>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+      <PayrollBatchUploadForm
+        companies={companies}
+        companyId={selectedCompany}
+        onCompanyChange={setSelectedCompany}
+        rows={uploadRows}
+        onRowsChange={setUploadRows}
+        onSubmit={handleBatchUpload}
+        isUploading={isUploading}
+      />
 
-            <div className="space-y-2">
-              <Label htmlFor="competencia">Competência (MM/AAAA)</Label>
-              <Input
-                id="competencia"
-                type="text"
-                placeholder="12/2024"
-                value={competencia}
-                onChange={handleCompetenciaChange}
-                disabled={isUploading}
-                maxLength={7}
-              />
-            </div>
-          </div>
-
-          {/* Drag and Drop Area */}
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              dragState.isDragOver
-                ? 'border-primary bg-primary/5'
-                : 'border-muted-foreground/25 hover:border-muted-foreground/50'
-            }`}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          >
-            <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">
-              Arraste arquivos PDF aqui
-            </h3>
-            <p className="text-muted-foreground mb-4">
-              ou clique para selecionar arquivos
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-            >
-              Selecionar Arquivos
-            </Button>
-            <p className="text-xs text-muted-foreground mt-2">
-              Máximo {MAX_FILES} arquivos • {formatFileSize(MAX_FILE_SIZE)} por arquivo
-            </p>
-          </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept=".pdf"
-            className="hidden"
-            onChange={(e) => e.target.files && handleFileSelect(e.target.files)}
-          />
-
-          {/* Selected Files */}
-          {selectedFiles.length > 0 && (
-            <div className="space-y-2">
-              <Label>Arquivos Selecionados</Label>
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {selectedFiles.map((file, index) => (
-                  <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-4 h-4 text-red-500" />
-                      <div>
-                        <p className="text-sm font-medium">{file.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatFileSize(file.size)}
-                        </p>
-                      </div>
-                    </div>
+      {uploadProgress.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Processamentos em andamento</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {uploadProgress.map((progress) => (
+              <div key={progress.file_id} className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex-1">{progress.filename}</span>
+                  <div className="flex items-center gap-2">
+                    <span>{progress.progress}%</span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => removeFile(index)}
-                      disabled={isUploading}
+                      onClick={() => handleCancelUpload(progress.file_id)}
+                      disabled={progress.status === 'completed'}
+                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      title="Cancelar processamento"
                     >
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
-                ))}
+                </div>
+                <Progress value={progress.progress} />
               </div>
-            </div>
-          )}
-
-          {/* Upload Progress */}
-          {uploadProgress.length > 0 && (
-            <div className="space-y-2">
-              <Label>Progresso do Upload</Label>
-              <div className="space-y-2">
-                {uploadProgress.map((progress) => (
-                  <div key={progress.file_id} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="flex-1">{progress.filename}</span>
-                      <div className="flex items-center gap-2">
-                        <span>{progress.progress}%</span>
-                        {progress.error_message && (
-                          <span className="text-xs text-red-500">
-                            {progress.error_message}
-                          </span>
-                        )}
-                        {/* Botão de cancelar/excluir upload */}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCancelUpload(progress.file_id)}
-                          disabled={progress.status === 'completed'}
-                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          title="Cancelar upload"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <Progress 
-                      value={progress.progress} 
-                      className={`transition-all duration-500 ease-out ${
-                        progress.status === 'uploading' 
-                          ? 'progress-shimmer progress-glow' 
-                          : progress.status === 'completed' 
-                            ? 'shadow-sm' 
-                            : ''
-                      }`}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Upload Button */}
-          <Button 
-            onClick={handleUpload} 
-            disabled={!selectedCompany || !competencia || selectedFiles.length === 0 || isUploading}
-            className="w-full"
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Enviando...
-              </>
-            ) : (
-              <>
-                <Upload className="w-4 h-4 mr-2" />
-                Enviar {selectedFiles.length} arquivo(s)
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
 
 

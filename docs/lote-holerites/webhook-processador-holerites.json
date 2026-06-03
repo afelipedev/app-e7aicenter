@@ -1,0 +1,750 @@
+{
+  "name": "e7-extrator-pdf-OPENAI-GPT5-mini-otimizado-ajustado",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "Resposta Final\nPreparação e envio da resposta final com metadados.",
+        "height": 784,
+        "width": 352,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2496,
+        -256
+      ],
+      "id": "eaf274cf-8a37-499a-9922-ea3b4d1a7b88",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "content": "Geração e Upload de Excel\nFormatação dos dados, conversão para XLSX e envio ao S3.",
+        "height": 1008,
+        "width": 384,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2080,
+        -256
+      ],
+      "id": "197c8fd5-5879-4f3c-962d-70c6a707008b",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "Processamento e Cálculo\nCálculo dos dados a partir da análise com IA.",
+        "height": 320,
+        "width": 352,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1696,
+        -256
+      ],
+      "id": "db817dcb-23c7-4851-b90f-7a8e689f13f6",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "Processamento com IA (OpenAI)\nUso do GPT-5 mini para extrair JSON consolidado em uma única chamada por PDF.",
+        "height": 560,
+        "width": 352,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1312,
+        -256
+      ],
+      "id": "f27a8f73-04a9-4084-bd40-1511c3d5a58a",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "Texto Único\nConsolidação do OCR em um único chatInput para reduzir chamadas de IA.",
+        "height": 848,
+        "width": 352,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        928,
+        -256
+      ],
+      "id": "69aa0d04-63cc-4b5b-a564-7b90a982595a",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "Upload e Extração de Texto\nEnvio ao S3 e extração de texto com Mistral.",
+        "height": 720,
+        "width": 352,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        544,
+        -256
+      ],
+      "id": "6cf5387d-6b55-41aa-927e-29222793e9ae",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "Webhook e Validação\nRecepção e preparação dos dados do PDF.\n\n✅ AJUSTE 3: Suporte a lote de até 12 arquivos.\nCada arquivo tem sua própria competência.",
+        "height": 560,
+        "width": 352
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        160,
+        -256
+      ],
+      "id": "415a5b22-d8df-4bc1-abe9-c9e12ce4d771",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "GET, POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Authorization, X-Requested-With"
+              },
+              {
+                "name": "Access-Control-Expose-Headers",
+                "value": "Content-Length, Content-Type, Content-Disposition"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2624,
+        336
+      ],
+      "id": "7cb09297-01a2-47f5-b9e8-f5fe1d6994f9",
+      "name": "Responder Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const s3Data = $input.first().json;\nconst dadosLote = $('Validar e Preparar Dados').first().json;\n\nlet todosResultados = [];\ntry {\n  todosResultados = $('Processar e Calcular').all();\n} catch (error) {\n  todosResultados = [];\n}\n\nconst valorTotal = todosResultados.reduce((sum, item) => sum + (Number(item.json.valor) || 0), 0);\nconst creditoTotal = todosResultados.reduce((sum, item) => sum + (Number(item.json.credito) || 0), 0);\n\nlet pdfUrl = null;\ntry {\n  const pdfUpload = $('Upload PDF para S').first().json;\n  pdfUrl = pdfUpload.Location || pdfUpload.location || null;\n} catch (error) {\n  pdfUrl = null;\n}\n\nconst downloadUrl = s3Data.s3_location_real || s3Data.s3_location;\nconst excelFilename = s3Data.excel_filename || `holerite_lote_${dadosLote.total_arquivos}competencias.xlsx`;\n\n// Pega competência do primeiro arquivo para manter compatibilidade com campos antigos\nconst primeiroArquivo = dadosLote.arquivos ? dadosLote.arquivos[0] : null;\nconst competenciaLegacy = primeiroArquivo ? primeiroArquivo.competencia : (dadosLote.competencia || '');\nconst fileIdLegacy = primeiroArquivo ? primeiroArquivo.file_id : (dadosLote.file_id || '');\n\nconst response = {\n  // Campos de status\n  success: true,\n  ok: true,\n  completed: true,\n  status: 'completed',\n  message: `Processamento em lote concluído: ${dadosLote.total_arquivos} competência(s) processada(s)`,\n\n  // Campos de identificação — mantidos para compatibilidade com front-end\n  processing_id: s3Data.processing_id || dadosLote.processing_id,\n  file_id: s3Data.file_id || fileIdLegacy,\n\n  // Campos de arquivo — TODOS os formatos de nome/url que o front-end pode usar\n  filename: excelFilename,\n  excel_filename: excelFilename,\n  nome_arquivo: excelFilename,\n  mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',\n  content_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',\n\n  // URLs de download — TODOS os campos possíveis para garantir compatibilidade\n  download_url: downloadUrl,\n  url: downloadUrl,\n  excel_url: downloadUrl,\n  file_url: downloadUrl,\n  fileUrl: downloadUrl,\n  downloadUrl: downloadUrl,\n  link: downloadUrl,\n  href: downloadUrl,\n\n  // Objeto data completo — mantém estrutura original + campos novos de lote\n  data: {\n    processing_id: s3Data.processing_id || dadosLote.processing_id,\n\n    // Campos legados (arquivo único) — mantidos para compatibilidade\n    competencia: competenciaLegacy,\n    file_id: fileIdLegacy,\n    processado_em: new Date().toISOString(),\n\n    // Campos novos de lote\n    total_arquivos: dadosLote.total_arquivos,\n    competencias: dadosLote.arquivos ? dadosLote.arquivos.map(a => a.competencia) : [competenciaLegacy],\n\n    arquivo: {\n      // Campos legados\n      file_id: fileIdLegacy,\n      filename: excelFilename,\n      excel_filename: excelFilename,\n      status: 'success',\n\n      // URLs em todos os formatos possíveis\n      url: downloadUrl,\n      excel_url: downloadUrl,\n      download_url: downloadUrl,\n      file_url: downloadUrl,\n      fileUrl: downloadUrl,\n      downloadUrl: downloadUrl,\n      link: downloadUrl,\n      href: downloadUrl,\n\n      mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',\n\n      // Objeto urls aninhado (existia no original)\n      urls: {\n        pdf: pdfUrl,\n        excel: downloadUrl,\n        excel_download: downloadUrl,\n        download: downloadUrl\n      }\n    },\n\n    resumo: {\n      total_proventos: todosResultados.length,\n      total_rubricas: todosResultados.length,\n      valor_total: parseFloat(valorTotal.toFixed(2)),\n      credito_total: parseFloat(creditoTotal.toFixed(2))\n    }\n  }\n};\n\ntry {\n  const staticData = $getWorkflowStaticData('global');\n  const key = `processing_${dadosLote.processing_id}`;\n  staticData[key] = { status: 'completed', createdAt: Date.now(), response };\n} catch (error) {}\n\nreturn [{ json: response }];"
+      },
+      "name": "Preparar Resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2624,
+        112
+      ],
+      "id": "15e0caac-baeb-4c59-a6f3-34afd4a5aa7a"
+    },
+    {
+      "parameters": {
+        "jsCode": "const uploadResult = $input.first().json;\nconst metadados = $('Adicionar Metadados ao XLSX').first().json;\n\nif (!uploadResult.ETag && !uploadResult.Location) {\n  throw new Error('Upload para S3 falhou - sem ETag ou Location retornado');\n}\n\nreturn [{\n  json: {\n    ...metadados,\n    upload_success: true,\n    uploaded_at: new Date().toISOString(),\n    s3_etag: uploadResult.ETag,\n    s3_location_real: uploadResult.Location\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2624,
+        -144
+      ],
+      "id": "9f38fbc8-3924-4f02-9d8b-0d5c54f9ffaf",
+      "name": "Recuperar Metadados"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "e7pdf-holerite",
+        "fileName": "={{ $json.s3_key }}",
+        "additionalFields": {
+          "acl": "publicRead",
+          "storageClass": "standard"
+        }
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        592
+      ],
+      "id": "f05fc406-e687-4780-9ee4-dbfa38fb3503",
+      "name": "Upload XLSX para S3",
+      "credentials": {
+        "aws": {
+          "id": "xtXoYdILeaEmVmMk",
+          "name": "AWS S3 - E7"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ✅ AJUSTE 3+4: Nome do arquivo reflete o lote\nconst xlsxItem = $input.first();\nconst dadosLote = $('Validar e Preparar Dados').first().json;\n\nconst totalArquivos = dadosLote.total_arquivos || 1;\nconst companyNameLimpo = (dadosLote.company_name || 'empresa').replace(/[^a-zA-Z0-9\\s]/g, '').trim();\n\n// Nome do arquivo consolidado com todas as competências\nconst competencias = dadosLote.arquivos\n  ? dadosLote.arquivos.map(a => a.competencia.replace('/', '_')).join('-')\n  : 'lote';\n\nconst nomeArquivoLimpo = `holerite_lote_${competencias}_${companyNameLimpo}.xlsx`;\n\nconst bucket = 'e7pdf-holerite';\nconst region = 'sa-east-1';\nconst s3Key = `e7-holerite/${companyNameLimpo.replace(/\\s/g, '_').toLowerCase()}/lote/${competencias}/extracao_excel/${nomeArquivoLimpo}`;\n\nconst binaryData = xlsxItem.binary;\nconst binaryKey = Object.keys(binaryData)[0];\nconst updatedBinary = {};\nupdatedBinary[binaryKey] = {\n  ...binaryData[binaryKey],\n  fileName: nomeArquivoLimpo\n};\n\nreturn [{\n  json: {\n    company_name: dadosLote.company_name,\n    company_cnpj: dadosLote.company_cnpj,\n    company_id: dadosLote.company_id,\n    total_arquivos: totalArquivos,\n    competencias: dadosLote.arquivos ? dadosLote.arquivos.map(a => a.competencia) : [],\n    processing_id: dadosLote.processing_id,\n    timestamp: new Date().toISOString(),\n    s3_bucket: bucket,\n    s3_region: region,\n    s3_key: s3Key,\n    s3_location: `https://${bucket}.s3.${region}.amazonaws.com/${encodeURIComponent(s3Key).replace(/%2F/g, '/')}`,\n    excel_filename: nomeArquivoLimpo\n  },\n  binary: updatedBinary\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        336
+      ],
+      "id": "094165d9-d864-4b4b-b817-fca41e06908c",
+      "name": "Adicionar Metadados ao XLSX"
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "fileFormat": "xlsx",
+        "options": {
+          "fileName": "={{ 'holerite_lote_' + $('Validar e Preparar Dados').first().json.total_arquivos + 'competencias.xlsx' }}",
+          "headerRow": true
+        }
+      },
+      "name": "Converter para XLSX",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        96
+      ],
+      "id": "669423bb-da82-476a-9dc5-2f9a61cb3951"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ✅ AJUSTE 1: SELIC zerada (coluna mantida, sem preenchimento automático)\n// ✅ AJUSTE 4: Consolidar todos os itens de todos os arquivos e ordenar por competência\n\nconst items = $input.all();\n\nif (!items || items.length === 0) {\n  throw new Error('Nenhum dado para consolidar');\n}\n\nconst todasLinhas = items.map(item => {\n  const data = item.json;\n  return {\n    'COD': data.cod,\n    'Nome Rubrica': data.nome_rubrica,\n    'Valor': data.valor,\n    'Contribuição': data.contribuicao,\n    'RAT': data.rat + '%',\n    'VL RAT AJUSTADO': data.vl_rat_ajustado,\n    'TERCEIROS 5,8': data.terceiros + '%',\n    'VL CONT TERCEIROS': data.vl_cont_terceiros,\n    'TOTAL': data.total,\n    // ✅ SELIC: coluna mantida, vazia para preenchimento manual\n    'SELIC': '',\n    'VL SELIC': '',\n    'Crédito': data.credito,\n    // ✅ Período como MM/AAAA\n    'Período': data.periodo,\n    'CNPJ': data.cnpj,\n    _mes: parseInt((data.periodo || '').split('/')[0] || 0),\n    _ano: parseInt((data.periodo || '').split('/')[1] || 0)\n  };\n});\n\n// ✅ AJUSTE 4: Ordena por competência (mais antigo → mais novo)\ntodasLinhas.sort((a, b) => {\n  if (a._ano !== b._ano) return a._ano - b._ano;\n  return a._mes - b._mes;\n});\n\n// Remove campos auxiliares de ordenação\nconst linhasLimpas = todasLinhas.map(({ _mes, _ano, ...resto }) => resto);\n\n// Agrupa por período para subtotais\nconst porPeriodo = {};\nfor (const linha of linhasLimpas) {\n  const p = linha['Período'] || 'SEM_PERIODO';\n  if (!porPeriodo[p]) porPeriodo[p] = [];\n  porPeriodo[p].push(linha);\n}\n\n// Monta resultado final com subtotais por competência\nconst resultado = [];\nconst periodosOrdenados = Object.keys(porPeriodo).sort((a, b) => {\n  const [ma, aa] = a.split('/').map(Number);\n  const [mb, ab] = b.split('/').map(Number);\n  return aa !== ab ? aa - ab : ma - mb;\n});\n\nfor (const periodo of periodosOrdenados) {\n  const grupo = porPeriodo[periodo];\n  resultado.push(...grupo);\n\n  // Linha de subtotal por competência\n  resultado.push({\n    'COD': `SUBTOTAL ${periodo}`,\n    'Nome Rubrica': '',\n    'Valor': grupo.reduce((s, r) => s + (parseFloat(r['Valor']) || 0), 0),\n    'Contribuição': grupo.reduce((s, r) => s + (parseFloat(r['Contribuição']) || 0), 0),\n    'RAT': '',\n    'VL RAT AJUSTADO': grupo.reduce((s, r) => s + (parseFloat(r['VL RAT AJUSTADO']) || 0), 0),\n    'TERCEIROS 5,8': '',\n    'VL CONT TERCEIROS': grupo.reduce((s, r) => s + (parseFloat(r['VL CONT TERCEIROS']) || 0), 0),\n    'TOTAL': grupo.reduce((s, r) => s + (parseFloat(r['TOTAL']) || 0), 0),\n    'SELIC': '',\n    'VL SELIC': '',\n    'Crédito': grupo.reduce((s, r) => s + (parseFloat(r['Crédito']) || 0), 0),\n    'Período': periodo,\n    'CNPJ': ''\n  });\n}\n\n// Linha de total geral\nresultado.push({\n  'COD': 'TOTAL GERAL',\n  'Nome Rubrica': '',\n  'Valor': linhasLimpas.reduce((s, r) => s + (parseFloat(r['Valor']) || 0), 0),\n  'Contribuição': linhasLimpas.reduce((s, r) => s + (parseFloat(r['Contribuição']) || 0), 0),\n  'RAT': '',\n  'VL RAT AJUSTADO': linhasLimpas.reduce((s, r) => s + (parseFloat(r['VL RAT AJUSTADO']) || 0), 0),\n  'TERCEIROS 5,8': '',\n  'VL CONT TERCEIROS': linhasLimpas.reduce((s, r) => s + (parseFloat(r['VL CONT TERCEIROS']) || 0), 0),\n  'TOTAL': linhasLimpas.reduce((s, r) => s + (parseFloat(r['TOTAL']) || 0), 0),\n  'SELIC': '',\n  'VL SELIC': '',\n  'Crédito': linhasLimpas.reduce((s, r) => s + (parseFloat(r['Crédito']) || 0), 0),\n  'Período': '',\n  'CNPJ': ''\n});\n\nreturn resultado.map((row, index) => ({ json: row, pairedItem: index }));"
+      },
+      "name": "Formatar Dados XLSX",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        -144
+      ],
+      "id": "d7d7b150-4df3-4488-b2bd-639d359bb8ef"
+    },
+    {
+      "parameters": {
+        "jsCode": "// SELIC zerada; período MM/AAAA por arquivo do lote (não só .first())\n\nconst inputItems = $input.all();\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('Nenhuma saída do AI Agent recebida');\n}\n\nconst metadadosPorArquivo = $('Validar e Preparar Dados').all().map(i => i.json);\n\nfunction parseOutput(output) {\n  if (!output) return null;\n  try {\n    if (typeof output === 'string') {\n      const clean = output.replace(/```json/g, '').replace(/```/g, '').trim();\n      const start = clean.indexOf('{');\n      const end = clean.lastIndexOf('}');\n      if (start >= 0 && end >= 0) return JSON.parse(clean.slice(start, end + 1));\n      return JSON.parse(clean);\n    }\n    return output;\n  } catch (e) {\n    return null;\n  }\n}\n\nfunction isResumoOuBase(prov) {\n  const codigo = String(prov.codigo || prov.cod || '').toUpperCase();\n  const nome = String(prov.nome || prov.nome_rubrica || '')\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase();\n  return codigo.includes('SALARIO_CONTRIB') ||\n    nome.includes('SALARIO CONTRIBUICAO') ||\n    nome.includes('SALARIO DE CONTRIBUICAO') ||\n    nome.includes('CONTRIBUICAO EMPREGADOS') ||\n    nome.includes('CONTRIBUICAO CONTRIBUINTES');\n}\n\nconst RAT = 2.00;\nconst TERCEIROS = 5.80;\nconst vistos = new Set();\nconst saida = [];\n\nfor (let idx = 0; idx < inputItems.length; idx++) {\n  const item = inputItems[idx];\n  const parsed = parseOutput(item.json.output);\n  if (!parsed || !Array.isArray(parsed.proventos)) continue;\n\n  const meta = metadadosPorArquivo[idx] || metadadosPorArquivo[0] || {};\n  const competenciaArquivo =\n    parsed.competencia ||\n    meta.competencia ||\n    (Array.isArray(meta.arquivos) && meta.arquivos[idx] ? meta.arquivos[idx].competencia : '') ||\n    '';\n\n  const empresaNome =\n    (typeof parsed.empresa === 'string' ? parsed.empresa : (parsed.empresa?.nome || '')) ||\n    meta.company_name ||\n    '';\n  const cnpjEmpresa =\n    parsed.cnpj ||\n    (typeof parsed.empresa === 'object' ? parsed.empresa?.cnpj : '') ||\n    meta.company_cnpj ||\n    '';\n\n  for (const prov of parsed.proventos) {\n    if (!prov || isResumoOuBase(prov)) continue;\n\n    const codigo = String(prov.codigo || prov.cod || '').trim();\n    const nome = String(prov.nome || prov.nome_rubrica || '').trim();\n\n    let valor = 0;\n    if (typeof prov.valor === 'number') {\n      valor = prov.valor;\n    } else {\n      const raw = String(prov.valor ?? '').trim();\n      valor = raw.includes(',')\n        ? parseFloat(raw.replace(/\\./g, '').replace(',', '.')) || 0\n        : parseFloat(raw) || 0;\n    }\n\n    const chave = `${competenciaArquivo}|${codigo}|${nome}|${valor.toFixed(2)}`;\n    if (vistos.has(chave)) continue;\n    vistos.add(chave);\n\n    const contribuicao = valor * (RAT / 100);\n    const vl_rat_ajustado = contribuicao * (RAT / 100);\n    const vl_cont_terceiros = valor * (TERCEIROS / 100);\n    const total = contribuicao + vl_rat_ajustado + vl_cont_terceiros;\n\n    saida.push({ json: {\n      cod: codigo,\n      nome_rubrica: nome,\n      valor,\n      contribuicao: parseFloat(contribuicao.toFixed(2)),\n      rat: RAT,\n      vl_rat_ajustado: parseFloat(vl_rat_ajustado.toFixed(2)),\n      terceiros: TERCEIROS,\n      vl_cont_terceiros: parseFloat(vl_cont_terceiros.toFixed(2)),\n      total: parseFloat(total.toFixed(2)),\n      selic: '',\n      vl_selic: '',\n      credito: parseFloat(total.toFixed(2)),\n      periodo: competenciaArquivo,\n      cnpj: cnpjEmpresa,\n      empresa_nome: empresaNome,\n      competencia: competenciaArquivo,\n      tipo_mapeado: prov.categoria || prov.tipo_mapeado || 'OUTROS',\n      file_id: meta.file_id,\n      processing_id: meta.processing_id\n    }});\n  }\n}\n\nif (saida.length === 0) throw new Error('Nenhum provento foi extraído pelo AI Agent');\n\nreturn saida;"
+      },
+      "name": "Processar e Calcular",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1824,
+        -144
+      ],
+      "id": "f259cd70-adcb-410d-b356-41a03235f6f6"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Você receberá o texto completo de um PDF de folha/holerite, possivelmente com várias páginas.\n\nREGRAS CRÍTICAS PARA EVITAR DUPLICIDADE:\n- Retorne uma única extração final consolidada do documento inteiro.\n- Não retorne uma saída por página.\n- Quando houver páginas individuais e também uma página de resumo/consolidação, priorize a página de resumo/consolidação.\n- Não some páginas individuais com o resumo consolidado.\n- Não inclua linhas de base previdenciária/resumo como \"Salário contribuição empregados\" ou \"Salário contribuição contribuintes\" como proventos.\n- Extraia somente rubricas/eventos de proventos, férias, 13º, adicionais, horas e verbas similares.\n- Retorne somente JSON válido, sem markdown e sem texto fora do objeto JSON.\n\nVocê é um extrator especialista em holerites (folhas de pagamento) brasileiros com expertise avançada em:\n- Contabilidade empresarial e trabalhista\n- Análise de inteligência tributária\n- Interpretação de documentos fiscais e trabalhistas\n- Reconhecimento de padrões em diversos formatos de holerites\n\nOBJETIVO PRINCIPAL:\nExtrair com máxima precisão e fidelidade todos os eventos de PROVENTOS e informações estruturais de holerites, independentemente do sistema de origem.\n\n## INSTRUÇÕES CRÍTICAS DE FORMATAÇÃO:\n\n1. **RETORNE EXCLUSIVAMENTE JSON VÁLIDO**\n   - Nenhum texto explicativo antes ou depois do JSON\n   - Nenhum comentário dentro do JSON\n   - Nenhuma marcação de código (sem ```json)\n   - Apenas o objeto JSON puro\n\n2. **TRATAMENTO DE VALORES MONETÁRIOS**\n   - SEMPRE como número (type: number)\n   - Use ponto decimal (não vírgula): 1234.56\n   - SEM separadores de milhar\n   - Converta \"220:00\" para 220.00\n   - Converta \"1.234,56\" para 1234.56\n   - Converta \"575,34\" para 575.34\n\n3. **TRATAMENTO DE DADOS AUSENTES**\n   - Use null para valores desconhecidos\n   - Nunca use strings vazias para números\n   - Campos opcionais podem ser omitidos\n\n## SCHEMA JSON OBRIGATÓRIO:\n\n{\n  \"empresa\": \"string (nome completo da empresa)\",\n  \"cnpj\": \"string (apenas números, sem pontos/traços)\",\n  \"competencia\": \"string (formato MM/AAAA)\",\n  \"dataEmissao\": \"string (formato DD/MM/AAAA)\",\n  \"proventos\": [\n    {\n      \"codigo\": \"string (COD ou RUBRICA)\",\n      \"nome\": \"string (descrição da rubrica)\",\n      \"categoria\": \"string (ver categorias abaixo)\",\n      \"valor\": number,\n      \"referencia\": \"string (opcional)\"\n    }\n  ],\n  \"totalizadores\": {\n    \"totalProventos\": number,\n    \"totalDescontos\": number,\n    \"liquido\": number\n  }\n}\n\n## CATEGORIZAÇÃO DE PROVENTOS:\nSALARIO_BASE, ADICIONAL_INSALUBRIDADE, ADICIONAL_PERICULOSIDADE, HORA_EXTRA_50, HORA_EXTRA_100, DSRS, FERIAS, TERCO_FERIAS, SALARIO_13, INSS, FGTS, IRRF, VALE_TRANSPORTE, VALE_REFEICAO, OUTROS\n\n## REGRAS:\n1. Processar TODAS as páginas consolidando proventos\n2. Foco exclusivo em PROVENTOS\n3. Valores exatos como no documento\n4. Consolidar rubrica duplicada entre páginas\n5. Usar valor calculado/total da rubrica"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1376,
+        -144
+      ],
+      "id": "6768caa0-8070-41d3-bc86-e962f0e0a9a6",
+      "name": "AI Agent",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  const data = item.json || {};\n  const partes = [];\n  if (Array.isArray(data.pages) && data.pages.length > 0) {\n    for (const pg of data.pages) {\n      if (typeof pg === 'string') partes.push(pg);\n      else if (pg && typeof pg === 'object') partes.push(pg.markdown || pg.text || pg.content || JSON.stringify(pg));\n      else if (pg !== undefined && pg !== null) partes.push(String(pg));\n    }\n  } else {\n    partes.push(data.text || data.markdown || data.content || data.data || '');\n  }\n  const texto = partes.filter(Boolean).map(v => String(v).trim()).filter(Boolean).join('\\n\\n--- QUEBRA DE PÁGINA ---\\n\\n');\n  if (!texto) throw new Error('Nenhum texto extraído para enviar ao modelo');\n  out.push({ json: { chatInput: texto, totalCaracteres: texto.length, totalPartes: partes.filter(Boolean).length } });\n}\nreturn out;"
+      },
+      "id": "e18b675a-6961-4b97-b9a0-60bbfee30390",
+      "name": "Preparar Texto Único",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ✅ AJUSTE 3: Validar e Preparar Dados — suporte a lote de até 12 arquivos\n// Cada arquivo tem sua própria competência\n\nconst items = $input.all();\nconst item = items[0];\nconst body = item.json.body || item.json;\n\n// Suporte tanto ao formato antigo (um arquivo) quanto ao novo (array de arquivos)\nlet arquivosRaw = [];\n\nif (Array.isArray(body.arquivos) && body.arquivos.length > 0) {\n  // Novo formato: { arquivos: [{ pdf_base64, competencia, file_id, filename }] }\n  arquivosRaw = body.arquivos;\n} else if (Array.isArray(body.files) && body.files.length > 0) {\n  // Compatibilidade com formato anterior\n  arquivosRaw = body.files.map(f => ({\n    pdf_base64: f.pdf_base64,\n    competencia: body.competency || body.competencia,\n    file_id: f.file_id,\n    filename: f.filename\n  }));\n} else if (body.pdf || body.pdf_base64) {\n  // Compatibilidade com envio de arquivo único\n  arquivosRaw = [{\n    pdf_base64: body.pdf || body.pdf_base64,\n    competencia: body.competency || body.competencia,\n    file_id: body.file_id,\n    filename: body.filename\n  }];\n} else {\n  throw new Error('Nenhum arquivo encontrado. Envie via campo \"arquivos\" (array), \"files\" (array) ou \"pdf\" (único).');\n}\n\nif (arquivosRaw.length === 0) throw new Error('Nenhum arquivo recebido');\nif (arquivosRaw.length > 12) throw new Error(`Máximo de 12 arquivos por requisição. Recebidos: ${arquivosRaw.length}`);\n\nconst processing_id = body.processing_id || `proc_${Date.now()}`;\nconst companyData = body.company_data || {};\nconst company_name = body.company_name || companyData.name || 'Empresa';\nconst company_cnpj = body.company_cnpj || companyData.cnpj || '';\nconst company_id = body.company_id || '';\n\n// Valida e prepara cada arquivo\nconst arquivosPreparados = arquivosRaw.map((arq, idx) => {\n  if (!arq.pdf_base64) throw new Error(`Arquivo ${idx + 1} não contém campo 'pdf_base64'`);\n\n  const competenciaRaw = arq.competencia || body.competency || body.competencia || '';\n  if (!competenciaRaw) throw new Error(`Arquivo ${idx + 1} não tem competência definida`);\n\n  const partes = competenciaRaw.toString().split('/');\n  if (partes.length !== 2) throw new Error(`Competência inválida no arquivo ${idx + 1}: use MM/AAAA. Recebido: ${competenciaRaw}`);\n\n  const mes = partes[0].padStart(2, '0');\n  const ano = partes[1];\n  const competencia = `${mes}/${ano}`;\n\n  const pdfBuffer = Buffer.from(arq.pdf_base64, 'base64');\n  const fileId = arq.file_id || `file_${idx + 1}_${Date.now()}`;\n  const filename = arq.filename || `holerite_${competencia.replace('/', '_')}_${idx + 1}.pdf`;\n\n  return {\n    competencia,\n    mes,\n    ano,\n    file_id: fileId,\n    nomeArquivo: filename,\n    pdfBuffer,\n    pdf_base64: arq.pdf_base64\n  };\n});\n\n// ✅ AJUSTE 4: Ordena por competência antes mesmo de processar (mais antigo → mais novo)\narquivosPreparados.sort((a, b) => {\n  if (a.ano !== b.ano) return parseInt(a.ano) - parseInt(b.ano);\n  return parseInt(a.mes) - parseInt(b.mes);\n});\n\n// Emite um item por arquivo para processar individualmente\nreturn arquivosPreparados.map((arq, idx) => ({\n  json: {\n    competencia: arq.competencia,\n    mes: arq.mes,\n    ano: arq.ano,\n    company_id,\n    company_name,\n    company_cnpj,\n    file_id: arq.file_id,\n    nomeArquivo: arq.nomeArquivo,\n    processing_id,\n    indice: idx,\n    total_arquivos: arquivosPreparados.length,\n    arquivos: arquivosPreparados.map(a => ({ competencia: a.competencia, file_id: a.file_id, nomeArquivo: a.nomeArquivo })),\n    timestamp: new Date().toISOString(),\n    ...(body.user_id && { user_id: body.user_id }),\n    ...(body.session_id && { session_id: body.session_id })\n  },\n  binary: {\n    pdf: {\n      data: arq.pdfBuffer,\n      mimeType: 'application/pdf',\n      fileName: arq.nomeArquivo,\n      fileExtension: 'pdf'\n    }\n  }\n}));"
+      },
+      "name": "Validar e Preparar Dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        112
+      ],
+      "id": "c2d9b1e6-e183-47eb-9c2e-395c76a2671c"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "processar-holerite",
+        "responseMode": "responseNode",
+        "options": {
+          "binaryPropertyName": "",
+          "rawBody": false
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        288,
+        -144
+      ],
+      "id": "aa83a28e-57fc-4049-bbb6-f27b159ba6b5",
+      "name": "Webhook - Receber PDF",
+      "webhookId": "e7d29d71-91a9-4824-b0f1-3ffd7119f611"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "af45f2e4-54db-410f-b805-d66a99a42b91",
+              "name": "chatInput",
+              "value": "={{ $json.chatInput }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1040,
+        448
+      ],
+      "id": "15c0d390-f07d-4618-9298-dbae96b7eaaf",
+      "name": "Preparar chatInput"
+    },
+    {
+      "parameters": {
+        "binaryProperty": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mistralAi",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        16
+      ],
+      "id": "f2422849-63bc-4984-a9b3-113f0bf593c7",
+      "name": "Extract text",
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "tOSJ4PMh5rmt5Df6",
+          "name": "Mistral Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-5-mini"
+        },
+        "options": {
+          "timeout": 300000,
+          "maxRetries": 3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1456,
+        112
+      ],
+      "id": "68ce8f53-73f3-492c-b79c-4b646c90b671",
+      "name": "OpenAI Chat Model - GPT-5 mini",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "openAiApi": {
+          "id": "J5OoPQPVAwRuX0rf",
+          "name": "OpenAI-E7"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "e7pdf-holerite",
+        "fileName": "={{ 'e7-holerite/' + $json.company_name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase() + '/' + $json.ano + '/' + $json.competencia.replace('/', '_') + '/' + $json.file_id + '.pdf' }}",
+        "binaryPropertyName": "pdf",
+        "additionalFields": {
+          "acl": "private",
+          "storageClass": "standard"
+        }
+      },
+      "type": "n8n-nodes-base.awsS3",
+      "typeVersion": 2,
+      "position": [
+        656,
+        48
+      ],
+      "id": "86ce1494-4eb5-44b7-a5d4-c5eeb16bd550",
+      "name": "Upload PDF para S",
+      "credentials": {
+        "aws": {
+          "id": "xtXoYdILeaEmVmMk",
+          "name": "AWS S3 - E7"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = Date.now();\nconst ttlMs = 30 * 60 * 1000;\nfor (const [k, v] of Object.entries(staticData)) {\n  if (k.startsWith('processing_') && v?.createdAt && now - v.createdAt > ttlMs) {\n    delete staticData[k];\n  }\n}\nconst out = [];\nfor (const item of $input.all()) {\n  const data = item.json || {};\n  if (!data.processing_id) throw new Error('processing_id ausente');\n  const fileKey = data.file_id || data.nomeArquivo || 'arquivo';\n  const key = `processing_${data.processing_id}_${fileKey}`;\n  if (staticData[key]) {\n    out.push({ json: { ...data, duplicate_execution: true, previous_status: staticData[key].status, previous_created_at: staticData[key].createdAt, cached_response: staticData[key].response || null }, binary: item.binary });\n    continue;\n  }\n  staticData[key] = { status: 'processing', createdAt: now };\n  out.push({ json: { ...data, duplicate_execution: false, dedup_key: key }, binary: item.binary });\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -176
+      ],
+      "id": "eddb2b95-c881-4460-8607-f9c46b04f5c9",
+      "name": "Deduplicar Execução"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c9f060d6-4d9c-4752-98fb-a14f36fee608",
+              "leftValue": "={{ $json.duplicate_execution }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        656,
+        224
+      ],
+      "id": "48b0ca82-6c6a-4b38-87ba-c1f28047f308",
+      "name": "É Execução Duplicada?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.cached_response || {\n  \"success\": false,\n  \"duplicate\": true,\n  \"status\": $json.previous_status || \"processing\",\n  \"message\": \"Este processamento já está em andamento\",\n  \"data\": {\n    \"processing_id\": $json.processing_id,\n    \"file_id\": $json.file_id,\n    \"previous_created_at\": $json.previous_created_at\n  }\n} }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "GET, POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Authorization, X-Requested-With"
+              },
+              {
+                "name": "Access-Control-Expose-Headers",
+                "value": "Content-Length, Content-Type, Content-Disposition"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        -160
+      ],
+      "id": "4ef815c5-6f2c-4121-a433-a4d59c33dc96",
+      "name": "Responder Execução Duplicada"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Preparar Resposta": {
+      "main": [
+        [
+          {
+            "node": "Responder Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperar Metadados": {
+      "main": [
+        [
+          {
+            "node": "Preparar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload XLSX para S3": {
+      "main": [
+        [
+          {
+            "node": "Recuperar Metadados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Adicionar Metadados ao XLSX": {
+      "main": [
+        [
+          {
+            "node": "Upload XLSX para S3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converter para XLSX": {
+      "main": [
+        [
+          {
+            "node": "Adicionar Metadados ao XLSX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Dados XLSX": {
+      "main": [
+        [
+          {
+            "node": "Converter para XLSX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar e Calcular": {
+      "main": [
+        [
+          {
+            "node": "Formatar Dados XLSX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Processar e Calcular",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar e Preparar Dados": {
+      "main": [
+        [
+          {
+            "node": "Deduplicar Execução",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Receber PDF": {
+      "main": [
+        [
+          {
+            "node": "Validar e Preparar Dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar chatInput": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract text": {
+      "main": [
+        [
+          {
+            "node": "Preparar Texto Único",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Texto Único": {
+      "main": [
+        [
+          {
+            "node": "Preparar chatInput",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicar Execução": {
+      "main": [
+        [
+          {
+            "node": "É Execução Duplicada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Execução Duplicada?": {
+      "main": [
+        [
+          {
+            "node": "Responder Execução Duplicada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract text",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Upload PDF para S",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model - GPT-5 mini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "I0qhbP5Tnm5ek25C",
+    "timeSavedMode": "fixed",
+    "binaryMode": "separate"
+  },
+  "versionId": "d5cd5f98-5156-460d-9b76-f9a311280e2e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9474c6a00514abf32e506ac1e8a3630f4ad5062151d13e4e269bbbc8b5e3f423"
+  },
+  "id": "k77i2pdBDkyu7IDJ",
+  "tags": [
+    {
+      "updatedAt": "2026-05-05T01:49:43.367Z",
+      "createdAt": "2026-05-05T01:36:19.816Z",
+      "id": "eTFe4UERyDpm27Bk",
+      "name": "🔶 v-test"
+    },
+    {
+      "updatedAt": "2026-05-05T01:47:36.228Z",
+      "createdAt": "2026-05-05T01:36:06.074Z",
+      "id": "p2Rnblgoar2vh3Xp",
+      "name": "❇️ prod"
+    },
+    {
+      "updatedAt": "2025-11-01T02:27:10.924Z",
+      "createdAt": "2025-11-01T02:27:10.924Z",
+      "id": "zM7RJq2WaolB45Ck",
+      "name": "e7aicenter"
+    }
+  ]
+}
