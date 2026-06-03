@@ -671,9 +671,9 @@ export function PostRightSidebar({ postId, channelId }: PostRightSidebarProps) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir anexo?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="break-words">
               O arquivo{" "}
-              <span className="font-medium text-foreground">{attachmentToDelete?.name}</span>{" "}
+              <span className="font-medium text-foreground break-all">{attachmentToDelete?.name}</span>{" "}
               será removido permanentemente desta postagem.
             </AlertDialogDescription>
           </AlertDialogHeader>

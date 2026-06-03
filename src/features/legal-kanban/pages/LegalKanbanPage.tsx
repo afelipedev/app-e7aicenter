@@ -244,7 +244,7 @@ export default function LegalKanbanPage() {
             onDragEnd={handleDragEnd}
           >
             <div
-              className="w-full min-w-0 max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-[28px] border border-border/70 bg-card/80 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.55)] [-webkit-overflow-scrolling:touch]"
+              className="w-full min-w-0 max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-[28px] border border-border/70 bg-card/80 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.55)] dark:bg-muted/20 dark:shadow-[0_24px_60px_-42px_rgba(0,0,0,0.65)] [-webkit-overflow-scrolling:touch]"
               role="region"
               aria-label="Raias do Quadro"
             >
@@ -273,7 +273,9 @@ export default function LegalKanbanPage() {
               {activeColumn ? (
                 <ColumnOverlay column={activeColumn} />
               ) : activeCard ? (
-                <CardPreview card={activeCard} />
+                <div className="w-[280px] rounded-[20px] border border-border/70 bg-card p-3.5 shadow-2xl dark:bg-background dark:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.75)] sm:w-[300px] xl:w-[320px]">
+                  <CardPreview card={activeCard} />
+                </div>
               ) : null}
             </DragOverlay>
           </DndContext>
@@ -334,7 +336,7 @@ function KanbanColumnCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex h-[calc(100vh-16.5rem)] w-[280px] shrink-0 flex-col rounded-[24px] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.94))] shadow-[0_18px_40px_-34px_rgba(15,23,42,0.45)] sm:w-[300px] xl:w-[320px]",
+        "flex h-[calc(100vh-16.5rem)] w-[280px] shrink-0 flex-col rounded-[24px] border border-border/70 bg-gradient-to-b from-card to-muted/30 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.45)] dark:from-card dark:to-muted/10 dark:shadow-[0_18px_40px_-34px_rgba(0,0,0,0.55)] sm:w-[300px] xl:w-[320px]",
         isDragging && "opacity-80",
       )}
     >
@@ -357,7 +359,7 @@ function KanbanColumnCard({
               <p className="text-xs text-muted-foreground">{column.cards.length} cards nesta etapa</p>
             </div>
           </button>
-          <span className="rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+          <span className="rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-xs font-semibold text-muted-foreground dark:bg-muted/40">
             {column.cards.length}
           </span>
         </div>
@@ -367,7 +369,7 @@ function KanbanColumnCard({
             value={newCardTitle}
             onChange={(event) => setNewCardTitle(event.target.value)}
             placeholder="Novo card"
-            className="h-10 rounded-full border-border/70 bg-background/85"
+            className="h-10 rounded-full border-border/70 bg-background/85 dark:bg-muted/30"
           />
           <Button
             size="icon"
@@ -434,7 +436,7 @@ function ColumnCardsList({
           }
         >
           {column.cards.length === 0 ? (
-            <div className="rounded-[24px] border border-dashed border-border/70 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+            <div className="rounded-[24px] border border-dashed border-border/70 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground dark:bg-muted/10">
               Solte cards aqui para continuar o fluxo.
             </div>
           ) : shouldVirtualize ? (
@@ -487,7 +489,7 @@ function KanbanCardItem({
       style={style}
       onClick={() => onOpenCard(card.id)}
       className={cn(
-        "w-full rounded-[20px] border border-border/70 bg-background p-3.5 text-left shadow-[0_14px_36px_-32px_rgba(15,23,42,0.4)] transition hover:-translate-y-0.5 hover:border-primary/25 hover:bg-primary/[0.03]",
+        "w-full rounded-[20px] border border-border/70 bg-card p-3.5 text-left shadow-[0_14px_36px_-32px_rgba(15,23,42,0.4)] transition hover:-translate-y-0.5 hover:border-primary/25 hover:bg-accent/30 dark:bg-background dark:shadow-[0_14px_36px_-32px_rgba(0,0,0,0.5)] dark:hover:bg-muted/40 dark:hover:border-primary/35",
         isDragging && "opacity-70",
       )}
       {...attributes}
@@ -515,7 +517,7 @@ function CardPreview({ card }: { card: LegalKanbanCard }) {
             </span>
           </div>
         </div>
-        <span className="rounded-full border border-border/70 bg-muted/20 px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+        <span className="rounded-full border border-border/70 bg-muted/20 px-2.5 py-1 text-xs font-semibold text-muted-foreground dark:bg-muted/30">
           #{card.cardNumber}
         </span>
       </div>
@@ -573,7 +575,7 @@ function CardPreview({ card }: { card: LegalKanbanCard }) {
               {card.members.slice(0, 4).map((member) => (
                 <span
                   key={member.id}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-background bg-primary/10 text-[11px] font-semibold text-primary"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-background bg-primary/10 text-[11px] font-semibold text-primary dark:border-card dark:bg-primary/20"
                   title={member.user.name}
                 >
                   {getMemberInitials(member.user)}
@@ -602,7 +604,7 @@ function CardPreview({ card }: { card: LegalKanbanCard }) {
           </span>
           {card.hasLinkedPost ? (
             <span
-              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-primary"
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-primary dark:bg-primary/20"
               title="Card vinculado a uma postagem"
             >
               <Hash className="h-3.5 w-3.5" />
@@ -617,7 +619,7 @@ function CardPreview({ card }: { card: LegalKanbanCard }) {
 
 function ColumnOverlay({ column }: { column: LegalKanbanColumnWithCards }) {
   return (
-    <div className="w-[300px] rounded-[24px] border border-border/70 bg-background/95 p-4 shadow-2xl backdrop-blur">
+    <div className="w-[300px] rounded-[24px] border border-border/70 bg-card/95 p-4 shadow-2xl backdrop-blur dark:bg-background dark:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.75)]">
       <div className="flex items-center gap-3">
         <span className="h-3 w-3 rounded-full" style={{ backgroundColor: column.color }} />
         <div>

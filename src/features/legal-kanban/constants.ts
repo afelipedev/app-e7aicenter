@@ -9,20 +9,48 @@ export const LEGAL_KANBAN_PRIORITY_META: Record<
   KanbanPriority,
   { label: string; color: string; chip: string }
 > = {
-  baixa: { label: "Baixa", color: "#94a3b8", chip: "bg-slate-100 text-slate-700 border-slate-200" },
-  media: { label: "Média", color: "#2563eb", chip: "bg-blue-100 text-blue-700 border-blue-200" },
-  alta: { label: "Alta", color: "#f97316", chip: "bg-orange-100 text-orange-700 border-orange-200" },
-  urgente: { label: "Urgente", color: "#dc2626", chip: "bg-red-100 text-red-700 border-red-200" },
+  baixa: {
+    label: "Baixa",
+    color: "#94a3b8",
+    chip: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-900/60 dark:text-slate-300 dark:border-slate-700",
+  },
+  media: {
+    label: "Média",
+    color: "#2563eb",
+    chip: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800",
+  },
+  alta: {
+    label: "Alta",
+    color: "#f97316",
+    chip: "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:border-orange-800",
+  },
+  urgente: {
+    label: "Urgente",
+    color: "#dc2626",
+    chip: "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800",
+  },
 };
 
 export const LEGAL_KANBAN_STATUS_META: Record<
   KanbanStatus,
   { label: string; chip: string }
 > = {
-  ativo: { label: "Ativo", chip: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  bloqueado: { label: "Bloqueado", chip: "bg-amber-100 text-amber-700 border-amber-200" },
-  concluido: { label: "Concluído", chip: "bg-violet-100 text-violet-700 border-violet-200" },
-  arquivado: { label: "Arquivado", chip: "bg-slate-100 text-slate-700 border-slate-200" },
+  ativo: {
+    label: "Ativo",
+    chip: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800",
+  },
+  bloqueado: {
+    label: "Bloqueado",
+    chip: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
+  },
+  concluido: {
+    label: "Concluído",
+    chip: "bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-800",
+  },
+  arquivado: {
+    label: "Arquivado",
+    chip: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-900/60 dark:text-slate-300 dark:border-slate-700",
+  },
 };
 
 export const LEGAL_KANBAN_FILTERS_INITIAL_STATE: LegalKanbanFiltersState = {

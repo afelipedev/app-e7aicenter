@@ -1902,10 +1902,11 @@ export function LegalKanbanCardDetailsSheet({
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Excluir anexo?</AlertDialogTitle>
-                  <AlertDialogDescription>
+                  <AlertDialogDescription className="break-words">
                     {attachmentDeleteTarget ? (
                       <>
-                        O arquivo <span className="font-medium text-foreground">{attachmentDeleteTarget.name}</span>{" "}
+                        O arquivo{" "}
+                        <span className="font-medium text-foreground break-all">{attachmentDeleteTarget.name}</span>{" "}
                         será removido do card
                         {attachmentDeleteTarget.attachmentType === "file"
                           ? " e o arquivo será apagado do armazenamento."

@@ -36,10 +36,10 @@ export function LegalKanbanFiltersBar({
     Number(filters.dueFilter !== "all");
 
   return (
-    <div className="min-w-0 space-y-4 rounded-[28px] border border-border/70 bg-card/95 p-5 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.45)]">
+    <div className="min-w-0 space-y-4 rounded-[28px] border border-border/70 bg-card/95 p-5 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.45)] dark:bg-card dark:shadow-[0_18px_48px_-36px_rgba(0,0,0,0.55)]">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground dark:bg-muted/15">
             <Filter className="h-3.5 w-3.5" />
             Filtros do board
           </div>
@@ -161,7 +161,7 @@ export function LegalKanbanFiltersBar({
                   }
                   className={cn(
                     "rounded-full border px-3 py-1.5 text-sm transition-colors",
-                    selected ? meta.chip : "border-border/70 bg-background text-muted-foreground",
+                    selected ? meta.chip : "border-border/70 bg-background text-muted-foreground dark:bg-muted/20",
                   )}
                 >
                   {meta.label}
@@ -196,7 +196,7 @@ export function LegalKanbanFiltersBar({
                       }
                       className={cn(
                         "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-transform hover:-translate-y-0.5",
-                        selected ? "border-transparent text-white shadow-sm" : "border-border/70 bg-background",
+                        selected ? "border-transparent text-white shadow-sm" : "border-border/70 bg-background dark:bg-muted/20",
                       )}
                       style={{
                         backgroundColor: selected ? label.color : undefined,

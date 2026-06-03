@@ -143,25 +143,32 @@ function BoardsSection({
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">{title}</h2>
       {boards.length === 0 ? (
-        <Card className="rounded-2xl border border-dashed border-border/70 bg-muted/15 p-8 text-center text-sm text-muted-foreground">
+        <Card className="rounded-2xl border border-dashed border-border/70 bg-muted/15 p-8 text-center text-sm text-muted-foreground dark:bg-muted/10">
           {emptyMessage}
         </Card>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-2">
           {boards.map((board) => (
-            <Card key={board.id} className="w-80 shrink-0 overflow-hidden rounded-2xl border-border/70 bg-card/95">
-              <button type="button" className="w-full text-left" onClick={() => onOpen(board.slug)}>
-                <div className="h-36 w-full bg-muted/30">
+            <Card
+              key={board.id}
+              className="w-80 shrink-0 overflow-hidden rounded-2xl border-border/70 bg-card/95 shadow-[0_14px_36px_-32px_rgba(15,23,42,0.35)] transition-colors hover:border-primary/20 dark:bg-card dark:shadow-[0_14px_36px_-32px_rgba(0,0,0,0.45)] dark:hover:border-primary/30"
+            >
+              <button
+                type="button"
+                className="w-full text-left transition-colors hover:bg-muted/20 dark:hover:bg-muted/10"
+                onClick={() => onOpen(board.slug)}
+              >
+                <div className="h-36 w-full bg-muted/30 dark:bg-muted/15">
                   {board.coverImageUrl ? (
                     <img src={board.coverImageUrl} alt={`Capa do quadro ${board.title}`} className="h-full w-full object-cover" />
                   ) : null}
                 </div>
                 <div className="space-y-1 p-4">
-                  <p className="font-semibold">{board.title}</p>
+                  <p className="font-semibold text-foreground">{board.title}</p>
                   <p className="line-clamp-2 text-sm text-muted-foreground">{board.description || "Sem descrição do quadro."}</p>
                 </div>
               </button>
-              <div className="flex items-center justify-between border-t border-border/70 px-4 py-3">
+              <div className="flex items-center justify-between border-t border-border/70 bg-muted/5 px-4 py-3 dark:bg-muted/10">
                 <Button variant="outline" size="sm" onClick={() => onOpen(board.slug)}>
                   Abrir
                 </Button>
