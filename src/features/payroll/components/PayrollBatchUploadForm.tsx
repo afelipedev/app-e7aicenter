@@ -96,28 +96,18 @@ export function PayrollBatchUploadForm({
       if (incoming.length === 0) return;
 
       const next = [...rows];
-      let slot = 0;
 
       for (const file of incoming) {
         if (next.filter((r) => r.file).length >= maxFiles) break;
 
-        while (slot < next.length && next[slot].file) slot++;
-
-        if (slot >= next.length) {
-          if (next.length >= maxFiles) break;
-          next.push({ ...newRow(), file });
+        const emptyIdx = next.findIndex((r) => !r.file);
+        if (emptyIdx >= 0) {
+          next[emptyIdx] = { ...next[emptyIdx], file };
         } else {
-          next[slot] = { ...next[slot], file };
+          next.push({ ...newRow(), file });
         }
-        slot++;
       }
 
-      while (next.length < maxFiles && next.length < Math.max(1, next.filter((r) => r.file).length + 1)) {
-        if (next.every((r) => r.file)) next.push(newRow());
-        else break;
-      }
-
-      if (next.length === 0) next.push(newRow());
       onRowsChange(next);
     },
     [rows, maxFiles, onRowsChange]
@@ -128,8 +118,7 @@ export function PayrollBatchUploadForm({
   };
 
   const removeRow = (id: string) => {
-    const filtered = rows.filter((r) => r.id !== id);
-    onRowsChange(filtered.length > 0 ? filtered : [newRow()]);
+    onRowsChange(rows.filter((r) => r.id !== id));
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -145,7 +134,7 @@ export function PayrollBatchUploadForm({
     onSubmit({ company_id: companyId, items });
   };
 
-  const displayRows = rows.length > 0 ? rows : [newRow()];
+  const hasFileRows = filledRows.length > 0;
 
   return (
     <Card>
@@ -214,63 +203,52 @@ export function PayrollBatchUploadForm({
           />
         </div>
 
-        <div className="space-y-3">
-          <Label>Arquivos e competências</Label>
-          {displayRows.map((row, index) => (
-            <div
-              key={row.id}
-              className="grid grid-cols-1 md:grid-cols-[1fr_140px_auto] gap-2 items-start p-3 border rounded-lg"
-            >
-              <div className="flex items-start gap-2 min-w-0">
-                <FileText className="w-4 h-4 text-red-500 shrink-0 mt-1" />
-                <div className="min-w-0">
-                  {row.file ? (
-                    <>
-                      <p className="text-sm font-medium truncate">{row.file.name}</p>
-                      <p className="text-xs text-muted-foreground">{formatFileSize(row.file.size)}</p>
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Linha {index + 1} — sem arquivo</p>
-                  )}
+        {hasFileRows && (
+          <div className="space-y-3">
+            <Label>Arquivos e competências</Label>
+            {rows
+              .filter((row) => row.file)
+              .map((row, index) => (
+                <div
+                  key={row.id}
+                  className="grid grid-cols-1 md:grid-cols-[1fr_140px_auto] gap-2 items-start p-3 border rounded-lg"
+                >
+                  <div className="flex items-start gap-2 min-w-0">
+                    <FileText className="w-4 h-4 text-red-500 shrink-0 mt-1" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{row.file!.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatFileSize(row.file!.size)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Competência</Label>
+                    <Input
+                      placeholder="MM/AAAA"
+                      value={row.competencia}
+                      onChange={(e) =>
+                        updateRow(row.id, { competencia: formatCompetenciaInput(e.target.value) })
+                      }
+                      maxLength={7}
+                      disabled={isUploading}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0"
+                    onClick={() => removeRow(row.id)}
+                    disabled={isUploading}
+                    title="Remover arquivo"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Competência</Label>
-                <Input
-                  placeholder="MM/AAAA"
-                  value={row.competencia}
-                  onChange={(e) =>
-                    updateRow(row.id, { competencia: formatCompetenciaInput(e.target.value) })
-                  }
-                  maxLength={7}
-                  disabled={isUploading || !row.file}
-                />
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="shrink-0"
-                onClick={() => removeRow(row.id)}
-                disabled={isUploading}
-                title="Remover linha"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          ))}
-          {canAddMore && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onRowsChange([...rows, newRow()])}
-              disabled={isUploading}
-            >
-              Adicionar linha
-            </Button>
-          )}
-        </div>
+              ))}
+          </div>
+        )}
 
         {competenciasPreview.length > 0 && (
           <div className="rounded-md bg-muted/50 p-3 text-sm">
@@ -309,5 +287,5 @@ export function PayrollBatchUploadForm({
 }
 
 export function createInitialUploadRows(): UploadRow[] {
-  return [newRow()];
+  return [];
 }
