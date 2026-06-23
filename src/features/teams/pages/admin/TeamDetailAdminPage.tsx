@@ -145,15 +145,15 @@ export default function TeamDetailAdminPage() {
   const availableUsers = (allUsers as { id: string; name: string; email: string }[]).filter((u) => !memberIds.has(u.id));
 
   return (
-    <div className="w-full max-w-7xl mx-auto min-w-0">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 min-w-0">
       <NavLink
         to="/admin/teams"
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4"
+        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="mr-1 h-4 w-4 shrink-0" /> Voltar
       </NavLink>
 
-      <div className="mb-6 min-w-0">
+      <div className="min-w-0">
         <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2 min-w-0">
           <Settings2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary shrink-0" />
           <span className="truncate">{team?.name ?? "—"}</span>

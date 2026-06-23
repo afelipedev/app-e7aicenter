@@ -6,9 +6,11 @@ import {
   TrendingUp,
   Building,
   Trello,
+  LayoutGrid,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { CompanyService } from "@/services/companyService";
 import { ChatService } from "@/services/chatService";
 import { DashboardService } from "@/services/dashboardService";
@@ -79,11 +81,26 @@ const quickActions = [
     url: "/documents/payroll",
   },
   {
+    title: "Gestão de SPEDs",
+    description: "Processar e acompanhar arquivos SPED",
+    icon: FileText,
+    color: "bg-gradient-pink",
+    url: "/documents/sped",
+  },
+  {
     title: "Quadros Jurídicos",
     description: "Acompanhar andamentos dos quadros jurídicos",
     icon: Trello,
     color: "bg-gradient-blue",
     url: "/documents/cases/quadros",
+  },
+  {
+    title: "Quadros Gestão Operacional",
+    description: "Acompanhar quadros da gestão operacional",
+    icon: LayoutGrid,
+    color: "bg-gradient-orange",
+    url: "/gestao-operacional/quadros",
+    requiredPermission: "operational_kanban",
   },
   {
     title: "Relatórios",
@@ -96,7 +113,17 @@ const quickActions = [
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
   const [stats, setStats] = useState<DashboardStat[]>(initialStats);
+
+  const visibleQuickActions = useMemo(
+    () =>
+      quickActions.filter(
+        (action) =>
+          !action.requiredPermission || hasPermission(action.requiredPermission),
+      ),
+    [hasPermission],
+  );
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -203,7 +230,7 @@ export default function Dashboard() {
       <div>
         <h2 className="text-xl font-semibold text-foreground mb-4">Ações Rápidas</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {quickActions.map((action) => (
+          {visibleQuickActions.map((action) => (
             <Card
               key={action.title}
               className="p-6 cursor-pointer hover:shadow-lg transition-all hover:-translate-y-1"

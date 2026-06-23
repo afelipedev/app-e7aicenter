@@ -43,8 +43,8 @@ export default function TeamsAdminPage() {
   });
 
   return (
-    <div className="container mx-auto max-w-7xl px-0 sm:px-2">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-semibold flex items-center gap-2">
             <UsersGroupIcon className="h-6 w-6 sm:h-7 sm:w-7 text-primary shrink-0" aria-hidden />
