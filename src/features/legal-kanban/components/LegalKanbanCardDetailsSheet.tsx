@@ -102,6 +102,10 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { ShareKanbanCardDialog } from "@/features/kanban-shared/components/ShareKanbanCardDialog";
+import { KANBAN_MODULE_CONFIG, kanbanBoardDetailPath } from "@/features/kanban-shared/kanbanModuleConfig";
+import { useKanbanModule } from "@/features/kanban-shared/KanbanModuleContext";
+import { kanbanCardBridgeService } from "@/features/kanban-shared/services/kanbanCardBridgeService";
 import { supabase } from "@/lib/supabase";
 import { legalKanbanService } from "../services/legalKanbanService";
 import type {
@@ -154,6 +158,7 @@ export function LegalKanbanCardDetailsSheet({
   const { data, isLoading, isFetching } = useLegalKanbanCardDetails(cardId);
   const { user: authUser } = useAuth();
   const navigate = useNavigate();
+  const kanbanModule = useKanbanModule();
 
   const { data: linkedPost } = useQuery({
     queryKey: ["legal-kanban", "card-post-link", cardId],
@@ -225,6 +230,7 @@ export function LegalKanbanCardDetailsSheet({
   } | null>(null);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [attachmentDeleteTarget, setAttachmentDeleteTarget] = useState<LegalKanbanAttachment | null>(null);
   const attachmentFileInputRef = useRef<HTMLInputElement | null>(null);
   const commentsSectionRef = useRef<HTMLElement | null>(null);
@@ -913,6 +919,12 @@ export function LegalKanbanCardDetailsSheet({
                       <Archive className="mr-2 h-4 w-4" />
                       Arquivar
                     </DropdownMenuItem>
+                    {kanbanModule.canShareToLegal && !cardData?.hasLinkedCard ? (
+                      <DropdownMenuItem disabled={cardActionsBusy} onClick={() => setShareDialogOpen(true)}>
+                        <Link2 className="mr-2 h-4 w-4" />
+                        Compartilhar com Jurídico
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
@@ -949,6 +961,43 @@ export function LegalKanbanCardDetailsSheet({
                   Ver Postagem
                   <ExternalLink className="ml-1.5 h-3 w-3" />
                 </Button>
+              </div>
+            ) : null}
+
+            {cardData?.linkedCard ? (
+              <div className="flex shrink-0 items-center justify-end gap-2 border-b border-border/70 px-4 py-2 sm:px-5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    onOpenChange(false);
+                    const peerConfig = KANBAN_MODULE_CONFIG[cardData.linkedCard!.peerBoardDomain];
+                    navigate(`${kanbanBoardDetailPath(peerConfig, cardData.linkedCard!.peerBoardSlug)}?card=${cardData.linkedCard!.peerCardId}`);
+                  }}
+                >
+                  <Link2 className="mr-1.5 h-3.5 w-3.5" />
+                  {cardData.linkedCard.isSource ? "Ver card no Jurídico" : "Ver card na Gestão Operacional"}
+                  <ExternalLink className="ml-1.5 h-3 w-3" />
+                </Button>
+                {kanbanModule.canShareToLegal ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      if (!cardId) return;
+                      try {
+                        await kanbanCardBridgeService.unlink(cardId);
+                        toast.success("Compartilhamento removido.");
+                      } catch (error) {
+                        toast.error(error instanceof Error ? error.message : "Erro ao desvincular card.");
+                      }
+                    }}
+                  >
+                    Desvincular
+                  </Button>
+                ) : null}
               </div>
             ) : null}
 
@@ -2059,6 +2108,14 @@ export function LegalKanbanCardDetailsSheet({
         </div>
       </DialogContent>
     </Dialog>
+    {cardId ? (
+      <ShareKanbanCardDialog
+        cardId={cardId}
+        open={shareDialogOpen}
+        onOpenChange={setShareDialogOpen}
+        onShared={() => onOpenChange(false)}
+      />
+    ) : null}
     </>
   );
 }

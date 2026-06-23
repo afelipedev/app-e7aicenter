@@ -19,6 +19,7 @@ import {
   UserCog,
   UsersIcon as UsersGroupIcon,
   UserSquare2,
+  LayoutGrid,
 } from "lucide-react";
 import {
   Sidebar,
@@ -34,6 +35,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 type SidebarEntry = {
   title: string;
@@ -41,7 +43,19 @@ type SidebarEntry = {
   url?: string;
   color?: string;
   items?: SidebarEntry[];
+  requiredPermission?: string;
 };
+
+function filterMenuItems(items: SidebarEntry[], hasPermission: (permission: string) => boolean): SidebarEntry[] {
+  return items
+    .filter((item) => !item.requiredPermission || hasPermission(item.requiredPermission))
+    .map((item) =>
+      item.items
+        ? { ...item, items: filterMenuItems(item.items, hasPermission) }
+        : item,
+    )
+    .filter((item) => !item.items || item.items.length > 0);
+}
 
 const menuItems: SidebarEntry[] = [
   {
@@ -57,10 +71,18 @@ const menuItems: SidebarEntry[] = [
     color: "text-ai-cyan",
   },
   {
+    title: "Gestão Operacional",
+    icon: LayoutGrid,
+    url: "/gestao-operacional/quadros",
+    color: "text-ai-orange",
+    requiredPermission: "operational_kanban",
+  },
+  {
     title: "Gestão de Empresas",
     icon: Building2,
     url: "/companies",
     color: "text-ai-cyan",
+    requiredPermission: "companies",
   },
   {
     title: "Assistentes de IA",
@@ -105,6 +127,7 @@ const menuItems: SidebarEntry[] = [
     title: "Administração",
     icon: ShieldCheck,
     color: "text-ai-pink",
+    requiredPermission: "admin",
     items: [
       { title: "Usuários", url: "/admin/users", icon: UserCog },
       { title: "Gestão de Equipes", url: "/admin/teams", icon: UsersGroupIcon },
@@ -115,7 +138,9 @@ const menuItems: SidebarEntry[] = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
+  const { hasPermission } = useAuth();
   const isCollapsed = state === "collapsed";
+  const visibleMenuItems = filterMenuItems(menuItems, hasPermission);
 
   const isEntryActive = (entry: SidebarEntry) => {
     if (entry.url) {
@@ -209,7 +234,7 @@ export function AppSidebar() {
 
         <SidebarGroup>
           <SidebarMenu>
-            {menuItems.map((item) => (
+            {visibleMenuItems.map((item) => (
               <SidebarMenuItem key={item.title}>
                 {item.items ? (
                   <Collapsible defaultOpen={isEntryActive(item)} className="group/collapsible">

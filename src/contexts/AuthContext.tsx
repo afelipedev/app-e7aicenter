@@ -6,9 +6,9 @@ import { UserSyncService, AuthEventType } from '../services/userSyncService'
 
 // Permission mapping based on roles
 const rolePermissions: Record<UserRole, string[]> = {
-  administrator: ['admin', 'users', 'companies', 'modules', 'all'],
-  it: ['admin', 'users', 'companies', 'modules', 'all'],
-  advogado_adm: ['admin', 'users', 'companies', 'modules', 'all'],
+  administrator: ['admin', 'users', 'companies', 'modules', 'operational_kanban', 'all'],
+  it: ['admin', 'users', 'companies', 'modules', 'operational_kanban', 'all'],
+  advogado_adm: ['admin', 'users', 'companies', 'modules', 'operational_kanban', 'all'],
   advogado: ['modules', 'companies'],
   contabil: ['modules', 'companies', 'view_companies', 'add_companies'],
   financeiro: ['modules']

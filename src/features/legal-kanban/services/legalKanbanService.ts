@@ -6,11 +6,13 @@ import {
   LEGAL_KANBAN_DEFAULT_COLUMNS,
   LEGAL_KANBAN_STORAGE_BUCKET,
 } from "../constants";
+import { KANBAN_MODULE_CONFIG, type KanbanDomain } from "@/features/kanban-shared/kanbanModuleConfig";
 import type {
   CreateLegalKanbanCardInput,
   CreateLegalKanbanColumnInput,
   CreateLegalKanbanCustomFieldInput,
   CreateLegalKanbanLabelInput,
+  KanbanCardLinkInfo,
   LegalKanbanActivity,
   LegalKanbanAttachment,
   LegalKanbanBoard,
@@ -78,6 +80,7 @@ function mapBoard(row: any): LegalKanbanBoard {
     coverImageUrl: row.cover_image_url || null,
     isFavorite: Boolean(row.is_favorite),
     accessLevel: row.access_level || "viewer",
+    domain: row.domain || "legal",
   };
 }
 
@@ -342,12 +345,14 @@ async function syncBoardMembers(boardId: string, actorId: string, memberIds: str
   }
 }
 
-async function ensureBoardExists(slug: string) {
+async function ensureBoardExists(slug: string, domain: KanbanDomain = "legal") {
+  const moduleConfig = KANBAN_MODULE_CONFIG[domain];
   const actor = await getCurrentPublicUser();
   const boardResponse = await db
     .from("legal_kanban_boards")
     .select("*, legal_kanban_board_favorites!left(id,user_id), legal_kanban_board_members!left(access_level, user_id)")
     .eq("slug", slug)
+    .eq("domain", domain)
     .maybeSingle();
 
   if (boardResponse.data) {
@@ -358,21 +363,24 @@ async function ensureBoardExists(slug: string) {
     return mapBoard({
       ...boardResponse.data,
       is_favorite: favoriteByUser,
-      access_level: membership?.access_level || "viewer",
+      access_level: domain === "operational" && isBoardManagerRole(actor.role)
+        ? "admin"
+        : membership?.access_level || "viewer",
     });
   }
 
-  if (slug !== LEGAL_KANBAN_DEFAULT_BOARD_SLUG || !isBoardManagerRole(actor.role)) {
+  if (slug !== moduleConfig.defaultBoardSlug || !isBoardManagerRole(actor.role)) {
     throw new Error("Quadro não encontrado ou sem permissão de acesso.");
   }
 
   const insertedBoard = await db
     .from("legal_kanban_boards")
     .insert({
-      slug: LEGAL_KANBAN_DEFAULT_BOARD_SLUG,
-      title: "Quadro Jurídico",
-      description: "Quadro compartilhado do setor jurídico.",
-      icon: "briefcase",
+      slug: moduleConfig.defaultBoardSlug,
+      title: moduleConfig.defaultBoardTitle,
+      description: moduleConfig.defaultBoardDescription,
+      icon: moduleConfig.defaultBoardIcon,
+      domain,
     })
     .select("*")
     .single();
@@ -387,7 +395,7 @@ async function ensureBoardExists(slug: string) {
   });
 
   await db.from("legal_kanban_columns").insert(
-    LEGAL_KANBAN_DEFAULT_COLUMNS.map((column) => ({
+    moduleConfig.defaultColumns.map((column) => ({
       board_id: board.id,
       title: column.title,
       color: column.color,
@@ -403,12 +411,12 @@ async function ensureBoardExists(slug: string) {
   };
 }
 
-async function getBoardContext(boardSlug: string) {
-  const board = await ensureBoardExists(boardSlug);
+async function getBoardContext(boardSlug: string, domain: KanbanDomain = "legal") {
+  const board = await ensureBoardExists(boardSlug, domain);
 
   const [columnsResponse, labelsResponse, customFieldsResponse, cardsResponse, membersResponse] = await Promise.all([
     db.from("legal_kanban_columns").select("*").eq("board_id", board.id).order("position"),
-    db.from("legal_kanban_labels").select("*").order("name", { ascending: true }),
+    db.from("legal_kanban_labels").select("*").eq("board_id", board.id).order("name", { ascending: true }),
     db.from("legal_kanban_custom_fields").select("*").eq("board_id", board.id).order("position"),
     db.from("legal_kanban_cards").select("*").eq("board_id", board.id).order("position"),
     db
@@ -456,7 +464,7 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
   }
 
   const cardIds = cards.map((card) => card.id);
-  const [membersResponse, labelsResponse, commentsResponse, attachmentsResponse, checklistsResponse, customValuesResponse, postLinksResponse] =
+  const [membersResponse, labelsResponse, commentsResponse, attachmentsResponse, checklistsResponse, customValuesResponse, postLinksResponse, cardLinksResponse] =
     await Promise.all([
       db
         .from("legal_kanban_card_members")
@@ -474,6 +482,12 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
         .select("*")
         .in("card_id", cardIds),
       db.from("post_kanban_links").select("card_id").in("card_id", cardIds),
+      db
+        .from("kanban_card_links")
+        .select(
+          "id, source_card_id, target_card_id, source_board_id, target_board_id, source_board:legal_kanban_boards!kanban_card_links_source_board_id_fkey(id, slug, domain), target_board:legal_kanban_boards!kanban_card_links_target_board_id_fkey(id, slug, domain)",
+        )
+        .or(`source_card_id.in.(${cardIds.join(",")}),target_card_id.in.(${cardIds.join(",")})`),
     ]);
 
   const checklistItemsResponse =
@@ -537,6 +551,34 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
     maybeArray(postLinksResponse.data).map((row: { card_id: string }) => row.card_id),
   );
 
+  const cardLinkMap = new Map<string, KanbanCardLinkInfo>();
+  maybeArray(cardLinksResponse.data).forEach((row: any) => {
+    const sourceCardId = row.source_card_id as string;
+    const targetCardId = row.target_card_id as string;
+
+    if (cardIds.includes(sourceCardId)) {
+      cardLinkMap.set(sourceCardId, {
+        linkId: row.id,
+        peerCardId: targetCardId,
+        peerBoardId: row.target_board_id,
+        peerBoardSlug: row.target_board?.slug || "",
+        peerBoardDomain: row.target_board?.domain || "legal",
+        isSource: true,
+      });
+    }
+
+    if (cardIds.includes(targetCardId)) {
+      cardLinkMap.set(targetCardId, {
+        linkId: row.id,
+        peerCardId: sourceCardId,
+        peerBoardId: row.source_board_id,
+        peerBoardSlug: row.source_board?.slug || "",
+        peerBoardDomain: row.source_board?.domain || "operational",
+        isSource: false,
+      });
+    }
+  });
+
   return cards.map((card) => ({
     ...card,
     members: membersMap.get(card.id) || [],
@@ -546,19 +588,48 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
     attachmentsCount: attachmentsCountMap.get(card.id) || 0,
     customFieldValues: customValuesMap.get(card.id) || [],
     hasLinkedPost: linkedCardIds.has(card.id),
+    hasLinkedCard: cardLinkMap.has(card.id),
+    linkedCard: cardLinkMap.get(card.id) || null,
   }));
 }
 
 export const legalKanbanService = {
-  async listBoards() {
+  async listBoards(domain: KanbanDomain = "legal") {
     const actor = await getCurrentPublicUser();
+
+    if (domain === "operational") {
+      if (!isBoardManagerRole(actor.role)) {
+        return [];
+      }
+
+      const boardsResponse = await db
+        .from("legal_kanban_boards")
+        .select("*, legal_kanban_board_favorites!left(id,user_id)")
+        .eq("domain", "operational")
+        .order("title");
+
+      if (boardsResponse.error) {
+        throw new Error(boardsResponse.error.message || "Não foi possível carregar os quadros operacionais.");
+      }
+
+      return maybeArray(boardsResponse.data)
+        .map((row: any) =>
+          mapBoard({
+            ...row,
+            access_level: "admin",
+            is_favorite: maybeArray(row.legal_kanban_board_favorites).some((item: any) => item.user_id === actor.id),
+          }),
+        )
+        .sort((a: LegalKanbanBoard, b: LegalKanbanBoard) => a.title.localeCompare(b.title, "pt-BR"));
+    }
+
     const membershipsResponse = await db
       .from("legal_kanban_board_members")
       .select(
         `
           access_level,
           board:legal_kanban_boards (
-            id, slug, title, description, icon, is_locked, cover_image_path, cover_image_url,
+            id, slug, title, description, icon, is_locked, cover_image_path, cover_image_url, domain,
             legal_kanban_board_favorites!left(id,user_id)
           )
         `,
@@ -573,12 +644,13 @@ export const legalKanbanService = {
           is_favorite: maybeArray(row.board?.legal_kanban_board_favorites).some((item: any) => item.user_id === actor.id),
         }),
       )
-      .filter((board: LegalKanbanBoard) => board?.id);
+      .filter((board: LegalKanbanBoard) => board?.id && (board.domain || "legal") === "legal");
 
     return boards.sort((a: LegalKanbanBoard, b: LegalKanbanBoard) => a.title.localeCompare(b.title, "pt-BR"));
   },
 
-  async upsertBoard(input: UpsertLegalKanbanBoardInput, boardId?: string) {
+  async upsertBoard(input: UpsertLegalKanbanBoardInput, boardId?: string, domain: KanbanDomain = "legal") {
+    const moduleConfig = KANBAN_MODULE_CONFIG[domain];
     const actor = await getCurrentPublicUser();
     if (!isBoardManagerRole(actor.role)) {
       throw new Error("Você não possui permissão para criar ou configurar quadros.");
@@ -597,6 +669,7 @@ export const legalKanbanService = {
           cover_image_url: input.coverImageUrl || null,
         })
         .eq("id", boardId)
+        .eq("domain", domain)
         .select("*")
         .single();
 
@@ -612,7 +685,8 @@ export const legalKanbanService = {
         title: input.title,
         description: input.description || null,
         slug: normalizedSlug,
-        icon: "briefcase",
+        icon: moduleConfig.defaultBoardIcon,
+        domain,
         cover_image_path: input.coverImagePath || null,
         cover_image_url: input.coverImageUrl || null,
       })
@@ -623,7 +697,7 @@ export const legalKanbanService = {
     await syncBoardMembers(board.id, actor.id, input.memberIds || []);
 
     await db.from("legal_kanban_columns").insert(
-      LEGAL_KANBAN_DEFAULT_COLUMNS.map((column) => ({
+      moduleConfig.defaultColumns.map((column) => ({
         board_id: board.id,
         title: column.title,
         color: column.color,
@@ -689,8 +763,8 @@ export const legalKanbanService = {
     return maybeArray(response.data).map(mapUser);
   },
 
-  async getBoardData(boardSlug: string = LEGAL_KANBAN_DEFAULT_BOARD_SLUG): Promise<LegalKanbanBoardData> {
-    const context = await getBoardContext(boardSlug);
+  async getBoardData(boardSlug: string = LEGAL_KANBAN_DEFAULT_BOARD_SLUG, domain: KanbanDomain = "legal"): Promise<LegalKanbanBoardData> {
+    const context = await getBoardContext(boardSlug, domain);
     const cards = await hydrateCards(context.cards);
 
     const columns = sortByPosition(context.columns).map((column) => ({
@@ -769,6 +843,31 @@ export const legalKanbanService = {
       { total: 0, completed: 0 },
     );
 
+    const [postLinkResponse, cardLinkResponse] = await Promise.all([
+      db.from("post_kanban_links").select("card_id").eq("card_id", cardId).maybeSingle(),
+      db
+        .from("kanban_card_links")
+        .select(
+          "id, source_card_id, target_card_id, source_board_id, target_board_id, source_board:legal_kanban_boards!kanban_card_links_source_board_id_fkey(id, slug, domain), target_board:legal_kanban_boards!kanban_card_links_target_board_id_fkey(id, slug, domain)",
+        )
+        .or(`source_card_id.eq.${cardId},target_card_id.eq.${cardId}`)
+        .maybeSingle(),
+    ]);
+
+    let linkedCard: KanbanCardLinkInfo | null = null;
+    if (cardLinkResponse.data) {
+      const row = cardLinkResponse.data as any;
+      const isSource = row.source_card_id === cardId;
+      linkedCard = {
+        linkId: row.id,
+        peerCardId: isSource ? row.target_card_id : row.source_card_id,
+        peerBoardId: isSource ? row.target_board_id : row.source_board_id,
+        peerBoardSlug: isSource ? row.target_board?.slug || "" : row.source_board?.slug || "",
+        peerBoardDomain: isSource ? row.target_board?.domain || "legal" : row.source_board?.domain || "operational",
+        isSource,
+      };
+    }
+
     return {
       ...card,
       members,
@@ -781,6 +880,9 @@ export const legalKanbanService = {
       activities,
       attachments,
       checklists: sortByPosition(checklists),
+      hasLinkedPost: Boolean(postLinkResponse.data?.card_id),
+      hasLinkedCard: Boolean(linkedCard),
+      linkedCard,
     };
   },
 

@@ -23,6 +23,9 @@ import ProcessQueriesPage from "./features/processes/pages/ProcessQueriesPage";
 import ProcessDetailsPage from "./features/processes/pages/ProcessDetailsPage";
 import LegalKanbanPage from "./features/legal-kanban/pages/LegalKanbanPage";
 import LegalBoardsHomePage from "./features/legal-kanban/pages/LegalBoardsHomePage";
+import OperationalBoardsHomePage from "./features/operational-kanban/pages/OperationalBoardsHomePage";
+import OperationalKanbanPage from "./features/operational-kanban/pages/OperationalKanbanPage";
+import { KanbanModuleProvider } from "./features/kanban-shared/KanbanModuleContext";
 import Users from "./pages/admin/Users";
 import { Companies as CompaniesManagement } from "./pages/Companies";
 import { PayrollManagement } from "./pages/PayrollManagement";
@@ -103,8 +106,16 @@ const App = () => (
               <Route path="/documents/payroll" element={<Payroll />} />
               <Route path="/documents/sped" element={<Sped />} />
               <Route path="/documents/cases" element={<Cases />} />
-              <Route path="/documents/cases/quadros" element={<LegalBoardsHomePage />} />
-              <Route path="/documents/cases/quadros/:boardSlug" element={<LegalKanbanPage />} />
+              <Route path="/documents/cases/quadros" element={
+                <KanbanModuleProvider domain="legal">
+                  <LegalBoardsHomePage />
+                </KanbanModuleProvider>
+              } />
+              <Route path="/documents/cases/quadros/:boardSlug" element={
+                <KanbanModuleProvider domain="legal">
+                  <LegalKanbanPage />
+                </KanbanModuleProvider>
+              } />
               <Route path="/documents/cases/queries" element={<ProcessQueriesPage />} />
               <Route path="/documents/cases/:caseId" element={<ProcessDetailsPage />} />
               <Route path="/documents/reports" element={<Reports />} />
@@ -114,6 +125,18 @@ const App = () => (
               
               {/* Leads - accessible to all authenticated users */}
               <Route path="/leads" element={<Leads />} />
+
+              {/* Gestão Operacional - restricted to operational_kanban permission */}
+              <Route path="/gestao-operacional/quadros" element={
+                <ProtectedRoute requiredPermission="operational_kanban">
+                  <OperationalBoardsHomePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/gestao-operacional/quadros/:boardSlug" element={
+                <ProtectedRoute requiredPermission="operational_kanban">
+                  <OperationalKanbanPage />
+                </ProtectedRoute>
+              } />
               
               {/* Company Management - require companies permission */}
               <Route path="/companies" element={

@@ -39,6 +39,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { processRoutes } from "@/features/processes/constants";
+import { kanbanBoardDetailPath } from "@/features/kanban-shared/kanbanModuleConfig";
+import { useKanbanModule } from "@/features/kanban-shared/KanbanModuleContext";
 import { LEGAL_KANBAN_PRIORITY_META, LEGAL_KANBAN_STATUS_META } from "../constants";
 import { LegalKanbanBoardSettingsSheet } from "../components/LegalKanbanBoardSettingsSheet";
 import { LegalKanbanCardDetailsSheet } from "../components/LegalKanbanCardDetailsSheet";
@@ -62,7 +64,8 @@ type ActiveDragState =
 
 export default function LegalKanbanPage() {
   const navigate = useNavigate();
-  const { boardSlug = "setor-juridico" } = useParams<{ boardSlug: string }>();
+  const module = useKanbanModule();
+  const { boardSlug = module.defaultBoardSlug } = useParams<{ boardSlug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const boardQuery = useLegalKanbanBoard(boardSlug);
@@ -188,7 +191,7 @@ export default function LegalKanbanPage() {
       <section className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 space-y-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-            Fluxo jurídico compartilhado
+            {module.sectionLabel}
           </p>
           <h1 className="text-2xl font-semibold tracking-[-0.03em] text-foreground sm:text-[2rem]">
             {boardData?.board.title || "Quadro"}
@@ -199,11 +202,13 @@ export default function LegalKanbanPage() {
         </div>
 
         <div className="flex min-w-0 flex-wrap gap-2">
-          <Button className="rounded-full px-4" onClick={() => navigate(processRoutes.dashboard)}>
-            Dashboard de processos
-            <ArrowUpRight className="ml-2 h-4 w-4" />
-          </Button>
-          <Button variant="outline" className="rounded-full px-4" onClick={() => navigate(processRoutes.quadros)}>
+          {module.domain === "legal" ? (
+            <Button className="rounded-full px-4" onClick={() => navigate(processRoutes.dashboard)}>
+              Dashboard de processos
+              <ArrowUpRight className="ml-2 h-4 w-4" />
+            </Button>
+          ) : null}
+          <Button variant="outline" className="rounded-full px-4" onClick={() => navigate(module.basePath)}>
             Voltar para Quadros
           </Button>
           {boardData && canManageBoard ? (
@@ -213,7 +218,7 @@ export default function LegalKanbanPage() {
               onOpenChange={setBoardSettingsOpen}
               onSaved={(nextSlug) => {
                 if (nextSlug !== boardSlug) {
-                  navigate(processRoutes.boardDetail(nextSlug));
+                  navigate(kanbanBoardDetailPath(module, nextSlug));
                 }
               }}
             />
@@ -609,6 +614,15 @@ function CardPreview({ card }: { card: LegalKanbanCard }) {
             >
               <Hash className="h-3.5 w-3.5" />
               <span className="text-[10px] font-semibold uppercase">Postagem</span>
+            </span>
+          ) : null}
+          {card.hasLinkedCard ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2 py-0.5 text-orange-600 dark:bg-orange-500/20 dark:text-orange-300"
+              title="Card compartilhado com outro quadro"
+            >
+              <ArrowUpRight className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-semibold uppercase">Compartilhado</span>
             </span>
           ) : null}
         </div>

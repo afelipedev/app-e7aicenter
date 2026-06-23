@@ -1,4 +1,5 @@
 import type { UserRole } from "@/lib/supabase";
+import type { KanbanDomain } from "@/features/kanban-shared/kanbanModuleConfig";
 
 export type KanbanPriority = "baixa" | "media" | "alta" | "urgente";
 export type KanbanStatus = "ativo" | "bloqueado" | "concluido" | "arquivado";
@@ -18,6 +19,7 @@ export interface LegalKanbanUser {
 }
 
 export interface LegalKanbanBoard {
+  domain?: KanbanDomain;
   id: string;
   slug: string;
   title: string;
@@ -28,6 +30,15 @@ export interface LegalKanbanBoard {
   coverImageUrl: string | null;
   isFavorite: boolean;
   accessLevel: "viewer" | "editor" | "admin";
+}
+
+export interface KanbanCardLinkInfo {
+  linkId: string;
+  peerCardId: string;
+  peerBoardId: string;
+  peerBoardSlug: string;
+  peerBoardDomain: KanbanDomain;
+  isSource: boolean;
 }
 
 export interface LegalKanbanColumn {
@@ -155,6 +166,8 @@ export interface LegalKanbanCard extends LegalKanbanCardBase {
   attachmentsCount: number;
   customFieldValues: LegalKanbanCustomFieldValue[];
   hasLinkedPost: boolean;
+  hasLinkedCard: boolean;
+  linkedCard: KanbanCardLinkInfo | null;
 }
 
 export interface LegalKanbanCardDetails extends LegalKanbanCard {

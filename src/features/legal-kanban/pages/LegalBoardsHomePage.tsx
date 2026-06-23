@@ -14,7 +14,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { processRoutes } from "@/features/processes/constants";
+import { kanbanBoardDetailPath } from "@/features/kanban-shared/kanbanModuleConfig";
+import { useKanbanModule } from "@/features/kanban-shared/KanbanModuleContext";
 import { LegalKanbanBoardSettingsSheet } from "../components/LegalKanbanBoardSettingsSheet";
 import { useDeleteLegalKanbanBoard, useLegalKanbanBoards, useToggleLegalKanbanBoardFavorite } from "../hooks/useLegalKanbanBoard";
 import { useState } from "react";
@@ -22,6 +23,7 @@ import { useState } from "react";
 export default function LegalBoardsHomePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const module = useKanbanModule();
   const boardsQuery = useLegalKanbanBoards();
   const toggleFavorite = useToggleLegalKanbanBoardFavorite();
   const deleteBoard = useDeleteLegalKanbanBoard();
@@ -35,16 +37,14 @@ export default function LegalBoardsHomePage() {
     <div className="space-y-6 pb-8">
       <section className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">Documentos e Processos</p>
-          <h1 className="text-3xl font-semibold tracking-[-0.03em]">Quadros</h1>
-          <p className="text-sm text-muted-foreground">
-            Visualize seus quadros e acesse rapidamente seus favoritos.
-          </p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">{module.sectionLabel}</p>
+          <h1 className="text-3xl font-semibold tracking-[-0.03em]">{module.pageTitle}</h1>
+          <p className="text-sm text-muted-foreground">{module.pageDescription}</p>
         </div>
         {canCreateBoard ? (
           <LegalKanbanBoardSettingsSheet
             triggerLabel="Novo Quadro"
-            onSaved={(boardSlug) => navigate(processRoutes.boardDetail(boardSlug))}
+            onSaved={(boardSlug) => navigate(kanbanBoardDetailPath(module, boardSlug))}
           />
         ) : null}
       </section>
@@ -53,7 +53,7 @@ export default function LegalBoardsHomePage() {
         title="Meus Quadros"
         boards={boards}
         emptyMessage="Você ainda não possui quadros associados."
-        onOpen={(slug) => navigate(processRoutes.boardDetail(slug))}
+        onOpen={(slug) => navigate(kanbanBoardDetailPath(module, slug))}
         onToggleFavorite={async (boardId, isFavorite) => {
           try {
             await toggleFavorite.mutateAsync({ boardId, isFavorite });
@@ -69,7 +69,7 @@ export default function LegalBoardsHomePage() {
         title="Quadros Favoritos"
         boards={favoriteBoards}
         emptyMessage="Nenhum quadro favoritado ainda."
-        onOpen={(slug) => navigate(processRoutes.boardDetail(slug))}
+        onOpen={(slug) => navigate(kanbanBoardDetailPath(module, slug))}
         onToggleFavorite={async (boardId, isFavorite) => {
           try {
             await toggleFavorite.mutateAsync({ boardId, isFavorite });

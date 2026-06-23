@@ -87,3 +87,11 @@ export const LEGAL_KANBAN_DEFAULT_COLUMNS = [
   { title: "Concluídos", color: "#16a34a", position: 400, kind: "done" },
   { title: "Arquivados", color: "#64748b", position: 500, kind: "archived" },
 ] as const;
+
+export const OPERATIONAL_KANBAN_DEFAULT_COLUMNS = [
+  { title: "Entrada", color: "#2563eb", position: 100, kind: "inbox" },
+  { title: "Em andamento", color: "#7c3aed", position: 200, kind: "custom" },
+  { title: "Aguardando", color: "#ea580c", position: 300, kind: "team" },
+  { title: "Concluídos", color: "#16a34a", position: 400, kind: "done" },
+  { title: "Arquivados", color: "#64748b", position: 500, kind: "archived" },
+] as const;
