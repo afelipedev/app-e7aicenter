@@ -5,11 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
   CommandEmpty,
@@ -18,8 +14,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { processTags } from "../constants";
-import type { ProcessFilterOptions, ProcessFilters, ProcessPartySide, ProcessTag } from "../types";
+import type { ProcessFilterOptions, ProcessFilters } from "../types";
 
 interface ProcessFiltersSheetProps {
   open: boolean;
@@ -30,8 +25,6 @@ interface ProcessFiltersSheetProps {
   onClear: () => void;
   filterOptions: ProcessFilterOptions;
 }
-
-const partySides: Array<ProcessPartySide> = ["Ativo", "Passivo", "Interessado"];
 
 interface FilterTagMultiSelectProps {
   label: string;
@@ -109,14 +102,7 @@ function FilterTagMultiSelect({
                 <CommandEmpty>Nenhuma opção disponível.</CommandEmpty>
                 <CommandGroup>
                   {available.map((opt) => (
-                    <CommandItem
-                      key={opt}
-                      value={opt}
-                      onSelect={() => {
-                        add(opt);
-                      }}
-                      className="break-words"
-                    >
+                    <CommandItem key={opt} value={opt} onSelect={() => add(opt)} className="break-words">
                       {opt}
                     </CommandItem>
                   ))}
@@ -140,26 +126,7 @@ export function ProcessFiltersSheet({
   filterOptions,
 }: ProcessFiltersSheetProps) {
   const updateFilters = <K extends keyof ProcessFilters>(key: K, value: ProcessFilters[K]) => {
-    onFiltersChange({
-      ...filters,
-      [key]: value,
-    });
-  };
-
-  const toggleTag = (tag: ProcessTag) => {
-    const nextTags = filters.tags.includes(tag)
-      ? filters.tags.filter((currentTag) => currentTag !== tag)
-      : [...filters.tags, tag];
-
-    updateFilters("tags", nextTags);
-  };
-
-  const togglePartySide = (side: ProcessPartySide) => {
-    const next = filters.partySides.includes(side)
-      ? filters.partySides.filter((s) => s !== side)
-      : [...filters.partySides, side];
-
-    updateFilters("partySides", next);
+    onFiltersChange({ ...filters, [key]: value });
   };
 
   return (
@@ -177,46 +144,14 @@ export function ProcessFiltersSheet({
           </div>
           <SheetTitle className="text-2xl font-semibold tracking-[-0.02em]">Filtros da consulta</SheetTitle>
           <SheetDescription>
-            Combine os filtros para segmentar a listagem e encontrar processos com mais precisão em qualquer tamanho de tela.
+            Refine a listagem de processos já consultados por tribunal, classe, assunto, órgão julgador, grau e
+            período de ajuizamento.
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 min-w-0 space-y-5">
           <div className="rounded-[24px] border border-border/70 bg-card/80 p-5 shadow-[0_16px_40px_-36px_rgba(15,23,42,0.45)]">
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">Tags</Label>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  Use marcadores rápidos para priorizar categorias processuais recorrentes.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
-              {processTags.map((tag) => (
-                <Button
-                  key={tag}
-                  type="button"
-                  variant={filters.tags.includes(tag) ? "default" : "outline"}
-                  className="w-full justify-start rounded-full whitespace-normal border-border/70 text-left sm:w-auto"
-                  onClick={() => toggleTag(tag)}
-                >
-                  {tag}
-                </Button>
-              ))}
-            </div>
-          </div>
-          </div>
-
-          <div className="rounded-[24px] border border-border/70 bg-card/80 p-5 shadow-[0_16px_40px_-36px_rgba(15,23,42,0.45)]">
             <div className="space-y-5">
-              <div className="space-y-1">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">
-                  Critérios principais
-                </p>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  Combine tribunal, classe processual e parte envolvida para reduzir ruído na listagem.
-                </p>
-              </div>
-
               <FilterTagMultiSelect
                 label="Tribunal"
                 options={filterOptions.tribunals}
@@ -234,59 +169,17 @@ export function ProcessFiltersSheet({
               />
 
               <FilterTagMultiSelect
-                label="Nome da parte"
-                options={filterOptions.partyNames}
-                selected={filters.partyNames}
-                onChange={(selected) => updateFilters("partyNames", selected)}
-                placeholder="Buscar nome..."
+                label="Órgão julgador"
+                options={filterOptions.orgaosJulgadores}
+                selected={filters.orgaosJulgadores}
+                onChange={(selected) => updateFilters("orgaosJulgadores", selected)}
+                placeholder="Buscar órgão julgador..."
               />
-
-              <div className="min-w-0 space-y-3">
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">
-                    Lado da parte
-                  </Label>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    Delimite o papel da parte para uma leitura mais objetiva do resultado.
-                  </p>
-                </div>
-                <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
-                  {partySides.map((side) => (
-                    <Button
-                      key={side}
-                      type="button"
-                      variant={filters.partySides.includes(side) ? "default" : "outline"}
-                      size="sm"
-                      className="w-full rounded-full border-border/70 sm:w-auto"
-                      onClick={() => togglePartySide(side)}
-                    >
-                      {side}
-                    </Button>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
 
           <div className="rounded-[24px] border border-border/70 bg-card/80 p-5 shadow-[0_16px_40px_-36px_rgba(15,23,42,0.45)]">
             <div className="space-y-5">
-              <div className="space-y-1">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">
-                  Contexto complementar
-                </p>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  Adicione documento da parte, assunto e intervalo de distribuição para um recorte mais preciso.
-                </p>
-              </div>
-
-              <FilterTagMultiSelect
-                label="Documento da parte"
-                options={filterOptions.partyDocuments}
-                selected={filters.partyDocuments}
-                onChange={(selected) => updateFilters("partyDocuments", selected)}
-                placeholder="Buscar documento..."
-              />
-
               <FilterTagMultiSelect
                 label="Assuntos"
                 options={filterOptions.assuntos}
@@ -295,13 +188,21 @@ export function ProcessFiltersSheet({
                 placeholder="Buscar assunto..."
               />
 
+              <FilterTagMultiSelect
+                label="Grau"
+                options={filterOptions.grades}
+                selected={filters.grades}
+                onChange={(selected) => updateFilters("grades", selected)}
+                placeholder="Buscar grau..."
+              />
+
               <div className="grid min-w-0 gap-4 sm:grid-cols-2">
                 <div className="min-w-0 space-y-2.5">
                   <Label
                     htmlFor="distributedFrom"
                     className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80"
                   >
-                    Data da distribuição inicial
+                    Ajuizamento (início)
                   </Label>
                   <Input
                     id="distributedFrom"
@@ -316,7 +217,7 @@ export function ProcessFiltersSheet({
                     htmlFor="distributedTo"
                     className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80"
                   >
-                    Data da distribuição final
+                    Ajuizamento (fim)
                   </Label>
                   <Input
                     id="distributedTo"

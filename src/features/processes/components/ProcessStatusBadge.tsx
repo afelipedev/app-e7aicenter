@@ -2,20 +2,11 @@ import { Badge } from "@/components/ui/badge";
 import type { ProcessStatus } from "../types";
 
 const statusVariantMap: Record<ProcessStatus, "default" | "secondary" | "outline"> = {
-  Ativo: "default",
   Concluída: "default",
   "Em andamento": "secondary",
   Aguardando: "outline",
-  Monitorado: "secondary",
 };
 
 export function ProcessStatusBadge({ status }: { status: ProcessStatus }) {
-  return (
-    <Badge
-      variant={statusVariantMap[status]}
-      className={status === "Monitorado" ? "bg-amber-100 text-amber-800" : status === "Ativo" ? "bg-emerald-100 text-emerald-800" : ""}
-    >
-      {status}
-    </Badge>
-  );
+  return <Badge variant={statusVariantMap[status] ?? "secondary"}>{status}</Badge>;
 }

@@ -1,20 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { processesService } from "../services/processesService";
-import type {
-  ApiConsumptionQueryParams,
-  HistoricalListParams,
-  ProcessListParams,
-} from "../types";
+import type { AdvancedSearchParams, ProcessListParams } from "../types";
 
 const processKeys = {
   all: ["processes"] as const,
   dashboard: () => [...processKeys.all, "dashboard"] as const,
   queries: (params: ProcessListParams) => [...processKeys.all, "queries", params] as const,
-  history: (params: HistoricalListParams) => [...processKeys.all, "history", params] as const,
   details: (caseId: string) => [...processKeys.all, "details", caseId] as const,
   agent: (caseId: string) => [...processKeys.all, "agent", caseId] as const,
-  monitoring: () => [...processKeys.all, "monitoring"] as const,
-  apiConsumption: (params: ApiConsumptionQueryParams) => [...processKeys.all, "api-consumption", params] as const,
+  filterOptions: () => [...processKeys.all, "filter-options"] as const,
 };
 
 export function useProcessesDashboard() {
@@ -28,13 +22,6 @@ export function useProcessQueries(params: ProcessListParams) {
   return useQuery({
     queryKey: processKeys.queries(params),
     queryFn: () => processesService.listQueries(params),
-  });
-}
-
-export function useHistoricalQueries(params: HistoricalListParams) {
-  return useQuery({
-    queryKey: processKeys.history(params),
-    queryFn: () => processesService.listHistoricalQueries(params),
   });
 }
 
@@ -66,23 +53,9 @@ export function useRefreshProcessAgentSummary(caseId: string) {
   });
 }
 
-export function useProcessMonitoring() {
-  return useQuery({
-    queryKey: processKeys.monitoring(),
-    queryFn: () => processesService.getMonitoringData(),
-  });
-}
-
-export function useProcessApiConsumption(params: ApiConsumptionQueryParams) {
-  return useQuery({
-    queryKey: processKeys.apiConsumption(params),
-    queryFn: () => processesService.getApiConsumptionData(params),
-  });
-}
-
 export function useFilterOptions() {
   return useQuery({
-    queryKey: [...processKeys.all, "filter-options"] as const,
+    queryKey: processKeys.filterOptions(),
     queryFn: () => processesService.getFilterOptions(),
   });
 }
@@ -105,29 +78,21 @@ export function useSearchProcessByCnj() {
     mutationFn: (cnj: string) => processesService.searchProcessByCnj(cnj),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: processKeys.dashboard() });
-      queryClient.invalidateQueries({ queryKey: [...processKeys.all, "filter-options"] });
+      queryClient.invalidateQueries({ queryKey: processKeys.filterOptions() });
       queryClient.invalidateQueries({ queryKey: [...processKeys.all, "queries"] });
-      queryClient.invalidateQueries({ queryKey: [...processKeys.all, "api-consumption"] });
     },
   });
 }
 
-export function useSearchHistoricalProcesses() {
+export function useAdvancedSearch() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      documentType,
-      documentValue,
-    }: {
-      documentType: HistoricalListParams["documentType"];
-      documentValue: string;
-    }) => processesService.searchHistoricalProcesses(documentType, documentValue),
+    mutationFn: (params: AdvancedSearchParams) => processesService.advancedSearch(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: processKeys.dashboard() });
-      queryClient.invalidateQueries({ queryKey: [...processKeys.all, "filter-options"] });
-      queryClient.invalidateQueries({ queryKey: [...processKeys.all, "history"] });
-      queryClient.invalidateQueries({ queryKey: [...processKeys.all, "api-consumption"] });
+      queryClient.invalidateQueries({ queryKey: processKeys.filterOptions() });
+      queryClient.invalidateQueries({ queryKey: [...processKeys.all, "queries"] });
     },
   });
 }
@@ -137,45 +102,6 @@ export function useDeleteProcess() {
 
   return useMutation({
     mutationFn: (processId: string) => processesService.deleteProcess(processId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: processKeys.all });
-    },
-  });
-}
-
-export function useToggleProcessMonitoring() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (processId: string) => processesService.toggleProcessMonitoring(processId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: processKeys.all });
-    },
-  });
-}
-
-export function useToggleDocumentMonitoring() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (monitoringId: string) => processesService.toggleDocumentMonitoring(monitoringId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: processKeys.all });
-    },
-  });
-}
-
-export function useToggleDocumentSearchMonitoring() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({
-      documentType,
-      documentValue,
-    }: {
-      documentType: HistoricalListParams["documentType"];
-      documentValue: string;
-    }) => processesService.toggleDocumentSearchMonitoring(documentType, documentValue),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: processKeys.all });
     },

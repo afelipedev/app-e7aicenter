@@ -45,7 +45,7 @@ const sectionFallbacks: SummarySections = {
   subjects: "Assuntos não identificados.",
   movements: "Movimentações indisponíveis.",
   disclaimer:
-    "Resumo automatizado com base nos dados retornados pela Judit. Valide os pontos críticos antes de qualquer decisão jurídica.",
+    "Resumo automatizado com base nos metadados públicos do DataJud/CNJ. Não há partes, advogados, anexos ou valor da causa. Valide os pontos críticos antes de qualquer decisão jurídica.",
 };
 
 const preferredObjectKeys = [
@@ -213,13 +213,12 @@ const getContext = async (req: Request) => {
 };
 
 const ensureSnapshotAccess = async (admin: ReturnType<typeof createClient>, userId: string, snapshotId: string) => {
-  const [stateResult, monitoringResult, resultLinkResult] = await Promise.all([
+  const [stateResult, resultLinkResult] = await Promise.all([
     admin.from("process_user_state").select("id").eq("auth_user_id", userId).eq("process_snapshot_id", snapshotId).limit(1),
-    admin.from("process_monitorings").select("id").eq("auth_user_id", userId).eq("process_snapshot_id", snapshotId).is("deleted_at", null).limit(1),
     admin.from("process_request_results").select("process_query_request_id").eq("process_snapshot_id", snapshotId),
   ]);
 
-  if (stateResult.error || monitoringResult.error || resultLinkResult.error) {
+  if (stateResult.error || resultLinkResult.error) {
     throw new Error("Erro ao validar acesso ao processo.");
   }
 
@@ -241,7 +240,7 @@ const ensureSnapshotAccess = async (admin: ReturnType<typeof createClient>, user
     hasRequestAccess = Boolean(data?.length);
   }
 
-  if (!stateResult.data?.length && !monitoringResult.data?.length && !hasRequestAccess) {
+  if (!stateResult.data?.length && !hasRequestAccess) {
     throw new Error("Processo não encontrado para o usuário atual.");
   }
 };
@@ -252,9 +251,9 @@ const buildSnapshotHash = async (snapshot: JsonRecord) =>
     updated_at: snapshot.updated_at,
     class_processual: snapshot.class_processual,
     assuntos: snapshot.assuntos,
-    parties: snapshot.parties,
+    orgao_julgador: snapshot.orgao_julgador,
     movements: snapshot.movements,
-    attachments: snapshot.attachments,
+    metadata: snapshot.metadata,
     raw_response: snapshot.raw_response,
   }));
 
@@ -280,20 +279,20 @@ const callOpenAI = async (snapshot: JsonRecord) => {
     throw new Error("OPENAI_API_KEY não configurada.");
   }
 
+  const metadata = (snapshot.metadata ?? {}) as JsonRecord;
   const simplifiedContext = {
     cnj: snapshot.cnj,
     titulo: snapshot.title,
-    parteAtiva: snapshot.active_party,
-    partePassiva: snapshot.passive_party,
     tribunal: snapshot.tribunal,
+    grau: metadata.grau ?? snapshot.grade,
     classeProcessual: snapshot.class_processual,
     assuntos: snapshot.assuntos,
     resumoBase: snapshot.summary,
-    partes: snapshot.parties,
-    movimentacoes: snapshot.movements,
-    valor: snapshot.value_label,
-    fase: snapshot.phase,
     orgaoJulgador: snapshot.orgao_julgador,
+    formato: metadata.formato,
+    sistema: metadata.sistema,
+    dataAjuizamento: snapshot.distributed_at_label,
+    movimentacoes: snapshot.movements,
   };
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -310,7 +309,7 @@ const callOpenAI = async (snapshot: JsonRecord) => {
         {
           role: "system",
           content:
-            "Você é o E7 Agente Processual. Analise exclusivamente os dados enviados do processo judicial brasileiro. Não invente fatos. Retorne JSON com as chaves: summary, parties, classification, subjects, movements, disclaimer. Cada chave deve conter apenas texto em pt-BR, objetivo e útil para um advogado. Nunca retorne arrays, listas JSON, objetos ou valores estruturados dentro dessas chaves. Se precisar listar itens, use uma única string com linhas iniciadas por hífen. Se faltar dado, diga explicitamente.",
+            "Você é o E7 Agente Processual. Analise exclusivamente os metadados públicos do DataJud/CNJ enviados deste processo judicial brasileiro. Esses metadados NÃO incluem partes, advogados, anexos nem valor da causa — não invente esses dados. Retorne JSON com as chaves: summary, parties, classification, subjects, movements, disclaimer. Na chave parties, informe explicitamente que a base DataJud não disponibiliza partes/advogados. Cada chave deve conter apenas texto em pt-BR, objetivo e útil para um advogado. Nunca retorne arrays, listas JSON, objetos ou valores estruturados dentro dessas chaves. Se precisar listar itens, use uma única string com linhas iniciadas por hífen. Se faltar dado, diga explicitamente.",
         },
         {
           role: "user",
@@ -423,7 +422,7 @@ Deno.serve(async (req) => {
       generatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Erro em judit-process-agent:", error);
+    console.error("Erro em datajud-process-agent:", error);
     return buildJsonResponse(500, {
       error: error instanceof Error ? error.message : "Erro desconhecido ao executar o agente processual.",
     });

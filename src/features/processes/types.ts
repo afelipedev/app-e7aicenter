@@ -1,54 +1,22 @@
-export type ProcessStatus = "Concluída" | "Em andamento" | "Aguardando" | "Monitorado" | "Ativo";
+// Modelo unificado do módulo de Consultas Processuais.
+// Fonte de dados: API Pública do DataJud/CNJ (metadados processuais).
+// Limitações da fonte: não há partes, advogados, anexos, valor da causa,
+// monitoramento ou billing — apenas metadados de capa e movimentações.
+
+export type ProcessStatus = "Em andamento" | "Concluída" | "Aguardando";
 
 export type ProcessGrade = "1ª instância" | "2ª instância" | "Tribunal superior";
 
-export type ProcessPartySide = "Ativo" | "Passivo" | "Interessado";
-
-export type DocumentSearchType = "CPF" | "CNPJ" | "OAB";
-
-export type ProcessTag = "Ação Civil Pública" | "Precatório";
-
-export interface ProcessParty {
-  name: string;
-  side: ProcessPartySide;
-  document: string;
-  documentType: DocumentSearchType | "OUTRO";
-  role?: string;
-  counsel?: string;
-  groupLabel?: "Polo ativo" | "Polo passivo" | "Outras partes";
+export interface CodedItem {
+  codigo: number | null;
+  nome: string;
 }
 
 export interface ProcessMovement {
   id: string;
+  codigo: number | null;
   date: string;
-  title: string;
-  description: string;
-}
-
-export interface ProcessAttachment {
-  id: string;
-  name: string;
-  type: string;
-  createdAt: string;
-  size: string;
-  metadata?: {
-    attachmentId?: string | null;
-    lawsuitInstance?: string | number | null;
-    private?: boolean;
-    status?: string | null;
-  };
-}
-
-export interface RelatedProcess {
-  id: string;
-  cnj: string;
-  title: string;
-  relationship: string;
-  grade?: string;
-  classProcessual?: string;
-}
-
-export interface AgentInsight {
+  dataHora: string | null;
   title: string;
   description: string;
 }
@@ -69,77 +37,85 @@ export interface ProcessAgentSummary {
   generatedAt: string;
 }
 
-export type ProcessAsyncStatus = "pending" | "processing" | "completed" | "error";
-
-export interface ProcessSearchResult {
-  status: ProcessAsyncStatus;
-  requestId: string;
-  juditRequestId?: string | null;
-  process?: ProcessSummary | null;
-}
-
 export interface ProcessSummary {
   id: string;
   cnj: string;
+  numeroProcessoRaw: string;
   title: string;
-  activeParty: string;
-  passiveParty: string;
   tribunal: string;
   grade: ProcessGrade;
-  createdAt: string;
+  grau: string;
+  classProcessual: string;
+  orgaoJulgador: string;
+  assuntos: string[];
   distributedAt: string;
   status: ProcessStatus;
-  orgaoJulgador: string;
-  classProcessual: string;
-  assuntos: string[];
-  tags: ProcessTag[];
-  parties: ProcessParty[];
-  value: string;
   lastMovement: string;
   favorite: boolean;
-  monitored: boolean;
-  historyContext?: {
-    type: DocumentSearchType;
-    value: string;
-  };
 }
 
 export interface ProcessDetail extends ProcessSummary {
   summary: string;
   movements: ProcessMovement[];
-  attachments: ProcessAttachment[];
-  relatedProcesses: RelatedProcess[];
-  agentInsights: AgentInsight[];
+  assuntosDetalhados: CodedItem[];
+  classeCodigo: number | null;
+  orgaoJulgadorCodigo: number | null;
+  codigoMunicipioIBGE: number | null;
+  formato: CodedItem | null;
+  sistema: CodedItem | null;
+  nivelSigilo: number | null;
+  dataAjuizamento: string | null;
+  aiDisclaimer: string;
+  source: "datajud";
+  completeness: "summary" | "full";
   agentSummary?: ProcessAgentSummarySections;
-  originTribunal?: string;
-  comarca?: string;
-  city?: string;
-  state?: string;
-  justiceSegment?: string;
-  phase?: string;
-  judgeRelator?: string;
-  aiDisclaimer?: string;
 }
 
+/** Resultado da busca síncrona por CNJ. */
+export interface ProcessSearchResult {
+  status: "completed" | "not_found" | "error";
+  requestId?: string;
+  process?: ProcessSummary | null;
+}
+
+/** Parâmetros da busca avançada (Query DSL do DataJud por códigos TPU). */
+export interface AdvancedSearchParams {
+  tribunalAlias: string;
+  classeCodigo?: number | null;
+  orgaoJulgadorCodigo?: number | null;
+  assuntoCodigo?: number | null;
+  grau?: string;
+  dataAjuizamentoFrom?: string;
+  dataAjuizamentoTo?: string;
+  size?: number;
+  searchAfter?: unknown[];
+}
+
+export interface AdvancedSearchResult {
+  status: "completed";
+  requestId?: string;
+  count: number;
+  nextSearchAfter: unknown[];
+}
+
+/** Filtros aplicados sobre os processos persistidos (listagem). */
 export interface ProcessFilters {
-  tags: ProcessTag[];
   tribunals: string[];
-  partyNames: string[];
-  partySides: ProcessPartySide[];
-  partyDocuments: string[];
+  classesProcessuais: string[];
+  assuntos: string[];
+  grades: string[];
+  orgaosJulgadores: string[];
   distributedFrom: string;
   distributedTo: string;
-  classesProcessuais: string[];
-  assuntos: string[];
 }
 
-/** Opções de filtro extraídas dos processos consultados (base de dados). */
+/** Opções de filtro derivadas dos processos já consultados. */
 export interface ProcessFilterOptions {
   tribunals: string[];
-  partyNames: string[];
   classesProcessuais: string[];
   assuntos: string[];
-  partyDocuments: string[];
+  grades: string[];
+  orgaosJulgadores: string[];
 }
 
 export interface ProcessListParams {
@@ -147,11 +123,6 @@ export interface ProcessListParams {
   pageSize: number;
   search: string;
   filters: ProcessFilters;
-}
-
-export interface HistoricalListParams extends ProcessListParams {
-  documentType: DocumentSearchType;
-  documentValue: string;
 }
 
 export interface PaginatedProcesses {
@@ -164,8 +135,6 @@ export interface PaginatedProcesses {
 
 export interface ProcessDashboardStats {
   queriedProcesses: number;
-  historicalQueries: number;
-  monitorings: number;
 }
 
 export interface DashboardData {
@@ -173,177 +142,12 @@ export interface DashboardData {
   favorites: ProcessSummary[];
 }
 
-export interface DocumentMonitoringItem {
-  id: string;
-  documentType: DocumentSearchType;
-  documentValue: string;
-  label: string;
-  scope: string;
-  status: "Ativo" | "Pausado";
-}
-
-export interface MonitoringFeedItem {
-  id: string;
-  title: string;
-  description: string;
-  createdAt: string;
-}
-
-export interface MonitoringData {
-  monitoredProcesses: ProcessSummary[];
-  monitoredDocuments: DocumentMonitoringItem[];
-  feed: MonitoringFeedItem[];
-}
-
-export type ApiConsumptionBillingStatus = "within_plan" | "additional_billing" | "threshold_reached";
-
-export type ApiConsumptionCostConfidence = "exact" | "estimated" | "pending_enrichment" | "unknown";
-
-export type ApiConsumptionCostType = "included" | "overage" | "mixed" | "estimated";
-
-export type ApiConsumptionSyncStatus = "running" | "completed" | "error";
-
-export interface ApiConsumptionFilterState {
-  origin: string[];
-  status: string[];
-  searchType: string[];
-  productName: string[];
-  withAttachments: boolean | null;
-  onDemand: boolean | null;
-}
-
-export interface ApiConsumptionQueryParams {
-  startDate: string;
-  endDate: string;
-  page: number;
-  pageSize: number;
-  forceSync?: boolean;
-  filters: ApiConsumptionFilterState;
-}
-
-export interface ApiConsumptionEntry {
-  id: string;
-  requestId: string;
-  createdAt: string;
-  updatedAt: string | null;
-  origin: string;
-  status: string;
-  searchType: string | null;
-  responseType: string | null;
-  searchKeyMasked: string | null;
-  withAttachments: boolean;
-  onDemand: boolean;
-  publicSearch: boolean;
-  planConfigType: string | null;
-  productName: string;
-  costBrl: number;
-  costType: ApiConsumptionCostType;
-  costConfidence: ApiConsumptionCostConfidence;
-  hasOverage: boolean;
-  returnedItemsCount: number | null;
-  pricingMetadata: Record<string, unknown>;
-}
-
-export interface ApiConsumptionSummary {
-  totalRequests: number;
-  completedRequests: number;
-  pendingRequests: number;
-  attachmentRequests: number;
-  apiRequests: number;
-  trackingRequests: number;
-  consumedAmountBrl: number;
-  includedPlanBrl: number;
-  remainingIncludedAmountBrl: number;
-  overageAmountBrl: number;
-  remainingUntilBlockAmountBrl: number;
-  maxMonthlyAmountBrl: number;
-  billingStatus: ApiConsumptionBillingStatus;
-}
-
-export interface ApiConsumptionBreakdownItem {
-  label: string;
-  totalCostBrl: number;
-  totalRequests: number;
-  averageCostBrl?: number;
-  key?: string;
-}
-
-export interface ApiConsumptionSeriesItem {
-  date: string;
-  totalRequests: number;
-  totalCostBrl: number;
-}
-
-export interface ApiConsumptionMonthlySeriesItem {
-  billing_reference_month: string;
-  total_requests: number;
-  completed_requests: number;
-  non_completed_requests: number;
-  api_requests: number;
-  tracking_requests: number;
-  attachment_requests: number;
-  consumed_amount_brl: number;
-  included_amount_brl: number;
-  max_monthly_amount_brl: number;
-  remaining_included_amount_brl: number;
-  overage_amount_brl: number;
-  remaining_until_block_amount_brl: number;
-}
-
-export interface ApiConsumptionPagination {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-}
-
-export interface ApiConsumptionSyncInfo {
-  id: string;
-  status: ApiConsumptionSyncStatus;
-  started_at: string;
-  finished_at: string | null;
-  request_start_date: string;
-  request_end_date: string;
-  requests_imported: number;
-  pages_fetched: number;
-  force_sync: boolean;
-  error_message: string | null;
-}
-
-export interface ApiConsumptionData {
-  summary: ApiConsumptionSummary;
-  breakdownByProduct: ApiConsumptionBreakdownItem[];
-  breakdownByOrigin: ApiConsumptionBreakdownItem[];
-  dailySeries: ApiConsumptionSeriesItem[];
-  monthlySeries: ApiConsumptionMonthlySeriesItem[];
-  entries: ApiConsumptionEntry[];
-  pagination: ApiConsumptionPagination;
-  filtersApplied: ApiConsumptionFilterState;
-  sync: ApiConsumptionSyncInfo | null;
-  period: {
-    startDate: string;
-    endDate: string;
-  };
-  pricingVersion: string;
-}
-
 export const emptyProcessFilters: ProcessFilters = {
-  tags: [],
   tribunals: [],
-  partyNames: [],
-  partySides: [],
-  partyDocuments: [],
-  distributedFrom: "",
-  distributedTo: "",
   classesProcessuais: [],
   assuntos: [],
-};
-
-export const emptyApiConsumptionFilters: ApiConsumptionFilterState = {
-  origin: [],
-  status: [],
-  searchType: [],
-  productName: [],
-  withAttachments: null,
-  onDemand: null,
+  grades: [],
+  orgaosJulgadores: [],
+  distributedFrom: "",
+  distributedTo: "",
 };

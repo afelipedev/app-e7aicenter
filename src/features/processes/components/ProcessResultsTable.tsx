@@ -1,4 +1,4 @@
-import { MoreHorizontal, Star, Eye, Trash2, Bell } from "lucide-react";
+import { MoreHorizontal, Star, Eye, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -31,7 +31,6 @@ interface ProcessResultsTableProps {
   onOpenDetails: (processId: string) => void;
   onToggleFavorite: (processId: string) => void;
   onDelete: (processId: string) => void;
-  onToggleMonitoring?: (processId: string) => void;
   emptyMessage: string;
 }
 
@@ -46,7 +45,6 @@ export function ProcessResultsTable({
   onOpenDetails,
   onToggleFavorite,
   onDelete,
-  onToggleMonitoring,
   emptyMessage,
 }: ProcessResultsTableProps) {
   const paginationRange = Array.from({ length: totalPages }, (_, index) => index + 1).slice(
@@ -78,16 +76,11 @@ export function ProcessResultsTable({
                       className="h-auto p-0 text-left text-base font-semibold text-foreground whitespace-normal"
                       onClick={() => onOpenDetails(process.id)}
                     >
-                      {process.activeParty} x {process.passiveParty}
+                      {process.classProcessual}
                     </Button>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span className="break-all font-mono">{process.cnj}</span>
                       <span>{process.tribunal}</span>
-                      {process.historyContext ? (
-                        <Badge variant="secondary" className="max-w-full whitespace-normal">
-                          {process.historyContext.type}: {process.historyContext.value}
-                        </Badge>
-                      ) : null}
                     </div>
                   </div>
 
@@ -97,8 +90,8 @@ export function ProcessResultsTable({
                       <p className="mt-1 font-medium">{process.grade}</p>
                     </div>
                     <div>
-                      <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Criado em</p>
-                      <p className="mt-1 font-medium">{process.createdAt}</p>
+                      <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Ajuizamento</p>
+                      <p className="mt-1 font-medium">{process.distributedAt}</p>
                     </div>
                     <div className="col-span-2">
                       <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Status</p>
@@ -131,12 +124,6 @@ export function ProcessResultsTable({
                           <Eye className="mr-2 h-4 w-4" />
                           Ver consulta
                         </DropdownMenuItem>
-                        {onToggleMonitoring ? (
-                          <DropdownMenuItem onClick={() => onToggleMonitoring(process.id)}>
-                            <Bell className="mr-2 h-4 w-4" />
-                            {process.monitored ? "Desativar monitoramento" : "Ativar monitoramento"}
-                          </DropdownMenuItem>
-                        ) : null}
                         <DropdownMenuItem className="text-red-600" onClick={() => onDelete(process.id)}>
                           <Trash2 className="mr-2 h-4 w-4" />
                           Excluir consulta
@@ -157,7 +144,7 @@ export function ProcessResultsTable({
             <TableRow>
               <TableHead>Identificação</TableHead>
               <TableHead>Grau do processo</TableHead>
-              <TableHead>Criado em</TableHead>
+              <TableHead>Ajuizamento</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Ações</TableHead>
             </TableRow>
@@ -179,21 +166,17 @@ export function ProcessResultsTable({
                         className="h-auto whitespace-normal p-0 text-left text-base font-semibold text-foreground"
                         onClick={() => onOpenDetails(process.id)}
                       >
-                        {process.activeParty} x {process.passiveParty}
+                        {process.classProcessual}
                       </Button>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span className="font-mono">{process.cnj}</span>
                         <span>{process.tribunal}</span>
-                        {process.historyContext ? (
-                          <Badge variant="secondary">
-                            {process.historyContext.type}: {process.historyContext.value}
-                          </Badge>
-                        ) : null}
+                        <span>{process.orgaoJulgador}</span>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>{process.grade}</TableCell>
-                  <TableCell>{process.createdAt}</TableCell>
+                  <TableCell>{process.distributedAt}</TableCell>
                   <TableCell>
                     <ProcessStatusBadge status={process.status} />
                   </TableCell>
@@ -221,12 +204,6 @@ export function ProcessResultsTable({
                             <Eye className="mr-2 h-4 w-4" />
                             Ver consulta
                           </DropdownMenuItem>
-                          {onToggleMonitoring ? (
-                            <DropdownMenuItem onClick={() => onToggleMonitoring(process.id)}>
-                              <Bell className="mr-2 h-4 w-4" />
-                              {process.monitored ? "Desativar monitoramento" : "Ativar monitoramento"}
-                            </DropdownMenuItem>
-                          ) : null}
                           <DropdownMenuItem className="text-red-600" onClick={() => onDelete(process.id)}>
                             <Trash2 className="mr-2 h-4 w-4" />
                             Excluir consulta
