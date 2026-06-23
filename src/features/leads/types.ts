@@ -47,36 +47,3 @@ export interface LeadWithContactsInput {
   emails: LeadEmail[];
 }
 
-export interface MessageTemplateCategory {
-  id: string;
-  name: string;
-  is_system: boolean;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface MessageTemplate {
-  id: string;
-  title: string;
-  category_id: string | null;
-  content_json: Record<string, unknown>;
-  content_text: string | null;
-  tags: string[] | null;
-  is_active: boolean;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-  message_template_categories?: MessageTemplateCategory | null;
-}
-
-export interface MessageTemplatePlaceholder {
-  id: string;
-  key: string;
-  label: string;
-  example: string | null;
-  is_system: boolean;
-  created_by: string | null;
-  created_at: string;
-}
-

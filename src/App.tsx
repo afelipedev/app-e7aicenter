@@ -32,7 +32,6 @@ import NotFound from "./pages/NotFound";
 import { TestPage } from "./pages/TestPage";
 import { TestPayrollWorkflow } from "./pages/TestPayrollWorkflow";
 import Leads from "./pages/leads/Leads";
-import LeadTemplates from "./pages/leads/Templates";
 import TeamsHomePage from "./features/teams/pages/TeamsHomePage";
 import ChannelPage from "./features/teams/pages/ChannelPage";
 import PostPage from "./features/teams/pages/PostPage";
@@ -115,7 +114,6 @@ const App = () => (
               
               {/* Leads - accessible to all authenticated users */}
               <Route path="/leads" element={<Leads />} />
-              <Route path="/leads/templates" element={<LeadTemplates />} />
               
               {/* Company Management - require companies permission */}
               <Route path="/companies" element={
