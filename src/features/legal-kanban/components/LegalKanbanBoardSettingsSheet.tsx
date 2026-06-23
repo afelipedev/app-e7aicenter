@@ -49,6 +49,17 @@ export function LegalKanbanBoardSettingsSheet({
   onSaved,
 }: LegalKanbanBoardSettingsSheetProps) {
   const { user } = useAuth();
+  const isControlled = open !== undefined;
+  const [internalOpen, setInternalOpen] = useState(false);
+  const sheetOpen = isControlled ? open : internalOpen;
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (!isControlled) {
+      setInternalOpen(nextOpen);
+    }
+    onOpenChange?.(nextOpen);
+  }
+
   const createColumn = useCreateLegalKanbanColumn();
   const updateColumn = useUpdateLegalKanbanColumn();
   const reorderColumns = useReorderLegalKanbanColumns();
@@ -77,7 +88,7 @@ export function LegalKanbanBoardSettingsSheet({
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!sheetOpen) return;
     const loggedUserId = user?.id;
     const boardMemberIds = board ? board.members.map((member) => member.id) : [];
     const initialMemberIds = loggedUserId
@@ -92,7 +103,7 @@ export function LegalKanbanBoardSettingsSheet({
       coverImageUrl: board?.board.coverImageUrl || null,
     });
     setCoverFile(null);
-  }, [board, open, user?.id]);
+  }, [board, sheetOpen, user?.id]);
 
   function toggleMember(userId: string) {
     if (user?.id && userId === user.id) {
@@ -153,7 +164,7 @@ export function LegalKanbanBoardSettingsSheet({
       }
 
       toast.success(board ? "Configuração do quadro atualizada." : "Quadro criado com sucesso.");
-      onOpenChange?.(false);
+      handleOpenChange(false);
       onSaved?.(savedBoard.slug);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao salvar quadro.");
@@ -236,7 +247,7 @@ export function LegalKanbanBoardSettingsSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={sheetOpen} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
         <Button variant="outline" className="rounded-full">
           <Settings2 className="mr-2 h-4 w-4" />
@@ -474,7 +485,7 @@ export function LegalKanbanBoardSettingsSheet({
               ) : null}
 
               <div className="flex items-center justify-end gap-2 border-t border-border/70 pt-4">
-                <Button type="button" variant="outline" onClick={() => onOpenChange?.(false)}>
+                <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
                   Cancelar
                 </Button>
                 <Button type="button" onClick={() => void handleSaveBoard()} disabled={upsertBoard.isPending}>
