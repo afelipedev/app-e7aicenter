@@ -9,7 +9,6 @@ import {
   FileText,
   Briefcase,
   BarChart3,
-  Calendar,
   Trello,
   ChevronDown,
   BookOpen,
@@ -101,15 +100,6 @@ const menuItems: SidebarEntry[] = [
     icon: Hash,
     url: "/teams",
     color: "text-ai-cyan",
-  },
-  {
-    title: "Integrações",
-    icon: BarChart3,
-    color: "text-ai-orange",
-    items: [
-      { title: "PowerBI", url: "/integrations/powerbi", icon: BarChart3 },
-      { title: "Agenda", url: "/integrations/calendar", icon: Calendar },
-    ],
   },
   {
     title: "Administração",

@@ -23,8 +23,6 @@ import ProcessQueriesPage from "./features/processes/pages/ProcessQueriesPage";
 import ProcessDetailsPage from "./features/processes/pages/ProcessDetailsPage";
 import LegalKanbanPage from "./features/legal-kanban/pages/LegalKanbanPage";
 import LegalBoardsHomePage from "./features/legal-kanban/pages/LegalBoardsHomePage";
-import PowerBI from "./pages/integrations/PowerBI";
-import CalendarIntegration from "./pages/integrations/CalendarIntegration";
 import Users from "./pages/admin/Users";
 import { Companies as CompaniesManagement } from "./pages/Companies";
 import { PayrollManagement } from "./pages/PayrollManagement";
@@ -115,10 +113,6 @@ const App = () => (
               {/* Payroll Processing Details */}
               <Route path="/payroll/processing/:processingId" element={<PayrollProcessingDetails />} />
               
-              {/* Integrations - accessible to all authenticated users */}
-              <Route path="/integrations/powerbi" element={<PowerBI />} />
-              <Route path="/integrations/calendar" element={<CalendarIntegration />} />
-
               {/* Leads - accessible to all authenticated users */}
               <Route path="/leads" element={<Leads />} />
               <Route path="/leads/templates" element={<LeadTemplates />} />
