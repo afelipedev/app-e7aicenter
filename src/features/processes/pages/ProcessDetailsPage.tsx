@@ -102,7 +102,7 @@ function buildMovementGroups(movements: ProcessDetail["movements"]) {
 }
 
 const actionIconButtonClassName =
-  "rounded-full border-border/80 bg-background/80 text-foreground shadow-sm transition-colors hover:border-blue-600 hover:bg-blue-600 hover:text-white focus-visible:ring-blue-600";
+  "rounded-full border-border/80 bg-background/80 text-foreground shadow-sm transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground focus-visible:ring-ring";
 
 export default function ProcessDetailsPage() {
   const navigate = useNavigate();
@@ -251,11 +251,11 @@ export default function ProcessDetailsPage() {
         </div>
       </div>
 
-      <Card className="overflow-hidden rounded-[28px] border-emerald-100/80 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.14),_transparent_32%),linear-gradient(135deg,rgba(236,253,245,0.92),rgba(255,255,255,0.98))] shadow-[0_24px_60px_-34px_rgba(16,185,129,0.45)]">
+      <Card className="overflow-hidden rounded-[28px] border-border/70 bg-accent/40 shadow-[0_24px_60px_-34px_rgba(15,23,42,0.4)]">
         <div className="grid grid-cols-1 divide-y md:grid-cols-2 md:divide-x md:divide-y xl:grid-cols-4 xl:divide-y-0">
           <div className="p-6">
             <div className="flex items-center gap-4">
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-200/80 bg-white/90 text-emerald-700 shadow-sm">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-card text-primary shadow-sm">
                 <Building2 className="h-5 w-5" />
               </span>
               <DetailField label="Tribunal" value={process.tribunal} className="space-y-0" />
@@ -264,7 +264,7 @@ export default function ProcessDetailsPage() {
 
           <div className="p-6">
             <div className="flex items-center gap-4">
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-200/80 bg-white/90 text-emerald-700 shadow-sm">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-card text-primary shadow-sm">
                 <CalendarDays className="h-5 w-5" />
               </span>
               <DetailField label="Ajuizado em" value={process.distributedAt} className="space-y-0" />
@@ -273,7 +273,7 @@ export default function ProcessDetailsPage() {
 
           <div className="p-6">
             <div className="flex items-center gap-4">
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-200/80 bg-white/90 text-emerald-700 shadow-sm">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-card text-primary shadow-sm">
                 <Landmark className="h-5 w-5" />
               </span>
               <DetailField label="Órgão julgador" value={process.orgaoJulgador} className="space-y-0" />
@@ -282,7 +282,7 @@ export default function ProcessDetailsPage() {
 
           <div className="p-6">
             <div className="flex items-center gap-4">
-              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-200/80 bg-white/90 text-emerald-700 shadow-sm">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-card text-primary shadow-sm">
                 <Gavel className="h-5 w-5" />
               </span>
               <DetailField label="Status" value={<ProcessStatusBadge status={process.status} />} className="space-y-0" />
@@ -432,7 +432,7 @@ export default function ProcessDetailsPage() {
 
         <TabsContent value="agent">
           <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <Card className="rounded-[24px] border-0 bg-[linear-gradient(160deg,#0f172a,#111827_45%,#14532d)] p-6 text-white shadow-[0_28px_70px_-32px_rgba(15,23,42,0.85)]">
+            <Card className="rounded-[24px] border-0 bg-primary p-6 text-primary-foreground shadow-[0_28px_70px_-32px_rgba(15,23,42,0.85)]">
               <div className="space-y-5">
                 <div className="flex items-center gap-3">
                   <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white ring-1 ring-white/15">
@@ -490,7 +490,7 @@ export default function ProcessDetailsPage() {
                       key={title}
                       className={cn(
                         "rounded-[24px] border-border/70 bg-card/95 p-6 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.55)]",
-                        index === 0 && "border-emerald-100 bg-emerald-50/45",
+                        index === 0 && "border-primary/20 bg-primary/5",
                       )}
                     >
                       <div className="space-y-2">

@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import defaultTheme from "tailwindcss/defaultTheme";
 
 export default {
   darkMode: ["class"],
@@ -13,6 +14,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["Inter", ...defaultTheme.fontFamily.sans],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -57,12 +61,23 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+        },
+        brown: "hsl(var(--brown))",
+        "gray-warm": "hsl(var(--gray-warm))",
         ai: {
           blue: "hsl(var(--ai-blue))",
           green: "hsl(var(--ai-green))",
           purple: "hsl(var(--ai-purple))",
           orange: "hsl(var(--ai-orange))",
           pink: "hsl(var(--ai-pink))",
+          cyan: "hsl(var(--ai-cyan))",
         },
       },
       backgroundImage: {

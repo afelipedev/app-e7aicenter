@@ -28,14 +28,14 @@ export default function ProcessesDashboardPage() {
     <div className="space-y-8 pb-8">
       <section className="space-y-5">
         <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-4 py-2 shadow-sm backdrop-blur">
-          <Sparkles className="h-4 w-4 text-emerald-600" />
+          <Sparkles className="h-4 w-4 text-primary" />
           <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/80">
             Visão central da operação processual
           </span>
         </div>
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_380px]">
-          <Card className="overflow-hidden rounded-[28px] border-emerald-100/80 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.14),_transparent_32%),linear-gradient(135deg,rgba(236,253,245,0.92),rgba(255,255,255,0.98))] p-7 shadow-[0_24px_60px_-34px_rgba(16,185,129,0.42)]">
+          <Card className="overflow-hidden rounded-[28px] border-border/70 bg-accent/40 p-7 shadow-[0_24px_60px_-34px_rgba(15,23,42,0.4)]">
             <div className="space-y-5">
               <div className="space-y-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-primary/70">

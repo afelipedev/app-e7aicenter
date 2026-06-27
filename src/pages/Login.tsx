@@ -114,57 +114,61 @@ const Login: React.FC = () => {
     if (error) setError('')
   }
 
+  // Painel de imagem (moldura arredondada) reutilizado nos dois estados
+  const imagePanel = (
+    <div className="relative hidden md:block md:w-1/2 p-3">
+      <div className="relative h-full w-full overflow-hidden rounded-3xl">
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `url(${loginBackground})`,
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'center',
+            backgroundSize: 'cover',
+          }}
+          aria-hidden="true"
+        />
+        <div className="absolute inset-0 bg-primary/10" aria-hidden="true" />
+      </div>
+    </div>
+  )
+
   // Se ainda está carregando a autenticação inicial, mostrar loading
   if (authLoading) {
     return (
-      <div className="min-h-screen flex flex-col md:flex-row bg-white">
-        <div className="w-full md:w-1/2 flex items-center justify-center bg-white">
+      <div className="min-h-dvh flex flex-col md:flex-row bg-background">
+        <div className="w-full md:w-1/2 flex items-center justify-center">
           <div className="flex flex-col items-center space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-gray-600">Verificando autenticação...</p>
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-muted-foreground">Verificando autenticação...</p>
           </div>
         </div>
-        <div className="w-full md:w-1/2 min-h-[300px] md:min-h-screen relative overflow-hidden">
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage: `url(${loginBackground})`,
-              backgroundRepeat: 'no-repeat',
-              backgroundPosition: 'right center',
-              backgroundSize: 'cover'
-            }}
-            aria-hidden="true"
-          />
-          <div
-            className="absolute inset-0 bg-gradient-to-r from-white via-white/70 to-transparent"
-            aria-hidden="true"
-          />
-        </div>
+        {imagePanel}
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-white">
-      {/* Modal de Login - 50% à esquerda */}
-      <div className="w-full md:w-1/2 flex items-center justify-center px-4 md:px-8 py-8 md:py-0 bg-white">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1">
+    <div className="min-h-dvh flex flex-col md:flex-row bg-background">
+      {/* Formulário de Login - moldura arredondada à esquerda */}
+      <div className="w-full md:w-1/2 flex items-center justify-center px-4 md:px-8 py-10 md:py-0">
+        <Card className="w-full max-w-md rounded-2xl border shadow-xl">
+          <CardHeader className="space-y-1 pt-8">
             <div className="flex justify-center mb-4">
-              <img 
-                src="/logo-e7-login-modal.png" 
-                alt="Logo E7" 
-                className="w-12 h-12 object-contain rounded-lg"
+              <img
+                src="/logo-e7-login-modal.png"
+                alt="Logo E7"
+                className="w-14 h-14 object-contain rounded-xl"
               />
             </div>
-            <CardTitle className="text-2xl font-bold text-center">
+            <CardTitle className="text-2xl font-bold text-center tracking-tight">
               Bem-vindo de volta
             </CardTitle>
             <CardDescription className="text-center">
               Faça login em sua conta para continuar
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pb-8">
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <Alert variant="destructive">
@@ -172,7 +176,7 @@ const Login: React.FC = () => {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-              
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -184,10 +188,10 @@ const Login: React.FC = () => {
                   disabled={loading}
                   required
                   autoComplete="email"
-                  className={`border-[rgba(184,184,184,1)] focus:border-[rgba(184,184,184,1)] focus-visible:ring-black ${error && !isValidEmail(email) && email ? 'border-red-500 focus:border-red-500' : ''}`}
+                  className={error && !isValidEmail(email) && email ? 'border-destructive focus-visible:ring-destructive' : ''}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="password">Senha</Label>
                 <div className="relative">
@@ -200,13 +204,13 @@ const Login: React.FC = () => {
                     disabled={loading}
                     required
                     autoComplete="current-password"
-                    className={`border-[rgba(184,184,184,1)] focus:border-[rgba(184,184,184,1)] focus-visible:ring-black ${error && !isValidPassword(password) && password ? 'border-red-500 focus:border-red-500' : ''}`}
+                    className={error && !isValidPassword(password) && password ? 'border-destructive focus-visible:ring-destructive' : ''}
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-muted-foreground"
                     onClick={() => setShowPassword(!showPassword)}
                     disabled={loading}
                     tabIndex={-1}
@@ -222,7 +226,7 @@ const Login: React.FC = () => {
 
               <Button
                 type="submit"
-                className="w-full bg-black text-white hover:bg-black/90 border border-black"
+                className="w-full"
                 disabled={loading || !email.trim() || !password}
               >
                 {loading ? (
@@ -236,30 +240,15 @@ const Login: React.FC = () => {
               </Button>
             </form>
 
-            <div className="mt-6 text-center text-sm text-gray-600">
+            <div className="mt-6 text-center text-sm text-muted-foreground">
               <p>Esqueceu sua senha? Entre em contato com o administrador.</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Imagem do Logo - 50% à direita */}
-      <div className="w-full md:w-1/2 min-h-[300px] md:min-h-screen relative overflow-hidden">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `url(${loginBackground})`,
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'right center',
-            backgroundSize: 'cover'
-          }}
-          aria-hidden="true"
-        />
-        <div
-          className="absolute inset-0 bg-gradient-to-r from-white via-white/70 to-transparent"
-          aria-hidden="true"
-        />
-      </div>
+      {/* Imagem - moldura arredondada à direita */}
+      {imagePanel}
     </div>
   )
 }

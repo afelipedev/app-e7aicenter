@@ -7,20 +7,21 @@ import {
   Coins,
   Calculator,
   FileText,
+  FileSpreadsheet,
   Briefcase,
   BarChart3,
   Trello,
   ChevronDown,
   BookOpen,
-  UsersRound,
   Target,
   Hash,
   ShieldCheck,
   UserCog,
   UsersIcon as UsersGroupIcon,
-  UserSquare2,
   LayoutGrid,
   Settings,
+  Sparkles,
+  Gavel,
 } from "lucide-react";
 import {
   Sidebar,
@@ -63,32 +64,27 @@ const menuItems: SidebarEntry[] = [
     title: "Dashboard",
     icon: LayoutDashboard,
     url: "/",
-    color: "text-ai-blue",
   },
   {
     title: "Leads",
     icon: Target,
     url: "/leads",
-    color: "text-ai-cyan",
   },
   {
     title: "Gestão Operacional",
     icon: LayoutGrid,
     url: "/gestao-operacional/quadros",
-    color: "text-ai-orange",
     requiredPermission: "operational_kanban",
   },
   {
     title: "Gestão de Empresas",
     icon: Building2,
     url: "/companies",
-    color: "text-ai-cyan",
     requiredPermission: "companies",
   },
   {
-    title: "Assistentes de IA",
-    icon: MessageSquare,
-    color: "text-ai-purple",
+    title: "AI Center",
+    icon: Sparkles,
     items: [
       { title: "Biblioteca IA", url: "/assistants/library", icon: BookOpen },
       { title: "Chat Geral", url: "/assistants/chat", icon: MessageSquare },
@@ -99,35 +95,42 @@ const menuItems: SidebarEntry[] = [
     ],
   },
   {
-    title: "Documentos & Processos",
-    icon: FileText,
-    color: "text-ai-green",
+    title: "Gestão Jurídica",
+    icon: Gavel,
     items: [
-      { title: "Gestão de Holerites", url: "/documents/payroll", icon: FileText },
-      { title: "Gestão de SPEDs", url: "/documents/sped", icon: FileText },
       {
         title: "Processos",
         url: "/documents/cases",
         icon: Briefcase,
         items: [
-          { title: "Dashboard", url: "/documents/cases", icon: Briefcase },
-          { title: "Quadros", url: "/documents/cases/quadros", icon: Trello },
+          { title: "Dashboard", url: "/documents/cases", icon: LayoutDashboard },
+          { title: "Quadros Jurídicos", url: "/documents/cases/quadros", icon: Trello },
           { title: "Consultas Processuais", url: "/documents/cases/queries", icon: Scale },
         ],
       },
-      { title: "Relatórios", url: "/documents/reports", icon: BarChart3 },
     ],
+  },
+  {
+    title: "Gestão Contábil",
+    icon: Calculator,
+    items: [
+      { title: "Gestão de Holerites", url: "/documents/payroll", icon: FileText },
+      { title: "Gestão de SPEDs", url: "/documents/sped", icon: FileSpreadsheet },
+    ],
+  },
+  {
+    title: "Relatórios",
+    icon: BarChart3,
+    url: "/documents/reports",
   },
   {
     title: "Equipes",
     icon: Hash,
     url: "/teams",
-    color: "text-ai-cyan",
   },
   {
     title: "Administração",
     icon: ShieldCheck,
-    color: "text-ai-pink",
     requiredPermission: "admin",
     items: [
       { title: "Usuários", url: "/admin/users", icon: UserCog },
@@ -241,10 +244,17 @@ export function AppSidebar() {
                 {item.items ? (
                   <Collapsible defaultOpen={isEntryActive(item)} className="group/collapsible">
                     <CollapsibleTrigger asChild>
-                      <SidebarMenuButton className={cn("w-full", isEntryActive(item) && "bg-sidebar-accent")}>
-                        <item.icon className={`${item.color}`} />
+                      <SidebarMenuButton
+                        className={cn(
+                          "w-full",
+                          isEntryActive(item) && "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
+                        )}
+                      >
+                        <item.icon
+                          className={cn(isEntryActive(item) ? "text-primary" : "text-muted-foreground")}
+                        />
                         <span>{item.title}</span>
-                        <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                        <ChevronDown className="ml-auto text-muted-foreground transition-transform group-data-[state=open]/collapsible:rotate-180" />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
@@ -258,11 +268,15 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       className={({ isActive }) =>
-                        isActive ? "bg-sidebar-accent" : ""
+                        cn(isActive && "bg-sidebar-accent font-medium text-sidebar-accent-foreground")
                       }
                     >
-                      <item.icon className={item.color} />
-                      <span>{item.title}</span>
+                      {({ isActive }) => (
+                        <>
+                          <item.icon className={cn(isActive ? "text-primary" : "text-muted-foreground")} />
+                          <span>{item.title}</span>
+                        </>
+                      )}
                     </NavLink>
                   </SidebarMenuButton>
                 )}

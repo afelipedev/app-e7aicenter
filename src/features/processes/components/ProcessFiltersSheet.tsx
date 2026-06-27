@@ -133,11 +133,11 @@ export function ProcessFiltersSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-full max-w-[100vw] flex-col overflow-y-auto border-l border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.94))] px-4 pb-6 pt-6 sm:max-w-xl sm:px-6"
+        className="flex w-full max-w-[100vw] flex-col overflow-y-auto border-l border-border/70 bg-card px-4 pb-6 pt-6 sm:max-w-xl sm:px-6"
       >
         <SheetHeader className="space-y-4">
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-border/70 bg-background/80 px-4 py-2 shadow-sm">
-            <Sparkles className="h-4 w-4 text-emerald-600" />
+            <Sparkles className="h-4 w-4 text-primary" />
             <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/80">
               Segmentação avançada
             </span>

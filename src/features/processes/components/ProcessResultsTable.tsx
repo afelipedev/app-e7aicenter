@@ -109,7 +109,7 @@ export function ProcessResultsTable({
                       onClick={() => onToggleFavorite(process.id)}
                     >
                       <Star
-                        className={`h-4 w-4 ${process.favorite ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
+                        className={`h-4 w-4 ${process.favorite ? "fill-warning text-warning" : "text-muted-foreground"}`}
                       />
                     </Button>
 
@@ -124,7 +124,7 @@ export function ProcessResultsTable({
                           <Eye className="mr-2 h-4 w-4" />
                           Ver consulta
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600" onClick={() => onDelete(process.id)}>
+                        <DropdownMenuItem className="text-destructive" onClick={() => onDelete(process.id)}>
                           <Trash2 className="mr-2 h-4 w-4" />
                           Excluir consulta
                         </DropdownMenuItem>
@@ -189,7 +189,7 @@ export function ProcessResultsTable({
                         onClick={() => onToggleFavorite(process.id)}
                       >
                         <Star
-                          className={`h-4 w-4 ${process.favorite ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
+                          className={`h-4 w-4 ${process.favorite ? "fill-warning text-warning" : "text-muted-foreground"}`}
                         />
                       </Button>
 
@@ -204,7 +204,7 @@ export function ProcessResultsTable({
                             <Eye className="mr-2 h-4 w-4" />
                             Ver consulta
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600" onClick={() => onDelete(process.id)}>
+                          <DropdownMenuItem className="text-destructive" onClick={() => onDelete(process.id)}>
                             <Trash2 className="mr-2 h-4 w-4" />
                             Excluir consulta
                           </DropdownMenuItem>

@@ -8,102 +8,130 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Light professional theme - AI Center */
+    /* Light minimalist theme - AI Center jurídico
+       Paleta: Marinho (primária), Marrom e Cinza (apoio) */
     --background: 0 0% 100%;
-    --foreground: 0 0% 10%;
+    --foreground: 235 22% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 10%;
+    --card-foreground: 235 22% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
+    --popover-foreground: 235 22% 14%;
 
-    --primary: 217 91% 60%;
+    --primary: 235 32% 24%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 10%;
+    --secondary: 30 8% 96%;
+    --secondary-foreground: 235 22% 18%;
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
+    --muted: 30 8% 96%;
+    --muted-foreground: 26 6% 40%;
 
-    --accent: 217 91% 60%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 235 30% 95%;
+    --accent-foreground: 235 32% 24%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 217 91% 60%;
+    --success: 142 45% 38%;
+    --success-foreground: 0 0% 100%;
 
-    --radius: 0.75rem;
+    --warning: 38 80% 45%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 26 8% 90%;
+    --input: 26 8% 90%;
+    --ring: 235 32% 24%;
+
+    --radius: 0.625rem;
 
     /* Sidebar */
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 0 0% 15%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-background: 30 8% 98%;
+    --sidebar-foreground: 235 18% 22%;
+    --sidebar-primary: 235 32% 24%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 94%;
-    --sidebar-accent-foreground: 0 0% 10%;
-    --sidebar-border: 0 0% 90%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 235 30% 94%;
+    --sidebar-accent-foreground: 235 32% 24%;
+    --sidebar-border: 26 8% 90%;
+    --sidebar-ring: 235 32% 24%;
 
-    /* AI Center brand colors */
-    --ai-blue: 217 91% 60%;
-    --ai-green: 142 76% 36%;
-    --ai-purple: 262 83% 58%;
-    --ai-orange: 25 95% 53%;
-    --ai-pink: 330 81% 60%;
+    /* Tons de apoio da paleta */
+    --brown: 28 31% 35%;
+    --gray-warm: 26 4% 39%;
 
-    /* Gradients */
-    --gradient-blue: linear-gradient(135deg, hsl(217, 91%, 60%) 0%, hsl(217, 91%, 50%) 100%);
-    --gradient-green: linear-gradient(135deg, hsl(142, 76%, 36%) 0%, hsl(142, 76%, 46%) 100%);
-    --gradient-purple: linear-gradient(135deg, hsl(262, 83%, 58%) 0%, hsl(262, 83%, 68%) 100%);
-    --gradient-orange: linear-gradient(135deg, hsl(25, 95%, 53%) 0%, hsl(25, 95%, 63%) 100%);
-    --gradient-pink: linear-gradient(135deg, hsl(330, 81%, 60%) 0%, hsl(330, 81%, 70%) 100%);
+    /* Legacy "AI" brand tokens remapeados para a nova paleta (não-rainbow) */
+    --ai-blue: 235 32% 24%;
+    --ai-green: 142 45% 38%;
+    --ai-purple: 235 32% 24%;
+    --ai-orange: 28 31% 35%;
+    --ai-pink: 28 31% 35%;
+    --ai-cyan: 26 4% 39%;
+
+    /* Gradients (sutis, dentro da paleta) */
+    --gradient-blue: linear-gradient(135deg, hsl(235, 32%, 28%) 0%, hsl(235, 32%, 20%) 100%);
+    --gradient-green: linear-gradient(135deg, hsl(142, 45%, 40%) 0%, hsl(142, 45%, 32%) 100%);
+    --gradient-purple: linear-gradient(135deg, hsl(235, 32%, 30%) 0%, hsl(235, 32%, 22%) 100%);
+    --gradient-orange: linear-gradient(135deg, hsl(28, 31%, 38%) 0%, hsl(28, 31%, 30%) 100%);
+    --gradient-pink: linear-gradient(135deg, hsl(28, 31%, 40%) 0%, hsl(28, 31%, 32%) 100%);
 
     /* Transitions */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark {
-    --background: 224 20% 10%;
-    --foreground: 210 20% 96%;
+    --background: 0 0% 24%;
+    --foreground: 0 0% 96%;
 
-    --card: 224 20% 12%;
-    --card-foreground: 210 20% 96%;
+    --card: 0 0% 28%;
+    --card-foreground: 0 0% 96%;
 
-    --popover: 224 20% 12%;
-    --popover-foreground: 210 20% 96%;
+    --popover: 0 0% 28%;
+    --popover-foreground: 0 0% 96%;
 
-    --primary: 217 91% 66%;
-    --primary-foreground: 222 47% 11%;
+    --primary: 235 45% 70%;
+    --primary-foreground: 235 32% 14%;
 
-    --secondary: 223 18% 16%;
-    --secondary-foreground: 210 20% 96%;
+    --secondary: 0 0% 30%;
+    --secondary-foreground: 0 0% 96%;
 
-    --muted: 223 18% 16%;
-    --muted-foreground: 215 16% 70%;
+    --muted: 0 0% 30%;
+    --muted-foreground: 0 0% 72%;
 
-    --accent: 223 18% 16%;
-    --accent-foreground: 210 20% 96%;
+    --accent: 0 0% 32%;
+    --accent-foreground: 0 0% 96%;
 
-    --destructive: 0 63% 44%;
+    --destructive: 0 63% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 223 14% 24%;
-    --input: 223 14% 24%;
-    --ring: 217 91% 66%;
+    --success: 142 42% 48%;
+    --success-foreground: 0 0% 100%;
 
-    --sidebar-background: 224 23% 9%;
-    --sidebar-foreground: 210 20% 96%;
-    --sidebar-primary: 217 91% 66%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 223 18% 16%;
-    --sidebar-accent-foreground: 210 20% 96%;
-    --sidebar-border: 223 14% 24%;
-    --sidebar-ring: 217 91% 66%;
+    --warning: 38 75% 55%;
+    --warning-foreground: 0 0% 14%;
+
+    --border: 0 0% 34%;
+    --input: 0 0% 34%;
+    --ring: 235 45% 70%;
+
+    --sidebar-background: 0 0% 20%;
+    --sidebar-foreground: 0 0% 92%;
+    --sidebar-primary: 235 45% 70%;
+    --sidebar-primary-foreground: 235 32% 14%;
+    --sidebar-accent: 0 0% 30%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 0 0% 34%;
+    --sidebar-ring: 235 45% 70%;
+
+    --brown: 28 32% 55%;
+    --gray-warm: 26 6% 62%;
+
+    --ai-blue: 235 45% 70%;
+    --ai-green: 142 42% 48%;
+    --ai-purple: 235 45% 70%;
+    --ai-orange: 28 32% 55%;
+    --ai-pink: 28 32% 55%;
+    --ai-cyan: 26 6% 62%;
   }
 }
 
@@ -113,7 +141,36 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Scrollbar fina e consistente para overlays (select, dropdown, popover, command) */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.35);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.55);
   }
 }
 

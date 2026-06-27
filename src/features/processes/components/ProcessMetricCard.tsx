@@ -13,11 +13,11 @@ interface ProcessMetricCardProps {
 
 export function ProcessMetricCard({ title, value, helper, icon: Icon, onViewAll }: ProcessMetricCardProps) {
   return (
-    <Card className="group rounded-[24px] border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.92))] p-6 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.45)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_48px_-34px_rgba(15,23,42,0.55)]">
+    <Card className="group rounded-[24px] border-border/70 bg-card p-6 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.45)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_48px_-34px_rgba(15,23,42,0.55)]">
       <div className="flex flex-col gap-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 space-y-3">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-200/80 bg-emerald-50/80 text-emerald-700 shadow-sm">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/5 text-primary shadow-sm">
               <Icon className="h-5 w-5" />
             </span>
             <div className="min-w-0 space-y-2">

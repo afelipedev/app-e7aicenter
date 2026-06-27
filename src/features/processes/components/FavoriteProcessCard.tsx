@@ -13,14 +13,14 @@ interface FavoriteProcessCardProps {
 export function FavoriteProcessCard({ process, onOpen }: FavoriteProcessCardProps) {
   return (
     <Card className="group flex h-full flex-col overflow-hidden rounded-[24px] border-border/70 bg-card/95 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.5)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_50px_-34px_rgba(15,23,42,0.58)]">
-      <div className="shrink-0 border-b border-emerald-100/70 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_32%),linear-gradient(135deg,rgba(236,253,245,0.95),rgba(255,255,255,0.98))] px-5 py-5">
+      <div className="shrink-0 border-b border-border/70 bg-accent/40 px-5 py-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-700/80">Processo favorito</p>
-            <h3 className="mt-2 break-all text-base font-semibold leading-6 tracking-[-0.02em] text-slate-900">{process.cnj}</h3>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary/80">Processo favorito</p>
+            <h3 className="mt-2 break-all text-base font-semibold leading-6 tracking-[-0.02em] text-foreground">{process.cnj}</h3>
           </div>
-          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-amber-200/80 bg-white/90 shadow-sm">
-            <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-warning/30 bg-card shadow-sm">
+            <Star className="h-4 w-4 fill-warning text-warning" />
           </span>
         </div>
       </div>
@@ -53,7 +53,7 @@ export function FavoriteProcessCard({ process, onOpen }: FavoriteProcessCardProp
               <Button
                 variant="outline"
                 size="icon"
-                className="rounded-full border-border/80 bg-background/80 shadow-sm transition-colors hover:border-blue-600 hover:bg-blue-600 hover:text-white"
+                className="rounded-full border-border/80 bg-background/80 shadow-sm transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
                 aria-label="Visualizar processo"
                 onClick={() => onOpen(process.id)}
               >
