@@ -20,6 +20,7 @@ import {
   UsersIcon as UsersGroupIcon,
   UserSquare2,
   LayoutGrid,
+  Settings,
 } from "lucide-react";
 import {
   Sidebar,
@@ -131,6 +132,7 @@ const menuItems: SidebarEntry[] = [
     items: [
       { title: "Usuários", url: "/admin/users", icon: UserCog },
       { title: "Gestão de Equipes", url: "/admin/teams", icon: UsersGroupIcon },
+      { title: "Configurações", url: "/admin/settings", icon: Settings },
     ],
   },
 ];

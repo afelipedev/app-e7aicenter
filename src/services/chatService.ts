@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { LLM_MODELS, DEFAULT_LLM_MODEL_ID } from '../config/llmModels';
 
 // Timeout padrão para operações (15 segundos)
 const DEFAULT_TIMEOUT = 15000;
@@ -16,12 +17,8 @@ const withTimeout = <T>(promise: Promise<T>, timeoutMs: number = DEFAULT_TIMEOUT
 // Tipos
 // AssistantType agora aceita tanto os tipos fixos quanto agentIds dos agentes da biblioteca
 export type AssistantType = 'chat-general' | 'tax-law' | 'civil-law' | 'financial' | 'accounting' | string;
-export type LLMModel =
-  | 'gpt-4'
-  | 'gpt-4-turbo'
-  | 'gpt-5.2'
-  | 'gemini-2.5-flash'
-  | 'claude-sonnet-4.5';
+// Tipo derivado do catálogo único de modelos (src/config/llmModels.ts).
+export type LLMModel = (typeof LLM_MODELS)[number]['id'];
 export type MessageRole = 'user' | 'assistant' | 'system';
 
 export interface ChatMessage {
@@ -94,7 +91,7 @@ export class ChatService {
         user_id,
         assistant_type: data.assistant_type,
         title: data.title || 'Nova conversa',
-        llm_model: data.llm_model || 'gpt-5.2',
+        llm_model: data.llm_model || DEFAULT_LLM_MODEL_ID,
         is_favorite: false,
       };
 

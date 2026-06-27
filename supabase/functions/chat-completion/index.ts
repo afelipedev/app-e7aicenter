@@ -63,13 +63,83 @@ Cite sempre as normas do CFC, CPC e legislação aplicável quando relevante.
 Para questões específicas sobre escrituração ou situação contábil de empresas, recomende consulta a um contador registrado no CRC.`
 };
 
+// Catálogo de modelos espelhado de src/config/llmModels.ts.
+// Mantido aqui por limite de runtime (Deno x browser). MANTER EM SINCRONIA.
+type ProviderInfo = {
+  provider: 'openai' | 'google' | 'anthropic';
+  providerModelId: string;
+  temperature: boolean;
+  maxTokensParam: 'max_tokens' | 'max_completion_tokens';
+};
+
+const MODEL_PROVIDER_MAP: Record<string, ProviderInfo> = {
+  // OpenAI
+  'gpt-5.2': { provider: 'openai', providerModelId: 'gpt-5.2', temperature: false, maxTokensParam: 'max_completion_tokens' },
+  'gpt-4o': { provider: 'openai', providerModelId: 'gpt-4o', temperature: true, maxTokensParam: 'max_tokens' },
+  'gpt-4o-mini': { provider: 'openai', providerModelId: 'gpt-4o-mini', temperature: true, maxTokensParam: 'max_tokens' },
+  'gpt-4-turbo': { provider: 'openai', providerModelId: 'gpt-4-turbo-preview', temperature: true, maxTokensParam: 'max_tokens' },
+  'gpt-4': { provider: 'openai', providerModelId: 'gpt-4', temperature: true, maxTokensParam: 'max_tokens' },
+  // Google Gemini
+  'gemini-3-pro': { provider: 'google', providerModelId: 'gemini-3-pro', temperature: true, maxTokensParam: 'max_tokens' },
+  'gemini-3.5-flash': { provider: 'google', providerModelId: 'gemini-3.5-flash', temperature: true, maxTokensParam: 'max_tokens' },
+  'gemini-3.1-flash-lite': { provider: 'google', providerModelId: 'gemini-3.1-flash-lite', temperature: true, maxTokensParam: 'max_tokens' },
+  'gemini-2.5-pro': { provider: 'google', providerModelId: 'gemini-2.5-pro', temperature: true, maxTokensParam: 'max_tokens' },
+  'gemini-2.5-flash': { provider: 'google', providerModelId: 'gemini-2.5-flash', temperature: true, maxTokensParam: 'max_tokens' },
+  // Anthropic Claude
+  'claude-opus-4.8': { provider: 'anthropic', providerModelId: 'claude-opus-4-8', temperature: true, maxTokensParam: 'max_tokens' },
+  'claude-sonnet-4.6': { provider: 'anthropic', providerModelId: 'claude-sonnet-4-6', temperature: true, maxTokensParam: 'max_tokens' },
+  'claude-haiku-4.5': { provider: 'anthropic', providerModelId: 'claude-haiku-4-5', temperature: true, maxTokensParam: 'max_tokens' },
+  'claude-sonnet-4.5': { provider: 'anthropic', providerModelId: 'claude-sonnet-4-5-20250929', temperature: true, maxTokensParam: 'max_tokens' },
+};
+
+function resolveProvider(model: string): ProviderInfo | undefined {
+  return MODEL_PROVIDER_MAP[model];
+}
+
+// Configuração resolvida por requisição (chave + defaults do provedor).
+type ModelCfg = { apiKey: string | null; maxTokens: number; temperature: number };
+
+const ENV_KEY_BY_PROVIDER: Record<string, string> = {
+  openai: 'OPENAI_API_KEY',
+  google: 'GEMINI_API_KEY',
+  anthropic: 'ANTHROPIC_API_KEY',
+};
+
+// Lê a chave do Vault (gerenciada no módulo de Configurações); fallback p/ Deno.env.
+async function resolveApiKey(admin: any, provider: string): Promise<string | null> {
+  try {
+    const { data } = await admin.rpc('get_ai_secret', { p_name: `ai_api_key_${provider}` });
+    if (data && typeof data === 'string' && data.length > 0) return data;
+  } catch (_) { /* fallback abaixo */ }
+  return Deno.env.get(ENV_KEY_BY_PROVIDER[provider] ?? '') ?? null;
+}
+
+// Lê defaults (max_tokens/temperature) de system_llm_settings; fallback p/ padrões.
+async function resolveModelCfg(admin: any, model: string): Promise<ModelCfg> {
+  const provider = resolveProvider(model)?.provider ?? 'openai';
+  const apiKey = await resolveApiKey(admin, provider);
+  let maxTokens = 2000;
+  let temperature = 0.7;
+  try {
+    const { data } = await admin
+      .from('system_llm_settings')
+      .select('max_tokens, temperature')
+      .eq('provider', provider)
+      .maybeSingle();
+    if (data?.max_tokens) maxTokens = Number(data.max_tokens);
+    if (data?.temperature != null) temperature = Number(data.temperature);
+  } catch (_) { /* usa padrões */ }
+  return { apiKey, maxTokens, temperature };
+}
+
 // Função para chamar OpenAI
 async function callOpenAI(
   messages: ChatMessage[],
   systemPrompt: string,
-  model: string
+  model: string,
+  cfg: ModelCfg
 ): Promise<LLMResponse> {
-  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  const apiKey = cfg.apiKey;
   if (!apiKey) {
     throw new Error('OpenAI API key não configurada');
   }
@@ -82,30 +152,19 @@ async function callOpenAI(
     }))
   ];
 
-  const openaiModel =
-    model === 'gpt-4-turbo'
-      ? 'gpt-4-turbo-preview'
-      : model === 'gpt-5.2'
-        ? 'gpt-5.2'
-        : 'gpt-4';
+  const info = resolveProvider(model);
+  const openaiModel = info?.providerModelId ?? 'gpt-4';
 
   const requestBody: Record<string, unknown> = {
     model: openaiModel,
     messages: formattedMessages,
   };
 
-  // Parâmetro correto por modelo (OpenAI)
-  // - gpt-5.2: max_completion_tokens (não aceita max_tokens)
-  // - modelos anteriores: max_tokens
-  if (openaiModel === 'gpt-5.2') {
-    requestBody.max_completion_tokens = 2000;
-  } else {
-    requestBody.max_tokens = 2000;
-  }
-
-  // Obs: gpt-5.2 não deve usar temperatura
-  if (openaiModel !== 'gpt-5.2') {
-    requestBody.temperature = 0.7;
+  // Parâmetro de tokens e temperatura conforme o catálogo de modelos + defaults.
+  const maxTokensParam = info?.maxTokensParam ?? 'max_tokens';
+  requestBody[maxTokensParam] = cfg.maxTokens;
+  if (info?.temperature !== false) {
+    requestBody.temperature = cfg.temperature;
   }
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -138,9 +197,10 @@ async function callOpenAI(
 async function callGemini(
   messages: ChatMessage[],
   systemPrompt: string,
-  model: string
+  model: string,
+  cfg: ModelCfg
 ): Promise<LLMResponse> {
-  const apiKey = Deno.env.get('GEMINI_API_KEY');
+  const apiKey = cfg.apiKey;
   if (!apiKey) {
     throw new Error('Gemini API key não configurada');
   }
@@ -165,7 +225,7 @@ async function callGemini(
     });
   }
 
-  const modelName = model === 'gemini-2.5-flash' ? 'gemini-2.0-flash-exp' : 'gemini-pro';
+  const modelName = resolveProvider(model)?.providerModelId ?? 'gemini-2.5-flash';
   
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
@@ -177,8 +237,8 @@ async function callGemini(
       body: JSON.stringify({
         contents: formattedMessages,
         generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2000
+          temperature: cfg.temperature,
+          maxOutputTokens: cfg.maxTokens
         }
       })
     }
@@ -204,9 +264,10 @@ async function callGemini(
 async function callClaude(
   messages: ChatMessage[],
   systemPrompt: string,
-  model: string
+  model: string,
+  cfg: ModelCfg
 ): Promise<LLMResponse> {
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  const apiKey = cfg.apiKey;
   if (!apiKey) {
     throw new Error('Anthropic API key não configurada');
   }
@@ -216,7 +277,7 @@ async function callClaude(
     content: msg.content
   }));
 
-  const modelName = model === 'claude-sonnet-4.5' ? 'claude-3-5-sonnet-20241022' : 'claude-3-opus-20240229';
+  const modelName = resolveProvider(model)?.providerModelId ?? 'claude-sonnet-4-6';
   
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -227,7 +288,7 @@ async function callClaude(
     },
     body: JSON.stringify({
       model: modelName,
-      max_tokens: 2000,
+      max_tokens: cfg.maxTokens,
       system: systemPrompt,
       messages: formattedMessages
     })
@@ -250,19 +311,22 @@ async function callClaude(
   };
 }
 
-// Função principal para obter completion
+// Função principal para obter completion.
+// `admin` é o client service_role usado para resolver chave (Vault) e defaults.
 async function getChatCompletion(
+  admin: any,
   messages: ChatMessage[],
   systemPrompt: string,
   model: string
 ): Promise<LLMResponse> {
+  const cfg = await resolveModelCfg(admin, model);
   try {
     if (model.startsWith('gpt-')) {
-      return await callOpenAI(messages, systemPrompt, model);
+      return await callOpenAI(messages, systemPrompt, model, cfg);
     } else if (model.startsWith('gemini-')) {
-      return await callGemini(messages, systemPrompt, model);
+      return await callGemini(messages, systemPrompt, model, cfg);
     } else if (model.startsWith('claude-')) {
-      return await callClaude(messages, systemPrompt, model);
+      return await callClaude(messages, systemPrompt, model, cfg);
     } else {
       throw new Error(`Modelo não suportado: ${model}`);
     }
@@ -271,7 +335,8 @@ async function getChatCompletion(
     if (!model.startsWith('gpt-')) {
       console.warn(`Erro ao usar ${model}, tentando fallback para gpt-4`);
       try {
-        return await callOpenAI(messages, systemPrompt, 'gpt-4');
+        const fallbackCfg = await resolveModelCfg(admin, 'gpt-4');
+        return await callOpenAI(messages, systemPrompt, 'gpt-4', fallbackCfg);
       } catch (fallbackError) {
         throw new Error(`Erro ao usar modelo ${model} e fallback: ${fallbackError instanceof Error ? fallbackError.message : 'Erro desconhecido'}`);
       }
@@ -307,6 +372,12 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader } }
+    });
+
+    // Client service_role para resolver chave (Vault) e defaults de modelo.
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const admin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
     });
 
     // Verificar sessão
@@ -354,7 +425,7 @@ Deno.serve(async (req) => {
     // TODO: Implementar busca RAG quando necessário
 
     // Chamar LLM
-    const llmResponse = await getChatCompletion(allMessages, systemPrompt, llmModel);
+    const llmResponse = await getChatCompletion(admin, allMessages, systemPrompt, llmModel);
 
     // Salvar mensagens no banco
     const { error: insertUserError } = await supabase

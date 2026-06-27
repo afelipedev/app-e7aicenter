@@ -32,8 +32,6 @@ import { PayrollManagement } from "./pages/PayrollManagement";
 import { PayrollProcessingDetails } from "./components/payroll/PayrollProcessingDetails";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
-import { TestPage } from "./pages/TestPage";
-import { TestPayrollWorkflow } from "./pages/TestPayrollWorkflow";
 import Leads from "./pages/leads/Leads";
 import TeamsHomePage from "./features/teams/pages/TeamsHomePage";
 import ChannelPage from "./features/teams/pages/ChannelPage";
@@ -41,6 +39,7 @@ import PostPage from "./features/teams/pages/PostPage";
 import FavoritesPage from "./features/teams/pages/FavoritesPage";
 import TeamsAdminPage from "./features/teams/pages/admin/TeamsAdminPage";
 import TeamDetailAdminPage from "./features/teams/pages/admin/TeamDetailAdminPage";
+import SystemSettingsPage from "./features/system-settings/pages/SystemSettingsPage";
 import ProfilePage from "./features/profile/pages/ProfilePage";
 import { ThemeProvider } from "./features/theme/providers/ThemeProvider";
 
@@ -174,10 +173,11 @@ const App = () => (
                   <TeamDetailAdminPage />
                 </ProtectedRoute>
               } />
-
-              {/* Test pages - accessible to all authenticated users */}
-              <Route path="/test" element={<TestPage />} />
-              <Route path="/test/payroll-workflow" element={<TestPayrollWorkflow />} />
+              <Route path="/admin/settings" element={
+                <ProtectedRoute requiredPermission="admin">
+                  <SystemSettingsPage />
+                </ProtectedRoute>
+              } />
             </Route>
             
             <Route path="*" element={<NotFound />} />

@@ -7,11 +7,12 @@ import {
 } from "@/components/ui/select";
 import { Sparkles, Zap, Brain } from "lucide-react";
 import type { LLMModel } from "@/services/chatService";
+import { LLM_MODELS, type LLMIcon } from "@/config/llmModels";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 interface ModelInfo {
-  name: string;
+  name: LLMModel;
   displayName: string;
   description: string;
   icon: React.ReactNode;
@@ -19,48 +20,27 @@ interface ModelInfo {
   cost: "Baixo" | "Médio" | "Alto";
 }
 
-const MODEL_INFO: Record<LLMModel, ModelInfo> = {
-  "gpt-4": {
-    name: "gpt-4",
-    displayName: "GPT-4",
-    description: "Modelo padrão da OpenAI, balanceado",
-    icon: <Sparkles className="w-4 h-4" />,
-    speed: "Médio",
-    cost: "Alto",
-  },
-  "gpt-4-turbo": {
-    name: "gpt-4-turbo",
-    displayName: "GPT-4 Turbo",
-    description: "Versão mais rápida do GPT-4",
-    icon: <Zap className="w-4 h-4" />,
-    speed: "Rápido",
-    cost: "Médio",
-  },
-  "gpt-5.2": {
-    name: "gpt-5.2",
-    displayName: "GPT-5.2",
-    description: "Modelo avançado da OpenAI (sem temperatura na Edge Function)",
-    icon: <Sparkles className="w-4 h-4" />,
-    speed: "Médio",
-    cost: "Alto",
-  },
-  "gemini-2.5-flash": {
-    name: "gemini-2.5-flash",
-    displayName: "Gemini 2.5 Flash",
-    description: "Modelo rápido e eficiente do Google",
-    icon: <Brain className="w-4 h-4" />,
-    speed: "Rápido",
-    cost: "Baixo",
-  },
-  "claude-sonnet-4.5": {
-    name: "claude-sonnet-4.5",
-    displayName: "Claude Sonnet 4.5",
-    description: "Modelo avançado da Anthropic",
-    icon: <Brain className="w-4 h-4" />,
-    speed: "Médio",
-    cost: "Médio",
-  },
+// Mapeia o ícone lógico do catálogo para o componente visual.
+const ICON_BY_KEY: Record<LLMIcon, React.ReactNode> = {
+  sparkles: <Sparkles className="w-4 h-4" />,
+  zap: <Zap className="w-4 h-4" />,
+  brain: <Brain className="w-4 h-4" />,
 };
+
+// Derivado do catálogo único (src/config/llmModels.ts) — sem duplicação.
+const MODEL_INFO: Record<LLMModel, ModelInfo> = Object.fromEntries(
+  LLM_MODELS.map((m) => [
+    m.id,
+    {
+      name: m.id as LLMModel,
+      displayName: m.displayName,
+      description: m.description,
+      icon: ICON_BY_KEY[m.icon],
+      speed: m.speed,
+      cost: m.cost,
+    },
+  ])
+) as Record<LLMModel, ModelInfo>;
 
 interface ModelSelectorProps {
   currentModel: LLMModel;

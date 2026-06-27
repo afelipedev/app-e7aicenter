@@ -459,32 +459,32 @@ export const AI_AGENTS: AIAgent[] = [
 
   // Tema: Áreas do Direito
   {
-    id: "tributario",
+    id: "direito-tributario",
     name: "Tributário",
     description: "Especialista em impostos, ICMS, IR, etc.",
     theme: "areas-direito",
-    webhookUrl: `${N8N_BASE_URL}/tributario`,
+    webhookUrl: `${N8N_BASE_URL}/direito-tributario`,
   },
   {
-    id: "civil",
+    id: "direito-civil",
     name: "Cível",
     description: "Especialista em contratos, família, sucessões",
     theme: "areas-direito",
-    webhookUrl: `${N8N_BASE_URL}/civil`,
+    webhookUrl: `${N8N_BASE_URL}/direito-civil`,
   },
   {
-    id: "financeiro",
+    id: "direito-financeiro",
     name: "Financeiro",
     description: "Especialista em NF, SPED, PIS, COFINS",
     theme: "areas-direito",
-    webhookUrl: `${N8N_BASE_URL}/financeiro`,
+    webhookUrl: `${N8N_BASE_URL}/direito-financeiro`,
   },
   {
-    id: "contabil",
+    id: "direito-contabil",
     name: "Contábil",
     description: "Especialista em holerites, folha, eSocial",
     theme: "areas-direito",
-    webhookUrl: `${N8N_BASE_URL}/contabil`,
+    webhookUrl: `${N8N_BASE_URL}/direito-contabil`,
   },
   {
     id: "direito-digital-matriz-risco-privacidade",

@@ -1,5 +1,5 @@
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Settings, LogOut, Loader2 } from "lucide-react";
+import { LogOut, Loader2 } from "lucide-react";
 import { NotificationsBell } from "@/features/teams/components/NotificationsBell";
 import { Button } from "@/components/ui/button";
 import { ThemeToggleButton } from "@/features/theme/components/ThemeToggleButton";
@@ -67,10 +67,6 @@ export function Header() {
         <NotificationsBell />
         <ThemeToggleButton />
 
-        <Button variant="ghost" size="icon" onClick={() => navigate("/perfil")}>
-          <Settings className="w-5 h-5" />
-        </Button>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
@@ -94,7 +90,6 @@ export function Header() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate("/perfil")}>Perfil</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/perfil")}>Configurações</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
               onClick={handleLogout} 
