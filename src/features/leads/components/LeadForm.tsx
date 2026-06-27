@@ -201,69 +201,69 @@ export default function LeadForm({
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-          <FormField
-            control={form.control}
-            name="company_name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nome da empresa</FormLabel>
-                <FormControl>
-                  <Input {...field} value={field.value ?? ""} placeholder="Ex.: Empresa XPTO LTDA" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="cnpj"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>CNPJ</FormLabel>
-                <FormControl>
-                  <Input
-                    {...field}
-                    value={field.value ?? ""}
-                    placeholder="00.000.000/0001-00"
-                    inputMode="numeric"
-                    onChange={(e) => field.onChange(formatCnpj(e.target.value))}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="address"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Endereço</FormLabel>
-                <FormControl>
-                  <Textarea {...field} value={field.value ?? ""} placeholder="Rua..., nº..., Cidade/UF" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="cnae_or_activity"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>CNAE ou ramo de atividade</FormLabel>
-                <FormControl>
-                  <Input {...field} value={field.value ?? ""} placeholder="Ex.: Contabilidade / 6201-5/01" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormField
+              control={form.control}
+              name="company_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nome da empresa</FormLabel>
+                  <FormControl>
+                    <Input {...field} value={field.value ?? ""} placeholder="Ex.: Empresa XPTO LTDA" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="cnpj"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>CNPJ</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      value={field.value ?? ""}
+                      placeholder="00.000.000/0001-00"
+                      inputMode="numeric"
+                      onChange={(e) => field.onChange(formatCnpj(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="cnae_or_activity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>CNAE ou ramo de atividade</FormLabel>
+                  <FormControl>
+                    <Input {...field} value={field.value ?? ""} placeholder="Ex.: Contabilidade / 6201-5/01" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Endereço</FormLabel>
+                  <FormControl>
+                    <Input {...field} value={field.value ?? ""} placeholder="Rua..., nº..., Cidade/UF" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="avg_revenue"
@@ -302,27 +302,34 @@ export default function LeadForm({
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="partners"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>Quadro societário</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      value={field.value ?? ""}
+                      placeholder="Sócios / participações (opcional)"
+                      className="min-h-[60px]"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
 
-          <FormField
-            control={form.control}
-            name="partners"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Quadro societário</FormLabel>
-                <FormControl>
-                  <Textarea {...field} value={field.value ?? ""} placeholder="Sócios / participações (opcional)" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <DecisionMakersFieldArray form={form} name={"decision_makers" as any} />
 
-          <DecisionMakersFieldArray form={form} name={"decision_makers" as any} />
+            <PhonesFieldArray form={form} name={"phones" as any} />
 
-          <PhonesFieldArray form={form} name={"phones" as any} />
-
-          <EmailsFieldArray form={form} name={"emails" as any} />
+            <EmailsFieldArray form={form} name={"emails" as any} />
+          </div>
 
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => form.reset()} disabled={isPending}>
