@@ -1,9 +1,4 @@
 import { supabase } from "../lib/supabase";
-import {
-  computeMonthlyEvolution,
-  getMonthDateRanges,
-  type MonthlyEvolution,
-} from "../lib/monthlyEvolution";
 
 const DEFAULT_TIMEOUT = 15000;
 
@@ -16,26 +11,16 @@ const withTimeout = <T>(promise: Promise<T>, timeoutMs: number = DEFAULT_TIMEOUT
   ]);
 };
 
-async function countTableRows(
-  table: "payroll_files" | "sped_files" | "process_monitorings",
-  options?: {
-    createdFrom?: string;
-    createdTo?: string;
-    activeOnly?: boolean;
-  }
+type CountableTable = "payroll_files" | "sped_files" | "process_snapshots" | "chats" | "companies";
+
+async function countRows(
+  table: CountableTable,
+  options?: { status?: string }
 ): Promise<number> {
   let query = supabase.from(table).select("*", { count: "exact", head: true });
 
-  if (options?.createdFrom) {
-    query = query.gte("created_at", options.createdFrom);
-  }
-
-  if (options?.createdTo) {
-    query = query.lt("created_at", options.createdTo);
-  }
-
-  if (options?.activeOnly && table === "process_monitorings") {
-    query = query.is("deleted_at", null).is("paused_at", null);
+  if (options?.status) {
+    query = query.eq("status", options.status);
   }
 
   const { count, error } = await withTimeout(query);
@@ -47,100 +32,54 @@ async function countTableRows(
   return count || 0;
 }
 
-async function countDocumentsInRange(createdFrom: string, createdTo: string): Promise<number> {
-  const [payrollCount, spedCount] = await Promise.all([
-    countTableRows("payroll_files", { createdFrom, createdTo }),
-    countTableRows("sped_files", { createdFrom, createdTo }),
-  ]);
-
-  return payrollCount + spedCount;
-}
-
 export class DashboardService {
-  static async getDocumentsCount(): Promise<number> {
+  /** Quantidade de holerites com processamento concluído. */
+  static async getProcessedPayrollsCount(): Promise<number> {
     try {
-      const [payrollCount, spedCount] = await Promise.all([
-        countTableRows("payroll_files"),
-        countTableRows("sped_files"),
-      ]);
-
-      return payrollCount + spedCount;
+      return await countRows("payroll_files", { status: "completed" });
     } catch (error) {
-      console.error("Erro ao buscar total de documentos:", error);
+      console.error("Erro ao buscar holerites processados:", error);
       return 0;
     }
   }
 
-  static async getDocumentsMonthlyEvolution(): Promise<MonthlyEvolution> {
+  /** Quantidade de arquivos SPED com processamento concluído. */
+  static async getProcessedSpedsCount(): Promise<number> {
     try {
-      const {
-        firstDayCurrentMonth,
-        firstDayNextMonth,
-        firstDayPreviousMonth,
-      } = getMonthDateRanges();
-
-      const [currentMonthCount, previousMonthCount] = await Promise.all([
-        countDocumentsInRange(
-          firstDayCurrentMonth.toISOString(),
-          firstDayNextMonth.toISOString()
-        ),
-        countDocumentsInRange(
-          firstDayPreviousMonth.toISOString(),
-          firstDayCurrentMonth.toISOString()
-        ),
-      ]);
-
-      return computeMonthlyEvolution(currentMonthCount, previousMonthCount);
+      return await countRows("sped_files", { status: "completed" });
     } catch (error) {
-      console.error("Erro ao calcular evolução mensal de documentos:", error);
-      return {
-        currentMonthCount: 0,
-        previousMonthCount: 0,
-        evolutionPercent: null,
-        evolutionText: "—",
-      };
-    }
-  }
-
-  static async getActiveProcessesCount(): Promise<number> {
-    try {
-      return await countTableRows("process_monitorings", { activeOnly: true });
-    } catch (error) {
-      console.error("Erro ao buscar processos ativos:", error);
+      console.error("Erro ao buscar SPEDs processados:", error);
       return 0;
     }
   }
 
-  static async getActiveProcessesMonthlyEvolution(): Promise<MonthlyEvolution> {
+  /** Quantidade de processos consultados no módulo de consultas processuais. */
+  static async getConsultedProcessesCount(): Promise<number> {
     try {
-      const {
-        firstDayCurrentMonth,
-        firstDayNextMonth,
-        firstDayPreviousMonth,
-      } = getMonthDateRanges();
-
-      const [currentMonthCount, previousMonthCount] = await Promise.all([
-        countTableRows("process_monitorings", {
-          createdFrom: firstDayCurrentMonth.toISOString(),
-          createdTo: firstDayNextMonth.toISOString(),
-          activeOnly: true,
-        }),
-        countTableRows("process_monitorings", {
-          createdFrom: firstDayPreviousMonth.toISOString(),
-          createdTo: firstDayCurrentMonth.toISOString(),
-          activeOnly: true,
-        }),
-      ]);
-
-      return computeMonthlyEvolution(currentMonthCount, previousMonthCount);
+      return await countRows("process_snapshots");
     } catch (error) {
-      console.error("Erro ao calcular evolução mensal de processos ativos:", error);
-      return {
-        currentMonthCount: 0,
-        previousMonthCount: 0,
-        evolutionPercent: null,
-        evolutionText: "—",
-      };
+      console.error("Erro ao buscar processos consultados:", error);
+      return 0;
+    }
+  }
+
+  /** Quantidade de empresas cadastradas. */
+  static async getCompaniesCount(): Promise<number> {
+    try {
+      return await countRows("companies");
+    } catch (error) {
+      console.error("Erro ao buscar total de empresas:", error);
+      return 0;
+    }
+  }
+
+  /** Quantidade de chats (conversas) iniciados no AI Center. */
+  static async getChatsCount(): Promise<number> {
+    try {
+      return await countRows("chats");
+    } catch (error) {
+      console.error("Erro ao buscar total de conversas IA:", error);
+      return 0;
     }
   }
 }

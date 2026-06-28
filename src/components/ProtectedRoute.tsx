@@ -24,7 +24,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-gray-600">Verificando autenticação...</p>
         </div>
       </div>
@@ -80,7 +80,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           </p>
           <button
             onClick={() => window.history.back()}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            className="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-colors"
           >
             Voltar
           </button>

@@ -318,11 +318,11 @@ export function UserEditModal({ user, isOpen, onClose, onUserUpdated }: UserEdit
                     )}
                   </Button>
                 </div>
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                  <p className="text-sm text-blue-800 font-medium">
+                <div className="bg-primary/5 border border-primary/20 rounded-md p-3">
+                  <p className="text-sm text-primary font-medium">
                     ⚠️ Atenção: Esta senha será aplicada ao usuário quando você salvar as alterações.
                   </p>
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-xs text-primary mt-1">
                     Você pode editar a senha gerada ou digitar uma senha personalizada. Compartilhe esta senha com o usuário. Ela deve ser alterada no primeiro login.
                   </p>
                 </div>

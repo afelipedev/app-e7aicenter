@@ -190,36 +190,36 @@ export default function Users() {
         <Card className="p-3 sm:p-4">
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
-              <UserCheck className="w-5 h-5 text-ai-blue" />
+              <UserCheck className="w-5 h-5 text-primary" />
             </div>
-            <p className="text-2xl sm:text-3xl font-bold text-foreground mb-1">{totalUsers}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-primary mb-1">{totalUsers}</p>
             <p className="text-xs sm:text-sm text-muted-foreground">Total de Usuários</p>
           </div>
         </Card>
         <Card className="p-3 sm:p-4">
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
-              <UserCheck className="w-5 h-5 text-ai-green" />
+              <UserCheck className="w-5 h-5 text-primary" />
             </div>
-            <p className="text-2xl sm:text-3xl font-bold text-ai-green mb-1">{activeUsers}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-primary mb-1">{activeUsers}</p>
             <p className="text-xs sm:text-sm text-muted-foreground">Ativos</p>
           </div>
         </Card>
         <Card className="p-3 sm:p-4">
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
-              <UserX className="w-5 h-5 text-ai-orange" />
+              <UserX className="w-5 h-5 text-primary" />
             </div>
-            <p className="text-2xl sm:text-3xl font-bold text-ai-orange mb-1">{inactiveUsers}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-primary mb-1">{inactiveUsers}</p>
             <p className="text-xs sm:text-sm text-muted-foreground">Inativos</p>
           </div>
         </Card>
         <Card className="p-3 sm:p-4">
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
-              <Clock className="w-5 h-5 text-ai-blue" />
+              <Clock className="w-5 h-5 text-primary" />
             </div>
-            <p className="text-2xl sm:text-3xl font-bold text-ai-blue mb-1">{recentLogins}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-primary mb-1">{recentLogins}</p>
             <p className="text-xs sm:text-sm text-muted-foreground">Login Recente</p>
           </div>
         </Card>
@@ -242,7 +242,7 @@ export default function Users() {
       {isLoading && (
         <Card className="p-8">
           <div className="flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-ai-blue mr-3" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary mr-3" />
             <span className="text-muted-foreground">Carregando usuários...</span>
           </div>
         </Card>

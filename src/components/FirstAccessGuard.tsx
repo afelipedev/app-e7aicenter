@@ -75,7 +75,7 @@ export const FirstAccessGuard: React.FC<FirstAccessGuardProps> = ({
       fallback || (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center space-y-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
             <p className="text-gray-600">Verificando configurações de acesso...</p>
           </div>
         </div>
@@ -101,7 +101,7 @@ export const FirstAccessGuard: React.FC<FirstAccessGuardProps> = ({
             <div className="space-y-2">
               <button
                 onClick={checkFirstAccessStatus}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                className="w-full bg-primary text-white py-2 px-4 rounded-lg font-medium hover:bg-primary/90 transition-colors"
               >
                 Tentar Novamente
               </button>

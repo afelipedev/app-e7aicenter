@@ -129,8 +129,8 @@ export const FirstAccessModal: React.FC<FirstAccessModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <Lock className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+              <Lock className="w-5 h-5 text-primary" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
@@ -158,8 +158,8 @@ export const FirstAccessModal: React.FC<FirstAccessModalProps> = ({
             <div className="space-y-6">
               {/* Welcome Message */}
               <div className="text-center space-y-4">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-                  <User className="w-8 h-8 text-blue-600" />
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                  <User className="w-8 h-8 text-primary" />
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -186,14 +186,14 @@ export const FirstAccessModal: React.FC<FirstAccessModalProps> = ({
               </div>
 
               {/* Security Notice */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <AlertCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-blue-900">
+                    <p className="text-sm font-medium text-primary">
                       Importante para sua segurança:
                     </p>
-                    <ul className="text-sm text-blue-800 space-y-1">
+                    <ul className="text-sm text-primary space-y-1">
                       <li>• Escolha uma senha forte e única</li>
                       <li>• Não compartilhe suas credenciais</li>
                       <li>• Mantenha seus dados sempre seguros</li>
@@ -205,7 +205,7 @@ export const FirstAccessModal: React.FC<FirstAccessModalProps> = ({
               {/* Next Button */}
               <button
                 onClick={handleNext}
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                className="w-full bg-primary text-white py-3 px-4 rounded-lg font-medium hover:bg-primary/90 transition-colors"
               >
                 Continuar
               </button>
@@ -236,7 +236,7 @@ export const FirstAccessModal: React.FC<FirstAccessModalProps> = ({
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => handlePasswordChange(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ring focus:border-ring pr-10"
                       placeholder="Digite sua nova senha"
                       required
                       disabled={isLoading}
@@ -263,7 +263,7 @@ export const FirstAccessModal: React.FC<FirstAccessModalProps> = ({
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(e) => handleConfirmPasswordChange(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ring focus:border-ring pr-10"
                       placeholder="Confirme sua nova senha"
                       required
                       disabled={isLoading}
@@ -318,7 +318,7 @@ export const FirstAccessModal: React.FC<FirstAccessModalProps> = ({
               <button
                 type="submit"
                 disabled={isLoading || !passwordValidation.isValid || password !== confirmPassword}
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="w-full bg-primary text-white py-3 px-4 rounded-lg font-medium hover:bg-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading ? 'Configurando...' : 'Confirmar Senha'}
               </button>

@@ -190,36 +190,36 @@ export const Companies: React.FC = () => {
         <Card className="p-3 sm:p-4">
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
-              <Building2 className="w-5 h-5 text-ai-blue" />
+              <Building2 className="w-5 h-5 text-primary" />
             </div>
-            <p className="text-2xl sm:text-3xl font-bold text-foreground mb-1">{totalCompanies}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-primary mb-1">{totalCompanies}</p>
             <p className="text-xs sm:text-sm text-muted-foreground">Total de Empresas</p>
           </div>
         </Card>
         <Card className="p-3 sm:p-4">
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
-              <Building2 className="w-5 h-5 text-ai-green" />
+              <Building2 className="w-5 h-5 text-primary" />
             </div>
-            <p className="text-2xl sm:text-3xl font-bold text-ai-green mb-1">{activeCompanies}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-primary mb-1">{activeCompanies}</p>
             <p className="text-xs sm:text-sm text-muted-foreground">Ativas</p>
           </div>
         </Card>
         <Card className="p-3 sm:p-4">
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
-              <Building2 className="w-5 h-5 text-ai-orange" />
+              <Building2 className="w-5 h-5 text-primary" />
             </div>
-            <p className="text-2xl sm:text-3xl font-bold text-ai-orange mb-1">{inactiveCompanies}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-primary mb-1">{inactiveCompanies}</p>
             <p className="text-xs sm:text-sm text-muted-foreground">Inativas</p>
           </div>
         </Card>
         <Card className="p-3 sm:p-4">
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
-              <FileText className="w-5 h-5 text-ai-blue" />
+              <FileText className="w-5 h-5 text-primary" />
             </div>
-            <p className="text-2xl sm:text-3xl font-bold text-ai-blue mb-1">{totalPayrollFiles}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-primary mb-1">{totalPayrollFiles}</p>
             <p className="text-xs sm:text-sm text-muted-foreground">Holerites Processados</p>
           </div>
         </Card>
@@ -284,8 +284,8 @@ export const Companies: React.FC = () => {
                 <TableRow key={company.id}>
                   <TableCell className="font-medium">
                     <div className="flex items-center">
-                      <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg mr-2 sm:mr-3 flex-shrink-0">
-                        <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                      <div className="p-1.5 sm:p-2 bg-primary/10 rounded-lg mr-2 sm:mr-3 flex-shrink-0">
+                        <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium truncate">
@@ -384,8 +384,8 @@ export const Companies: React.FC = () => {
               <Card key={company.id} className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Building2 className="w-5 h-5 text-blue-600" />
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Building2 className="w-5 h-5 text-primary" />
                     </div>
                     <div>
                       <h3 className="font-medium">{company.name}</h3>

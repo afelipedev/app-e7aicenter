@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import {
   MessageSquare,
   FileText,
+  FileSpreadsheet,
   Briefcase,
   TrendingUp,
   Building,
@@ -11,94 +12,53 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { CompanyService } from "@/services/companyService";
-import { ChatService } from "@/services/chatService";
 import { DashboardService } from "@/services/dashboardService";
-import { getEvolutionColor } from "@/lib/monthlyEvolution";
 
 interface DashboardStat {
   title: string;
   value: string;
-  change: string;
-  evolutionPercent: number | null;
   icon: typeof MessageSquare;
-  color: string;
-  bg: string;
 }
 
-const initialStats: DashboardStat[] = [
-  {
-    title: "Conversas IA",
-    value: "—",
-    change: "—",
-    evolutionPercent: null,
-    icon: MessageSquare,
-    color: "text-ai-blue",
-    bg: "bg-ai-blue/10",
-  },
-  {
-    title: "Documentos",
-    value: "—",
-    change: "—",
-    evolutionPercent: null,
-    icon: FileText,
-    color: "text-ai-green",
-    bg: "bg-ai-green/10",
-  },
-  {
-    title: "Processos Ativos",
-    value: "—",
-    change: "—",
-    evolutionPercent: null,
-    icon: Briefcase,
-    color: "text-ai-purple",
-    bg: "bg-ai-purple/10",
-  },
-  {
-    title: "Empresas",
-    value: "—",
-    change: "—",
-    evolutionPercent: null,
-    icon: Building,
-    color: "text-ai-orange",
-    bg: "bg-ai-orange/10",
-  },
+const STAT_DEFS: { title: string; icon: typeof MessageSquare }[] = [
+  { title: "Conversas IA", icon: MessageSquare },
+  { title: "SPEDs Processados", icon: FileSpreadsheet },
+  { title: "Holerites Processados", icon: FileText },
+  { title: "Processos Ativos", icon: Briefcase },
+  { title: "Empresas", icon: Building },
 ];
+
+const initialStats: DashboardStat[] = STAT_DEFS.map((def) => ({ ...def, value: "—" }));
 
 const quickActions = [
   {
     title: "Biblioteca de IA",
     description: "Explore a biblioteca de assistentes de IA",
     icon: MessageSquare,
-    color: "bg-gradient-purple",
     url: "/assistants/library",
   },
   {
     title: "Gestão de Holerites",
     description: "Automatizar conversão dos holerites",
     icon: FileText,
-    color: "bg-gradient-green",
     url: "/documents/payroll",
   },
   {
     title: "Gestão de SPEDs",
     description: "Processar e acompanhar arquivos SPED",
-    icon: FileText,
-    color: "bg-gradient-pink",
+    icon: FileSpreadsheet,
     url: "/documents/sped",
   },
   {
     title: "Quadros Jurídicos",
     description: "Acompanhar andamentos dos quadros jurídicos",
     icon: Trello,
-    color: "bg-gradient-blue",
     url: "/documents/cases/quadros",
   },
   {
     title: "Quadros Gestão Operacional",
     description: "Acompanhar quadros da gestão operacional",
     icon: LayoutGrid,
-    color: "bg-gradient-orange",
     url: "/gestao-operacional/quadros",
     requiredPermission: "operational_kanban",
   },
@@ -106,10 +66,11 @@ const quickActions = [
     title: "Relatórios",
     description: "Acompanhar e Gerar Relatórios",
     icon: TrendingUp,
-    color: "bg-gradient-orange",
     url: "/documents/reports",
   },
 ];
+
+const formatCount = (value: number) => value.toLocaleString("pt-BR");
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -129,62 +90,25 @@ export default function Dashboard() {
     const fetchDashboardData = async () => {
       try {
         const [
-          companies,
-          companiesEvolutionData,
-          chatsCountData,
-          chatsEvolutionData,
-          documentsCount,
-          documentsEvolutionData,
-          activeProcessesCount,
-          activeProcessesEvolutionData,
+          chatsCount,
+          spedsCount,
+          payrollsCount,
+          consultedProcessesCount,
+          companiesCount,
         ] = await Promise.all([
-          CompanyService.getAll(),
-          CompanyService.getMonthlyEvolution(),
-          ChatService.getAllChatsCount(),
-          ChatService.getMonthlyEvolution(),
-          DashboardService.getDocumentsCount(),
-          DashboardService.getDocumentsMonthlyEvolution(),
-          DashboardService.getActiveProcessesCount(),
-          DashboardService.getActiveProcessesMonthlyEvolution(),
+          DashboardService.getChatsCount(),
+          DashboardService.getProcessedSpedsCount(),
+          DashboardService.getProcessedPayrollsCount(),
+          DashboardService.getConsultedProcessesCount(),
+          DashboardService.getCompaniesCount(),
         ]);
 
         setStats([
-          {
-            title: "Conversas IA",
-            value: chatsCountData.toLocaleString("pt-BR"),
-            change: chatsEvolutionData.evolutionText,
-            evolutionPercent: chatsEvolutionData.evolutionPercent,
-            icon: MessageSquare,
-            color: "text-ai-blue",
-            bg: "bg-ai-blue/10",
-          },
-          {
-            title: "Documentos",
-            value: documentsCount.toLocaleString("pt-BR"),
-            change: documentsEvolutionData.evolutionText,
-            evolutionPercent: documentsEvolutionData.evolutionPercent,
-            icon: FileText,
-            color: "text-ai-green",
-            bg: "bg-ai-green/10",
-          },
-          {
-            title: "Processos Ativos",
-            value: activeProcessesCount.toLocaleString("pt-BR"),
-            change: activeProcessesEvolutionData.evolutionText,
-            evolutionPercent: activeProcessesEvolutionData.evolutionPercent,
-            icon: Briefcase,
-            color: "text-ai-purple",
-            bg: "bg-ai-purple/10",
-          },
-          {
-            title: "Empresas",
-            value: companies.length.toLocaleString("pt-BR"),
-            change: companiesEvolutionData.evolutionText,
-            evolutionPercent: companiesEvolutionData.evolutionPercent,
-            icon: Building,
-            color: "text-ai-orange",
-            bg: "bg-ai-orange/10",
-          },
+          { title: "Conversas IA", value: formatCount(chatsCount), icon: MessageSquare },
+          { title: "SPEDs Processados", value: formatCount(spedsCount), icon: FileSpreadsheet },
+          { title: "Holerites Processados", value: formatCount(payrollsCount), icon: FileText },
+          { title: "Processos Ativos", value: formatCount(consultedProcessesCount), icon: Briefcase },
+          { title: "Empresas", value: formatCount(companiesCount), icon: Building },
         ]);
       } catch (error) {
         console.error("Erro ao buscar dados do dashboard:", error);
@@ -208,19 +132,16 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {stats.map((stat) => (
           <Card key={stat.title} className="p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-start justify-between">
-              <div>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
                 <p className="text-sm text-muted-foreground mb-1">{stat.title}</p>
                 <p className="text-3xl font-bold text-foreground">{stat.value}</p>
-                <p className={`text-sm mt-2 ${getEvolutionColor(stat.evolutionPercent, stat.color)}`}>
-                  {stat.change}
-                </p>
               </div>
-              <div className={`p-3 rounded-lg ${stat.bg}`}>
-                <stat.icon className={`w-6 h-6 ${stat.color}`} />
+              <div className="p-3 rounded-lg bg-primary/10 shrink-0">
+                <stat.icon className="w-6 h-6 text-primary" />
               </div>
             </div>
           </Card>
@@ -236,8 +157,8 @@ export default function Dashboard() {
               className="p-6 cursor-pointer hover:shadow-lg transition-all hover:-translate-y-1"
               onClick={() => handleQuickActionClick(action.url)}
             >
-              <div className={`w-12 h-12 rounded-lg ${action.color} flex items-center justify-center mb-4`}>
-                <action.icon className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center mb-4">
+                <action.icon className="w-6 h-6 text-primary-foreground" />
               </div>
               <h3 className="font-semibold text-foreground mb-1">{action.title}</h3>
               <p className="text-sm text-muted-foreground">{action.description}</p>

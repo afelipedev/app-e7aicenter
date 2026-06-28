@@ -533,7 +533,7 @@ export const PayrollManagement: React.FC = () => {
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Empresa não encontrada</h2>
           <button
             onClick={() => navigate('/companies')}
-            className="text-blue-600 hover:text-blue-700"
+            className="text-primary hover:text-blue-700"
           >
             Voltar para lista de empresas
           </button>
@@ -555,8 +555,8 @@ export const PayrollManagement: React.FC = () => {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg self-start sm:self-auto">
-                <Building2 className="w-6 h-6 text-blue-600" />
+              <div className="p-2 bg-primary/10 rounded-lg self-start sm:self-auto">
+                <Building2 className="w-6 h-6 text-primary" />
               </div>
               <div className="min-w-0 flex-1">
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{company.name}</h1>

@@ -62,8 +62,27 @@ Altura máxima e scroll unificados (`max-h` = `min(24rem, available-height)` via
 
 Nenhuma alteração de banco ou Edge Functions — mudanças são apenas de labels/agrupamento e estilo; paths de rota intactos.
 
+## 7. Dashboard reformulado + dark mode marrom (2ª rodada)
+
+**Dark mode (correção do "lilás"):** o `--primary`/`--ring`/`--sidebar-primary` do dark mode usava marinho clareado (`235 45% 70%`), que lia como lilás. Trocado para **Marrom** clareado (`28 38% 58%`) — botões, ícones e bordas de inputs focados ficam marrom no dark e marinho no light. Tokens legados `--ai-blue/purple` no dark também remapeados para marrom; `--accent` dark ganhou leve tom marrom.
+
+**Despadronizações de azul hardcoded → tokens:** `FirstAccessGuard`, `FirstAccessModal`, `ProtectedRoute`, `CompanyCreateModal`, `CompanyEditModal`, `UserEditModal` (botões `bg-blue-600`, focos `ring-blue-500`, ícones `bg-blue-100/text-blue-600`, caixas info `bg-blue-50/border-blue-200`) convertidos para `primary`/`ring`. Containers de ícone em `Companies` e `PayrollManagement` → `bg-primary/10 text-primary`. Azuis **semânticos de status** (processando) no módulo payroll foram mantidos. Paleta de labels multicolorida do legal-kanban (violeta etc.) preservada por ser intencional.
+
+**Dashboard (`src/pages/Dashboard.tsx` + `src/services/dashboardService.ts`):**
+- Ícones dos cards de stats e de ações rápidas padronizados em `primary` (marinho light / marrom dark).
+- Removidas as métricas evolutivas (Novo, -43%…); cards exibem apenas o contador.
+- Novos cards de estatística (contagens reais via Supabase MCP confirmadas):
+  - **Conversas IA** = `count(chats)`.
+  - **SPEDs Processados** = `count(sped_files where status='completed')`.
+  - **Holerites Processados** = `count(payroll_files where status='completed')`.
+  - **Processos Ativos** = `count(process_snapshots)` (processos consultados no módulo de consultas).
+  - **Empresas** = `count(companies)`.
+- `dashboardService` reescrito com contadores simples (`getChatsCount`, `getProcessedSpedsCount`, `getProcessedPayrollsCount`, `getConsultedProcessesCount`, `getCompaniesCount`); removidas as funções de evolução mensal (referenciavam a tabela inexistente `process_monitorings`).
+
+> Nota: nenhuma alteração de schema foi necessária — apenas leitura de contagens via MCP do Supabase.
+
 ## Verificação
 
-- `npm run build` ✓ (4,16s, sem erros).
+- `npm run build` ✓ (sem erros) — rodado nas duas rodadas.
 - Lint: apenas 2 erros **pré-existentes** (`icon: any` em `SidebarEntry`; interface vazia `CommandDialogProps` do shadcn) — não introduzidos por esta mudança.
 - Pendente de validação visual manual: `npm run dev` (porta 8081) — login, sidebar (ícones neutros + nova hierarquia), select/dropdown longos, dark mode (#3d3d3d).
