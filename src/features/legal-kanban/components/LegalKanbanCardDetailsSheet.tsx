@@ -118,12 +118,11 @@ import type {
   RichTextDoc,
 } from "../types";
 import {
-  buildColorFromName,
   formatKanbanDatetimeLocal,
   formatRelativeDate,
-  getMemberInitials,
   normalizeRichTextDoc,
 } from "../utils";
+import { MemberAvatar } from "./MemberAvatar";
 
 const TIMELINE_PAGE_SIZE = 5;
 const ROLE_LABELS: Record<string, string> = {
@@ -1418,10 +1417,12 @@ export function LegalKanbanCardDetailsSheet({
                                   setMemberSearch("");
                                   setMembersModalOpen(true);
                                 }}
-                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 text-[10px] font-semibold text-white shadow-sm ring-1 ring-black/5 transition hover:opacity-95 hover:ring-2 hover:ring-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                style={{ backgroundColor: buildColorFromName(member.user.name) }}
+                                className="shrink-0 rounded-full transition hover:opacity-95 hover:ring-2 hover:ring-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               >
-                                {getMemberInitials(member.user)}
+                                <MemberAvatar
+                                  user={member.user}
+                                  className="h-8 w-8 border border-white/20 text-[10px]"
+                                />
                               </button>
                             ))}
                           </div>
@@ -1743,9 +1744,10 @@ export function LegalKanbanCardDetailsSheet({
                                 key={item.id}
                                 className="flex gap-3 rounded-xl border border-border/60 bg-background/80 p-3"
                               >
-                                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                                  {getMemberInitials(item.author || ({ name: "Sistema" } as LegalKanbanUser))}
-                                </span>
+                                <MemberAvatar
+                                  user={item.author || ({ name: "Sistema" } as LegalKanbanUser)}
+                                  className="h-9 w-9 text-xs"
+                                />
                                 <div className="min-w-0 flex-1 space-y-1">
                                   <div className="flex items-start justify-between gap-2">
                                     <p className="min-w-0 text-sm leading-snug text-foreground">
@@ -2028,12 +2030,7 @@ export function LegalKanbanCardDetailsSheet({
                         key={member.id}
                         className="flex items-center gap-3 rounded-xl border border-border/70 bg-background px-3 py-2.5"
                       >
-                        <span
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white shadow-sm ring-1 ring-black/5"
-                          style={{ backgroundColor: buildColorFromName(member.user.name) }}
-                        >
-                          {getMemberInitials(member.user)}
-                        </span>
+                        <MemberAvatar user={member.user} className="h-9 w-9 text-xs" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-medium">{member.user.name}</p>
                           <p className="truncate text-xs text-muted-foreground">{getRoleDisplayName(member.user.role)}</p>
@@ -2086,12 +2083,7 @@ export function LegalKanbanCardDetailsSheet({
                             setMembers.isPending && "cursor-not-allowed opacity-70",
                           )}
                         >
-                          <span
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ring-1 ring-black/5"
-                            style={{ backgroundColor: buildColorFromName(member.name) }}
-                          >
-                            {getMemberInitials(member)}
-                          </span>
+                          <MemberAvatar user={member} className="h-8 w-8 text-xs" />
                           <div className="min-w-0 flex-1">
                             <p className="truncate font-medium">{member.name}</p>
                             <p className="truncate text-xs text-muted-foreground">{getRoleDisplayName(member.role)}</p>

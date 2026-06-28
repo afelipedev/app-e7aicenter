@@ -440,6 +440,29 @@ Deno.serve(async (req) => {
       console.error('Erro ao salvar mensagem do usuário:', insertUserError);
     }
 
+    // Definir o título do chat com os primeiros 40 caracteres da primeira
+    // pergunta do usuário, quando o chat ainda estiver com o título padrão.
+    const hasPreviousUserMessage = (messages || []).some((m: any) => m.role === 'user');
+    if (!hasPreviousUserMessage) {
+      const { data: chatRow } = await supabase
+        .from('chats')
+        .select('title')
+        .eq('id', chatId)
+        .single();
+
+      if (!chatRow?.title || chatRow.title === 'Nova conversa') {
+        const trimmed = String(message).trim().replace(/\s+/g, ' ');
+        const newTitle = trimmed.slice(0, 40) + (trimmed.length > 40 ? '…' : '');
+        const { error: updateTitleError } = await supabase
+          .from('chats')
+          .update({ title: newTitle })
+          .eq('id', chatId);
+        if (updateTitleError) {
+          console.error('Erro ao atualizar título do chat:', updateTitleError);
+        }
+      }
+    }
+
     const { error: insertAssistantError } = await supabase
       .from('chat_messages')
       .insert({

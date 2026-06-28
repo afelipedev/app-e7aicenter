@@ -53,9 +53,9 @@ import {
   formatDaysRemainingUntilReminder,
   formatKanbanDatetimeLocal,
   formatRelativeDate,
-  getMemberInitials,
   reindexByHundreds,
 } from "../utils";
+import { MemberAvatar } from "../components/MemberAvatar";
 
 type ActiveDragState =
   | { type: "column"; columnId: string }
@@ -578,12 +578,8 @@ function CardPreview({ card }: { card: LegalKanbanCard }) {
             <Users className="h-3.5 w-3.5" />
             <div className="flex -space-x-2">
               {card.members.slice(0, 4).map((member) => (
-                <span
-                  key={member.id}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-background bg-primary/10 text-[11px] font-semibold text-primary dark:border-card dark:bg-primary/20"
-                  title={member.user.name}
-                >
-                  {getMemberInitials(member.user)}
+                <span key={member.id} title={member.user.name} className="rounded-full">
+                  <MemberAvatar user={member.user} className="h-8 w-8 border border-background text-[11px] dark:border-card" />
                 </span>
               ))}
             </div>

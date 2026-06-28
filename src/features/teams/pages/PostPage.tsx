@@ -173,7 +173,7 @@ export default function PostPage() {
   const attachments = (post.attachments ?? []) as PostAttachment[];
 
   return (
-    <div className="w-full max-w-[1400px]">
+    <div className="w-full">
       <NavLink
         to={`/teams/${teamSlug}/${channelSlug}`}
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"

@@ -16,6 +16,7 @@ export interface LegalKanbanUser {
   email: string;
   role: UserRole;
   status: "ativo" | "inativo";
+  avatarUrl?: string | null;
 }
 
 export interface LegalKanbanBoard {

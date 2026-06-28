@@ -180,10 +180,20 @@ export function AppSidebar() {
           </SidebarMenuSubItem>
           <CollapsibleContent>
             <div className="ml-6 mt-1 space-y-1 border-l border-sidebar-border/70 pl-3">
-              {entry.items.map((child) => (
+              {entry.items.map((child) => {
+                // Quando a URL de um submenu é prefixo de outro irmão (ex.: o
+                // "Dashboard" de Processos usa /documents/cases, que também é
+                // base de /documents/cases/quadros), forçamos a correspondência
+                // exata para não ficar sempre "selecionado".
+                const isPrefixOfSibling = entry.items?.some(
+                  (sibling) => sibling !== child && sibling.url?.startsWith(`${child.url}/`),
+                );
+
+                return (
                 <NavLink
                   key={child.title}
                   to={child.url || "#"}
+                  end={isPrefixOfSibling}
                   className={({ isActive }) =>
                     cn(
                       "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
@@ -194,7 +204,8 @@ export function AppSidebar() {
                   <child.icon className="h-4 w-4" />
                   <span>{child.title}</span>
                 </NavLink>
-              ))}
+                );
+              })}
             </div>
           </CollapsibleContent>
         </Collapsible>

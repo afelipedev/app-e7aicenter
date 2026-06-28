@@ -65,6 +65,7 @@ function mapUser(row: any): LegalKanbanUser {
     email: row.email,
     role: row.role,
     status: row.status,
+    avatarUrl: row.avatar_url ?? null,
   };
 }
 
@@ -421,7 +422,7 @@ async function getBoardContext(boardSlug: string, domain: KanbanDomain = "legal"
     db.from("legal_kanban_cards").select("*").eq("board_id", board.id).order("position"),
     db
       .from("legal_kanban_board_members")
-      .select("user_id, user:users!legal_kanban_board_members_user_id_fkey(id,name,email,role,status)")
+      .select("user_id, user:users!legal_kanban_board_members_user_id_fkey(id,name,email,role,status,avatar_url)")
       .eq("board_id", board.id),
   ]);
 
@@ -468,7 +469,7 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
     await Promise.all([
       db
         .from("legal_kanban_card_members")
-        .select("id, card_id, user:users ( id, name, email, role, status )")
+        .select("id, card_id, user:users ( id, name, email, role, status, avatar_url )")
         .in("card_id", cardIds),
       db
         .from("legal_kanban_card_labels")
@@ -787,7 +788,7 @@ export const legalKanbanService = {
         db.from("legal_kanban_cards").select("*").eq("id", cardId).single(),
         db
           .from("legal_kanban_card_members")
-          .select("id, card_id, user:users ( id, name, email, role, status )")
+          .select("id, card_id, user:users ( id, name, email, role, status, avatar_url )")
           .eq("card_id", cardId),
         db
           .from("legal_kanban_card_labels")
@@ -795,12 +796,12 @@ export const legalKanbanService = {
           .eq("card_id", cardId),
         db
           .from("legal_kanban_comments")
-          .select("*, author:users ( id, name, email, role, status ), mentions:legal_kanban_comment_mentions ( user:users ( id, name, email, role, status ) )")
+          .select("*, author:users ( id, name, email, role, status, avatar_url ), mentions:legal_kanban_comment_mentions ( user:users ( id, name, email, role, status, avatar_url ) )")
           .eq("card_id", cardId)
           .order("created_at", { ascending: true }),
         db
           .from("legal_kanban_activities")
-          .select("*, actor:users ( id, name, email, role, status )")
+          .select("*, actor:users ( id, name, email, role, status, avatar_url )")
           .eq("card_id", cardId)
           .order("created_at", { ascending: false }),
         db
@@ -1234,7 +1235,7 @@ export const legalKanbanService = {
         author_user_id: actor.id,
         content,
       })
-      .select("*, author:author_user_id ( id, name, email, role, status )")
+      .select("*, author:author_user_id ( id, name, email, role, status, avatar_url )")
       .single();
 
     const comment = ensureData(response, "Não foi possível salvar o comentário.");
@@ -1250,7 +1251,7 @@ export const legalKanbanService = {
 
     const detailsResponse = await db
       .from("legal_kanban_comments")
-      .select("*, author:users ( id, name, email, role, status ), mentions:legal_kanban_comment_mentions ( user:users ( id, name, email, role, status ) )")
+      .select("*, author:users ( id, name, email, role, status, avatar_url ), mentions:legal_kanban_comment_mentions ( user:users ( id, name, email, role, status, avatar_url ) )")
       .eq("id", comment.id)
       .single();
 

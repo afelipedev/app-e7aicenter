@@ -299,8 +299,9 @@ export class ChatService {
       }
 
       // Atualizar título do chat se for a primeira mensagem do usuário
-      if (role === 'user' && chat.title === 'Nova conversa') {
-        const title = content.slice(0, 50) + (content.length > 50 ? '...' : '');
+      if (role === 'user' && (!chat.title || chat.title === 'Nova conversa')) {
+        const trimmed = content.trim().replace(/\s+/g, ' ');
+        const title = trimmed.slice(0, 40) + (trimmed.length > 40 ? '…' : '');
         await this.updateChat(chatId, { title });
       }
 
