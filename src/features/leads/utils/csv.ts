@@ -8,7 +8,7 @@ function detectDelimiter(line: string): "," | ";" {
 
 // Parser simples com suporte a aspas duplas.
 export function parseCsv(text: string): CsvRow[] {
-  const raw = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  const raw = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
   if (!raw) return [];
 
   const lines = raw.split("\n").filter((l) => l.trim().length > 0);

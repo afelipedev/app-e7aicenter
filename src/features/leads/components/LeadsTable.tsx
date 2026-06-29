@@ -17,7 +17,15 @@ import { LeadsService } from "../services/leadsService";
 import type { LeadType } from "../types";
 import { toast } from "sonner";
 import { useImportLeadsCsv, exportLeadsToCsvFile } from "../hooks/useLeadImportExport";
-import { Upload, Download, Edit, Ban } from "lucide-react";
+import { Upload, Download, Edit, Ban, RefreshCw, HelpCircle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const PAGE_SIZE = 10;
 
@@ -127,6 +135,7 @@ export default function LeadsTable({
                 handleImport(f);
               }}
             />
+            <ImportTutorialDialog />
             <Button
               variant="outline"
               size="sm"
@@ -134,11 +143,11 @@ export default function LeadsTable({
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="w-4 h-4 mr-2" />
-              {importing ? "Importando..." : "Importar Cadastro"}
+              {importing ? "Importando..." : "Importar"}
             </Button>
             <Button variant="outline" size="sm" onClick={handleExport} disabled={leads.length === 0}>
               <Download className="w-4 h-4 mr-2" />
-              Exportar Cadastro
+              Exportar
             </Button>
           </div>
 
@@ -148,8 +157,14 @@ export default function LeadsTable({
             placeholder="Buscar por nome ou CNPJ..."
             className="w-full sm:w-72"
           />
-          <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
-            Atualizar
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => refetch()}
+            disabled={isLoading}
+            title="Atualizar lista"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
           </Button>
         </div>
       </div>
@@ -293,6 +308,97 @@ export default function LeadsTable({
         </div>
       )}
     </div>
+  );
+}
+
+const CSV_FIELDS: Array<{ field: string; required?: boolean; desc: string }> = [
+  { field: "company_name", required: true, desc: "Nome da empresa do lead. Aceita também: nome_da_empresa, nome_empresa." },
+  { field: "cnpj", desc: "CNPJ da empresa (apenas números ou formatado)." },
+  { field: "address", desc: "Endereço completo. Aceita também: endereco." },
+  { field: "cnae_or_activity", desc: "CNAE ou ramo de atividade. Aceita também: cnae, ramo_de_atividade." },
+  { field: "partners", desc: "Quadro societário / sócios. Aceita também: quadro_societario." },
+  { field: "decision_makers", desc: "Tomadores de decisão. Separe vários por \" | \". Aceita também: tomadores_de_decisao." },
+  { field: "avg_revenue", desc: "Média de faturamento (número). Ex.: 150000 ou 150.000,00." },
+  { field: "avg_employees", desc: "Média de funcionários (número inteiro)." },
+  { field: "phones", desc: "Telefones separados por | , ou ;. Também aceita colunas phone_1, phone_2... ou \"telefones\"." },
+  { field: "phone_primary", desc: "Telefone principal (deve ser um dos valores de phones). Aceita: telefone_principal." },
+  { field: "emails", desc: "E-mails separados por | , ou ;. Também aceita colunas email_1, email_2... ou \"e_mails\"." },
+  { field: "email_primary", desc: "E-mail principal (deve ser um dos valores de emails). Aceita: email_principal." },
+  { field: "lead_type", desc: "Tipo do lead: \"cliente\" ou \"parceiro\". Se vazio, usa a aba atual. Aceita: tipo_lead." },
+];
+
+function ImportTutorialDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" title="Tutorial de importação">
+          <HelpCircle className="w-4 h-4 mr-2" />
+          Tutorial
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Como importar leads via CSV</DialogTitle>
+          <DialogDescription>
+            Prepare uma planilha e exporte como <strong>.csv</strong>. A primeira linha deve conter os
+            nomes das colunas (cabeçalho) exatamente como abaixo.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 text-sm">
+          <div className="rounded-md border bg-muted/40 p-3 space-y-1">
+            <p className="font-medium">Dicas gerais</p>
+            <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+              <li>Separador de colunas aceito: vírgula (,) ou ponto e vírgula (;).</li>
+              <li>Salve o arquivo com codificação <strong>UTF-8</strong> para manter os acentos.</li>
+              <li>Apenas <strong>company_name</strong> é obrigatório; os demais campos podem ficar vazios.</li>
+              <li>O tipo do lead segue a aba selecionada (Clientes/Parceiros), salvo se preencher <strong>lead_type</strong>.</li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="font-medium mb-2">Campos do arquivo</p>
+            <div className="border rounded-md overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[160px]">Coluna</TableHead>
+                    <TableHead>O que preencher</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {CSV_FIELDS.map((f) => (
+                    <TableRow key={f.field}>
+                      <TableCell className="align-top font-mono text-xs">
+                        {f.field}
+                        {f.required && (
+                          <Badge variant="secondary" className="ml-1 align-middle">
+                            obrigatório
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{f.desc}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <div className="rounded-md border bg-muted/40 p-3">
+            <p className="font-medium mb-1">Exemplo de cabeçalho</p>
+            <code className="block text-xs whitespace-pre-wrap break-all">
+              company_name;cnpj;address;cnae_or_activity;partners;decision_makers;avg_revenue;avg_employees;phones;phone_primary;emails;email_primary;lead_type
+            </code>
+          </div>
+
+          <p className="text-muted-foreground">
+            Dica: use o botão <strong>Exportar</strong> para baixar um CSV de exemplo já no formato correto,
+            preencha os dados e importe de volta.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
