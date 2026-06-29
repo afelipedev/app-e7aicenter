@@ -960,6 +960,41 @@ export class PayrollService {
   }
 
   /**
+   * URL base do bucket S3 (AWS) onde o N8N armazena os holerites originais (PDF) e o Excel gerado.
+   */
+  static readonly HOLERITE_S3_BUCKET_URL = 'https://e7pdf-holerite.s3.sa-east-1.amazonaws.com';
+
+  /**
+   * Reconstrói a URL do PDF original armazenado no S3 a partir dos dados do arquivo.
+   *
+   * O workflow do N8N faz upload do PDF com uma chave determinística
+   * (ver docs/lote-holerites/webhook-processador-holerites.json):
+   *   e7-holerite/{slug(company_name)}/{ano}/{MM_AAAA}/{file_id}.pdf
+   * onde slug = company_name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase().
+   *
+   * Mantém compatibilidade exata com a lógica do N8N para que a chave bata com o objeto salvo.
+   */
+  static buildHoleritePdfUrl(
+    companyName: string | null | undefined,
+    competencia: string | null | undefined,
+    fileId: string | null | undefined
+  ): string | null {
+    if (!companyName || !competencia || !fileId) return null;
+
+    const parts = competencia.split('/');
+    if (parts.length !== 2) return null;
+
+    const mes = parts[0].padStart(2, '0');
+    const ano = parts[1];
+    if (!ano) return null;
+
+    const slug = companyName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    const key = `e7-holerite/${slug}/${ano}/${mes}_${ano}/${fileId}.pdf`;
+
+    return `${this.HOLERITE_S3_BUCKET_URL}/${key}`;
+  }
+
+  /**
    * Atualiza status dos arquivos relacionados a um processamento
    */
   static async updateFilesStatusByProcessingId(processingId: string, status: 'pending' | 'processing' | 'completed' | 'error'): Promise<void> {

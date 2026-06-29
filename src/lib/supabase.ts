@@ -14,12 +14,6 @@ if (!supabaseAnonKey) {
   throw new Error('Missing Supabase Anonymous Key - check your .env file')
 }
 
-console.log('Supabase configuration loaded:', {
-  url: supabaseUrl,
-  hasAnonKey: !!supabaseAnonKey,
-  browserAdminDisabled: true
-})
-
 // Configuração segura do cliente Supabase
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

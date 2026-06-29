@@ -416,55 +416,56 @@ export const PayrollManagement: React.FC = () => {
           description: "Nenhum arquivo PDF encontrado para este processamento",
           variant: "destructive",
         });
-        setTimeout(() => {
-          if (toastResult?.dismiss) {
-            toastResult.dismiss();
-          }
-        }, 5000);
+        setTimeout(() => toastResult?.dismiss?.(), 5000);
         return;
       }
 
-      // Baixar o primeiro arquivo PDF (ou todos se necessário)
-      const fileWithS3 = files.find(f => f.s3_url);
-      if (!fileWithS3 || !fileWithS3.s3_url) {
+      // Resolve a URL do PDF original no S3: usa s3_url legado quando existir,
+      // senão reconstrói a chave determinística salva pelo N8N.
+      const downloads = files
+        .map((file) => {
+          const url =
+            file.s3_url ||
+            PayrollService.buildHoleritePdfUrl(company?.name, file.competencia, file.id);
+          return url
+            ? { url, filename: file.original_filename || file.filename }
+            : null;
+        })
+        .filter((item): item is { url: string; filename: string } => item !== null);
+
+      if (downloads.length === 0) {
         const toastResult = toast({
           title: "Arquivo não disponível",
-          description: "O arquivo PDF não está disponível para download",
+          description: "Não foi possível localizar o PDF deste processamento no armazenamento.",
           variant: "destructive",
         });
-        setTimeout(() => {
-          if (toastResult?.dismiss) {
-            toastResult.dismiss();
-          }
-        }, 5000);
+        setTimeout(() => toastResult?.dismiss?.(), 5000);
         return;
       }
 
-      // Fazer download do PDF
-      const link = document.createElement('a');
-      link.href = fileWithS3.s3_url;
-      link.download = fileWithS3.filename;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
+      // Baixa o PDF (download seguro via blob, mesmo fluxo do Excel) — um por arquivo do lote.
+      for (const download of downloads) {
+        await PayrollService.downloadFile(download.url, download.filename);
+      }
+
       toast({
         title: "Download iniciado",
-        description: "O download do arquivo PDF foi iniciado",
+        description:
+          downloads.length > 1
+            ? `Download de ${downloads.length} arquivo(s) PDF iniciado`
+            : "O download do arquivo PDF foi iniciado",
       });
     } catch (error) {
       console.error('Error downloading PDF file:', error);
       const toastResult = toast({
         title: "Erro no download",
-        description: "Não foi possível baixar o arquivo PDF",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível baixar o arquivo PDF",
         variant: "destructive",
       });
-      setTimeout(() => {
-        if (toastResult?.dismiss) {
-          toastResult.dismiss();
-        }
-      }, 5000);
+      setTimeout(() => toastResult?.dismiss?.(), 5000);
     }
   };
 
@@ -481,8 +482,8 @@ export const PayrollManagement: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="flex items-center gap-3 text-gray-600">
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex items-center gap-3 text-muted-foreground">
           <RefreshCw className="w-6 h-6 animate-spin" />
           <span>Carregando dados...</span>
         </div>
@@ -493,13 +494,13 @@ export const PayrollManagement: React.FC = () => {
   // Show error state if there's a connectivity issue
   if (error && !isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+          <AlertCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-foreground mb-2">
             Problema de Conectividade
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-muted-foreground mb-6">
             {error.includes('conectividade') 
               ? 'Não foi possível conectar com o servidor. Verifique sua conexão com a internet.'
               : error
@@ -527,13 +528,13 @@ export const PayrollManagement: React.FC = () => {
 
   if (!company) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Empresa não encontrada</h2>
+          <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-foreground mb-2">Empresa não encontrada</h2>
           <button
             onClick={() => navigate('/companies')}
-            className="text-primary hover:text-blue-700"
+            className="text-primary hover:underline"
           >
             Voltar para lista de empresas
           </button>
@@ -543,32 +544,31 @@ export const PayrollManagement: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-        {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-            <button
-              onClick={() => navigate('/companies')}
-              className="self-start p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg self-start sm:self-auto">
-                <Building2 className="w-6 h-6 text-primary" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{company.name}</h1>
-                <p className="text-sm sm:text-base text-gray-600 break-all sm:break-normal">CNPJ: {CompanyService.formatCnpj(company.cnpj)}</p>
-              </div>
+    <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
+      {/* Header */}
+      <div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <button
+            onClick={() => navigate('/companies')}
+            className="self-start p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg self-start sm:self-auto">
+              <Building2 className="w-6 h-6 text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">{company.name}</h1>
+              <p className="text-sm sm:text-base text-muted-foreground break-all sm:break-normal">CNPJ: {CompanyService.formatCnpj(company.cnpj)}</p>
             </div>
           </div>
         </div>
+      </div>
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             <Card className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div className="min-w-0 flex-1">
@@ -601,9 +601,7 @@ export const PayrollManagement: React.FC = () => {
           </div>
         )}
 
-
-
-        <div className="mb-6 sm:mb-8 space-y-4">
+        <div className="space-y-4">
           <PayrollBatchUploadForm
             companyId={companyId || ''}
             companyName={company?.name}
@@ -649,9 +647,9 @@ export const PayrollManagement: React.FC = () => {
 
         {/* Error Message */}
         {error && (
-          <div className="mb-4 sm:mb-6 bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <span className="text-sm sm:text-base text-red-700 break-words">{error}</span>
+          <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 sm:p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+            <span className="text-sm sm:text-base text-destructive break-words">{error}</span>
           </div>
         )}
 
@@ -757,25 +755,24 @@ export const PayrollManagement: React.FC = () => {
             )}
           </CardContent>
         </Card>
-      </div>
 
       {/* Delete Confirmation Modal */}
       {fileToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-lg shadow-xl w-full max-w-md mx-4 border border-border">
             <div className="p-4 sm:p-6">
               <div className="flex items-start gap-3 mb-4">
-                <div className="p-2 bg-red-100 rounded-lg flex-shrink-0">
-                  <AlertCircle className="w-5 h-5 text-red-600" />
+                <div className="p-2 bg-destructive/10 rounded-lg flex-shrink-0">
+                  <AlertCircle className="w-5 h-5 text-destructive" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                  <h3 className="text-lg font-semibold text-foreground mb-1">
                     Confirmar Exclusão
                   </h3>
                 </div>
               </div>
-              
-              <p className="text-sm sm:text-base text-gray-600 mb-6 break-words">
+
+              <p className="text-sm sm:text-base text-muted-foreground mb-6 break-words">
                 Tem certeza que deseja excluir o arquivo <strong className="break-all">{fileToDelete.filename}</strong>?
                 Esta ação não pode ser desfeita.
               </p>
@@ -783,14 +780,14 @@ export const PayrollManagement: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleDeleteCancel}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors order-2 sm:order-1"
+                  className="flex-1 px-4 py-2 text-foreground bg-muted hover:bg-muted/80 rounded-lg transition-colors order-2 sm:order-1"
                   disabled={isDeleting}
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleDeleteConfirm}
-                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 order-1 sm:order-2"
+                  className="flex-1 px-4 py-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 order-1 sm:order-2"
                   disabled={isDeleting}
                 >
                   {isDeleting ? (
