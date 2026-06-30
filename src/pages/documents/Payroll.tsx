@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,16 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveProcessings } from "@/hooks/useProcessingUpdates";
-import { 
-  FileText, 
-  X, 
-  Loader2, 
-  Clock, 
-  CheckCircle, 
-  Search, 
+import {
+  FileText,
+  X,
+  Loader2,
+  Clock,
+  CheckCircle,
+  Search,
   ChevronLeft,
   ChevronRight,
-  FileSpreadsheet
+  FileSpreadsheet,
+  AlertCircle
 } from 'lucide-react';
 import { PayrollService } from '@/services/payrollService';
 import {
@@ -25,42 +26,51 @@ import {
   createInitialUploadRows,
   type UploadRow,
 } from '@/features/payroll/components/PayrollBatchUploadForm';
-import {
-  formatCompetenciaInput,
-  isHoleriteProcessingComplete,
-  resolveHoleriteDownloadUrl,
-} from '@/features/payroll/utils/holeriteWebhook';
+import { ProcessingProgressRow } from '@/features/payroll/components/ProcessingProgressRow';
+import { formatCompetenciaInput } from '@/features/payroll/utils/holeriteWebhook';
 import type {
   PayrollBatchUploadData,
   ProcessingHistory,
-  UploadProgress,
   CompanyOption,
   BatchUploadResult,
   EnhancedPayrollStats,
   PaginatedResult,
   ProcessingFilters,
+  PayrollProcessing,
 } from '../../../shared/types/payroll';
 import type { Company } from '../../../shared/types/company';
 
 export default function Payroll() {
   const { toast } = useToast();
 
+  // Handler de término (atribuído mais abaixo). O hook detecta e chama via ref.
+  const handleTerminalRef = useRef<((p: PayrollProcessing) => void) | null>(null);
+
   // Use real-time processing updates hook
-  const { 
-    activeProcessings, 
-    loading: processingLoading, 
+  const {
+    activeProcessings,
+    loading: processingLoading,
     error: processingError,
     refresh: refreshProcessings,
     cancelProcessing,
     reprocessBatch
-  } = useActiveProcessings();
+  } = useActiveProcessings({
+    onTerminal: (p) => handleTerminalRef.current?.(p),
+  });
 
   // State management
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [uploadRows, setUploadRows] = useState<UploadRow[]>(createInitialUploadRows);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'completed' | 'error'>('idle');
+
+  // Banner de conclusão + acompanhamento determinístico do lote enviado (não depende de Realtime)
+  const [completedBanner, setCompletedBanner] = useState<PayrollProcessing | null>(null);
+  const [awaitingId, setAwaitingId] = useState<string | null>(null);
+  const [awaitingDetails, setAwaitingDetails] = useState<PayrollProcessing | null>(null);
+  // Ids iniciados nesta página (para só auto-baixar uploads do próprio usuário) e guarda de idempotência
+  const initiatedIdsRef = useRef<Set<string>>(new Set());
+  const finalizedCompletionRef = useRef<Set<string>>(new Set());
   const [stats, setStats] = useState<EnhancedPayrollStats | null>(null);
   const [processingHistory, setProcessingHistory] = useState<PaginatedResult<ProcessingHistory> | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -116,22 +126,37 @@ export default function Payroll() {
     }
   }, [toast, buildCompletedHistoryFilters]);
 
-  // Update upload progress based on active processings
-  useEffect(() => {
-    if (activeProcessings.length > 0) {
-      const progressData = activeProcessings.map(p => ({
+  // Progresso em andamento: fonte mesclada (lista de ativos do hook + o lote acompanhado
+  // por poll direto, que é a fonte mais confiável do progresso do lote recém-enviado).
+  const uploadProgress = useMemo(() => {
+    const byId = new Map<string, PayrollProcessing>();
+    activeProcessings.forEach(p => byId.set(p.id, p));
+    if (
+      awaitingDetails &&
+      (awaitingDetails.status === 'processing' || awaitingDetails.status === 'pending')
+    ) {
+      byId.set(awaitingDetails.id, awaitingDetails);
+    }
+    return Array.from(byId.values()).map(p => {
+      const meta = p as {
+        company?: { name?: string };
+        files_total?: number | null;
+        files_done?: number | null;
+        estimated_completion_time?: string;
+      };
+      const filesLabel =
+        meta.files_total && meta.files_total > 0
+          ? ` — arquivo ${Math.min(meta.files_done || 0, meta.files_total)} de ${meta.files_total}`
+          : '';
+      return {
         file_id: p.id,
-        filename: `${p.company?.name || 'Empresa'} - ${p.competency}`,
+        filename: `${meta.company?.name || 'Empresa'} - ${p.competency}${filesLabel}`,
         progress: p.progress || 0,
         status: p.status,
-        estimated_time: p.estimated_completion_time
-      }));
-      setUploadProgress(progressData);
-    } else {
-      // Clear progress when no active processings
-      setUploadProgress([]);
-    }
-  }, [activeProcessings]);
+        estimated_time: meta.estimated_completion_time,
+      };
+    });
+  }, [activeProcessings, awaitingDetails]);
 
   // Initialize component
   useEffect(() => {
@@ -202,9 +227,17 @@ export default function Payroll() {
       if (result.success) {
         setUploadStatus('completed');
 
+        // Inicia o acompanhamento determinístico deste lote (progresso + conclusão).
+        if (result.processing_id) {
+          finalizedCompletionRef.current.delete(result.processing_id);
+          initiatedIdsRef.current.add(result.processing_id);
+          setCompletedBanner(null);
+          setAwaitingId(result.processing_id);
+        }
+
         const toastResult = toast({
           title: "Lote enviado com sucesso!",
-          description: `${result.successful_files} holerite(s) enviado(s) ao N8N. O processamento pode levar vários minutos; o Excel será baixado automaticamente ao concluir ou estará no histórico.`,
+          description: `${result.successful_files} holerite(s) enviado(s). Acompanhe o progresso abaixo; o Excel baixa automaticamente ao concluir.`,
         });
 
         setTimeout(() => {
@@ -212,7 +245,6 @@ export default function Payroll() {
         }, 5000);
 
         setUploadRows(createInitialUploadRows());
-        setUploadProgress([]);
 
         await Promise.all([initializeData(), refreshProcessings()]);
       } else if (result.partial_success) {
@@ -446,20 +478,77 @@ export default function Payroll() {
 
   const isUploading = uploadStatus === 'uploading';
 
+  // Baixa o Excel consolidado de um processamento concluído.
+  const downloadCompletedExcel = async (p: PayrollProcessing) => {
+    if (!p.result_file_url) {
+      toast({
+        title: 'Arquivo não disponível',
+        description: 'O Excel deste processamento ainda não está disponível.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const companyName =
+      (p as PayrollProcessing & { company?: { name?: string } }).company?.name || 'processado';
+    const filename = `holerite_${(p.competency || 'lote').replace(/\//g, '_')}_${companyName}.xlsx`;
+    await PayrollService.downloadFile(p.result_file_url, filename);
+  };
+
+  // Finalizador idempotente: só age sobre uploads iniciados nesta página, uma única vez.
+  const finalizeProcessing = (processing: PayrollProcessing) => {
+    if (!processing) return;
+    if (!initiatedIdsRef.current.has(processing.id)) return;
+    if (processing.status !== 'completed' && processing.status !== 'error') return;
+    if (finalizedCompletionRef.current.has(processing.id)) return;
+    finalizedCompletionRef.current.add(processing.id);
+
+    if (processing.status === 'completed') {
+      setCompletedBanner(processing);
+      toast({
+        title: 'Processamento concluído',
+        description: `${(processing as PayrollProcessing & { company?: { name?: string } }).company?.name || 'Empresa'} — competência ${processing.competency}.`,
+      });
+      downloadCompletedExcel(processing).catch((err) =>
+        console.error('Falha no download automático do Excel:', err)
+      );
+      loadProcessingHistory(1);
+    } else {
+      toast({
+        title: 'Erro no processamento',
+        description: processing.error_message || 'Falha ao processar o lote de holerites.',
+        variant: 'destructive',
+      });
+    }
+  };
+  handleTerminalRef.current = finalizeProcessing;
+
+  // Polling DIRETO do lote recém-enviado até o estado terminal (determinístico).
   useEffect(() => {
-    activeProcessings.forEach((processing) => {
-      if (processing.status === 'completed' && processing.progress === 100) {
-        const webhookResponse = processing.webhook_response;
-        if (isHoleriteProcessingComplete(webhookResponse) && resolveHoleriteDownloadUrl(webhookResponse)) {
-          toast({
-            title: "Download automático concluído!",
-            description:
-              "O XLSX consolidado foi baixado automaticamente para sua pasta de downloads.",
-          });
+    if (!awaitingId) return;
+    let cancelled = false;
+
+    const tick = async () => {
+      try {
+        const details = await PayrollService.getProcessingDetails(awaitingId);
+        if (cancelled || !details) return;
+        setAwaitingDetails(details);
+        if (details.status === 'completed' || details.status === 'error') {
+          handleTerminalRef.current?.(details);
+          setAwaitingId(null);
+          setAwaitingDetails(null);
         }
+      } catch (err) {
+        console.error('Erro no acompanhamento do processamento:', err);
       }
-    });
-  }, [activeProcessings, toast]);
+    };
+
+    tick();
+    const interval = setInterval(tick, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [awaitingId]);
 
   if (isLoading) {
     return (
@@ -500,32 +589,59 @@ export default function Payroll() {
       {uploadProgress.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Processamentos em andamento</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              Processamentos em andamento
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {uploadProgress.map((progress) => (
-              <div key={progress.file_id} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="flex-1">{progress.filename}</span>
-                  <div className="flex items-center gap-2">
-                    <span>{progress.progress}%</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCancelUpload(progress.file_id)}
-                      disabled={progress.status === 'completed'}
-                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                      title="Cancelar processamento"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                <Progress value={progress.progress} />
-              </div>
+              <ProcessingProgressRow
+                key={progress.file_id}
+                filename={progress.filename}
+                progress={progress.progress}
+                status={progress.status}
+                onCancel={() => handleCancelUpload(progress.file_id)}
+                cancelDisabled={progress.status === 'completed'}
+              />
             ))}
           </CardContent>
         </Card>
+      )}
+
+      {/* Banner de conclusão */}
+      {completedBanner && (
+        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm sm:text-base font-medium text-foreground">
+              Processamento concluído — {(completedBanner as PayrollProcessing & { company?: { name?: string } }).company?.name || 'Empresa'} · competência {completedBanner.competency}
+            </p>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              O Excel consolidado foi baixado automaticamente. Se o download não iniciar, use o botão ao lado.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button
+              size="sm"
+              onClick={() => downloadCompletedExcel(completedBanner)}
+              disabled={!completedBanner.result_file_url}
+              className="flex items-center gap-2"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Baixar Excel
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCompletedBanner(null)}
+              className="h-8 w-8 p-0"
+              title="Dispensar"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
       )}
 
 

@@ -42,6 +42,7 @@ import {
   createInitialUploadRows,
   type UploadRow,
 } from '@/features/payroll/components/PayrollBatchUploadForm';
+import { ProcessingProgressRow } from '@/features/payroll/components/ProcessingProgressRow';
 import { formatCompetenciaInput } from '@/features/payroll/utils/holeriteWebhook';
 import type {
   Company,
@@ -102,6 +103,14 @@ export const PayrollManagement: React.FC = () => {
   // Banner persistente de conclusão (sinal visual claro, independente do auto-download)
   const [completedBanner, setCompletedBanner] = useState<PayrollProcessing | null>(null);
 
+  // Acompanhamento determinístico do lote recém-enviado (não depende de Realtime):
+  // após o upload, fazemos polling direto do processing_id até o estado terminal.
+  const [awaitingId, setAwaitingId] = useState<string | null>(null);
+  const [awaitingDetails, setAwaitingDetails] = useState<PayrollProcessing | null>(null);
+  // Garante que cada processamento seja finalizado (banner/download/toast) uma única vez,
+  // independentemente de qual detector disparou primeiro (poll direto OU Realtime do hook).
+  const finalizedCompletionRef = useRef<Set<string>>(new Set());
+
   const [company, setCompany] = useState<Company | null>(null);
   const [payrollFiles, setPayrollFiles] = useState<PayrollFile[]>([]);
   const [stats, setStats] = useState<PayrollStats | null>(null);
@@ -125,26 +134,35 @@ export const PayrollManagement: React.FC = () => {
   // Update upload progress based on company-specific active processings
   // Use useMemo to directly compute upload progress without useEffect to prevent loops
   const uploadProgress = useMemo(() => {
-    if (companyProcessings.length > 0) {
-      return companyProcessings.map(p => {
-        const meta = p as { files_total?: number | null; files_done?: number | null };
-        const filesTotal = meta.files_total;
-        const filesDone = meta.files_done;
-        const filesLabel =
-          filesTotal && filesTotal > 0
-            ? ` — arquivo ${Math.min(filesDone || 0, filesTotal)} de ${filesTotal}`
-            : '';
-        return {
-          file_id: p.id,
-          filename: `Processamento ${p.competency}${filesLabel}`,
-          progress: p.progress || 0,
-          status: p.status,
-          estimated_time: p.estimated_completion_time
-        };
-      });
+    // Fonte mesclada: lista de ativos (hook/Realtime) + o lote acompanhado por poll direto.
+    // O poll é a fonte mais confiável do progresso do lote recém-enviado.
+    const byId = new Map<string, PayrollProcessing>();
+    companyProcessings.forEach(p => byId.set(p.id, p));
+    if (
+      awaitingDetails &&
+      awaitingDetails.company_id === companyId &&
+      (awaitingDetails.status === 'processing' || awaitingDetails.status === 'pending')
+    ) {
+      byId.set(awaitingDetails.id, awaitingDetails);
     }
-    return [];
-  }, [companyProcessings]);
+
+    return Array.from(byId.values()).map(p => {
+      const meta = p as { files_total?: number | null; files_done?: number | null };
+      const filesTotal = meta.files_total;
+      const filesDone = meta.files_done;
+      const filesLabel =
+        filesTotal && filesTotal > 0
+          ? ` — arquivo ${Math.min(filesDone || 0, filesTotal)} de ${filesTotal}`
+          : '';
+      return {
+        file_id: p.id,
+        filename: `Processamento ${p.competency}${filesLabel}`,
+        progress: p.progress || 0,
+        status: p.status,
+        estimated_time: (p as { estimated_completion_time?: string }).estimated_completion_time,
+      };
+    });
+  }, [companyProcessings, awaitingDetails, companyId]);
 
   // Handler de término (completed/error) — definido em ref e atribuído mais abaixo,
   // após as funções de download/histórico estarem disponíveis. O hook chama via onTerminal.
@@ -294,9 +312,16 @@ export const PayrollManagement: React.FC = () => {
       if (result.success) {
         setUploadStatus('completed');
 
+        // Inicia o acompanhamento determinístico deste lote (progresso + conclusão).
+        if (result.processing_id) {
+          finalizedCompletionRef.current.delete(result.processing_id);
+          setCompletedBanner(null);
+          setAwaitingId(result.processing_id);
+        }
+
         const toastResult = toast({
           title: "Lote enviado com sucesso!",
-          description: `${result.successful_files} holerite(s) enviado(s) ao N8N. Aguarde a conclusão ou consulte o histórico para baixar o Excel.`,
+          description: `${result.successful_files} holerite(s) enviado(s). Acompanhe o progresso abaixo; o Excel baixa automaticamente ao concluir.`,
         });
 
         setTimeout(() => {
@@ -520,10 +545,13 @@ export const PayrollManagement: React.FC = () => {
     await PayrollService.downloadFile(p.result_file_url, filename);
   };
 
-  // Handler de término chamado pelo hook (onTerminal) quando um processamento desta
-  // empresa atinge completed/error. Atribuição em cada render captura o closure atual.
-  handleTerminalRef.current = (processing: PayrollProcessing) => {
-    if (processing.company_id !== companyId) return;
+  // Finalizador idempotente: chamado por DOIS detectores (poll direto do id e Realtime do hook).
+  // Garante banner/download/toast uma única vez por processamento.
+  const finalizeProcessing = (processing: PayrollProcessing) => {
+    if (!processing || processing.company_id !== companyId) return;
+    if (processing.status !== 'completed' && processing.status !== 'error') return;
+    if (finalizedCompletionRef.current.has(processing.id)) return;
+    finalizedCompletionRef.current.add(processing.id);
 
     if (processing.status === 'completed') {
       setCompletedBanner(processing);
@@ -531,12 +559,11 @@ export const PayrollManagement: React.FC = () => {
         title: 'Processamento concluído',
         description: `Competência ${processing.competency} — Excel consolidado pronto.`,
       });
-      // Auto-download (não bloqueia o sinal visual se falhar)
       downloadCompletedExcel(processing).catch((err) =>
         console.error('Falha no download automático do Excel:', err)
       );
       loadProcessingHistory(1);
-    } else if (processing.status === 'error') {
+    } else {
       toast({
         title: 'Erro no processamento',
         description: processing.error_message || 'Falha ao processar o lote de holerites.',
@@ -544,6 +571,37 @@ export const PayrollManagement: React.FC = () => {
       });
     }
   };
+  // O hook chama via ref (closure mais recente a cada render).
+  handleTerminalRef.current = finalizeProcessing;
+
+  // Polling DIRETO do lote recém-enviado até o estado terminal (determinístico, não depende
+  // de Realtime). Atualiza o progresso (awaitingDetails) e finaliza ao concluir/errar.
+  useEffect(() => {
+    if (!awaitingId) return;
+    let cancelled = false;
+
+    const tick = async () => {
+      try {
+        const details = await PayrollService.getProcessingDetails(awaitingId);
+        if (cancelled || !details) return;
+        setAwaitingDetails(details);
+        if (details.status === 'completed' || details.status === 'error') {
+          handleTerminalRef.current?.(details);
+          setAwaitingId(null);
+          setAwaitingDetails(null);
+        }
+      } catch (err) {
+        console.error('Erro no acompanhamento do processamento:', err);
+      }
+    };
+
+    tick(); // imediato
+    const interval = setInterval(tick, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [awaitingId]);
 
   if (isLoading) {
     return (
@@ -681,29 +739,21 @@ export const PayrollManagement: React.FC = () => {
           {uploadProgress.length > 0 && (
             <Card>
               <CardHeader className="p-4 sm:p-6">
-                <CardTitle className="text-base">Processamentos em andamento</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  Processamentos em andamento
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 p-4 sm:p-6">
                 {uploadProgress.map((progress) => (
-                  <div key={progress.file_id} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm gap-2">
-                      <span className="flex-1 truncate">{progress.filename}</span>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span>{progress.progress}%</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCancelUpload(progress.file_id)}
-                          disabled={progress.status === 'completed'}
-                          className="h-6 w-6 p-0 text-red-500"
-                          title="Cancelar"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <Progress value={progress.progress} />
-                  </div>
+                  <ProcessingProgressRow
+                    key={progress.file_id}
+                    filename={progress.filename}
+                    progress={progress.progress}
+                    status={progress.status}
+                    onCancel={() => handleCancelUpload(progress.file_id)}
+                    cancelDisabled={progress.status === 'completed'}
+                  />
                 ))}
               </CardContent>
             </Card>

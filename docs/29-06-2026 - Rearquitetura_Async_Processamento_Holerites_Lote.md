@@ -105,6 +105,71 @@ pelo "desaparecimento" do item ativo entre renders do componente (frágil). Solu
   do histórico; em erro → toast. Funciona via Realtime (instantâneo) ou heartbeat (≤8s) — mesmo se o
   Realtime estiver mudo, pois a detecção roda na busca de dados.
 
+## Correção (30/06/2026 #4) — acompanhamento determinístico + spinner
+
+A conclusão ainda não refletia sem refresh (dependia do Realtime/heartbeat do hook, instável).
+Solução **definitiva e independente de Realtime**:
+- `batchUpload` retorna `processing_id`; ao concluir o upload, a tela passa a fazer **polling
+  direto desse id** (`getProcessingDetails`, a cada 3s) **somente enquanto não terminar**
+  (idle = sem requisições). Esse poll atualiza o progresso e detecta a conclusão de forma
+  determinística.
+- **Finalizador idempotente** (`finalizeProcessing`) compartilhado entre o poll direto e o
+  `onTerminal` do hook (dupla rede, sem duplicar): banner "Concluído" + auto-download + toast.
+- A barra de progresso usa fonte **mesclada** (poll direto + lista do hook), priorizando o dado
+  fresco do poll.
+- **Spinner** (`Loader2`) no título do card e ao lado do percentual enquanto processa.
+
+Fluxo do progresso/sinal agora não depende de Realtime: o poll do id garante que a UI reflita
+exatamente o banco e conclua/baixe sozinho. (Realtime/heartbeat seguem como camada secundária.)
+
+## Correção (30/06/2026 #5) — replicado em /documents/payroll
+
+Os ajustes #3/#4 estavam só na `PayrollManagement` (`/companies/:id/payrolls`). Replicados em
+[`src/pages/documents/Payroll.tsx`](../src/pages/documents/Payroll.tsx) (página multi-empresa):
+acompanhamento determinístico por `processing_id` (poll 3s só enquanto ativo), finalizador
+idempotente gated por ids iniciados na página, banner de conclusão + auto-download, spinner, e
+remoção do auto-download antigo (que só mostrava um toast enganoso baseado em `webhook_response`).
+
+### Sobre o percentual (10 → 70 → 92 → 100)
+São **marcos por estágio** do pipeline, não progresso contínuo:
+- 10 = upload aceito (frontend, no 202);
+- 70 = OCR concluído (`Callback Progresso OCR`: `10 + round((files_done/files_total)*60)`);
+- 92 = XLSX gerado/nomeado (`Callback Progresso XLSX`, fixo);
+- 100 = `Callback Final` (completed).
+
+Limitação: entre 70 e 92 roda a **extração por IA (GPT-5 mini)**, que é a etapa mais longa e **não
+emite progresso** — então a barra "senta" em 70 boa parte do tempo. Abordagens melhores (a decidir):
+(A) callback extra pós-IA; (B) loop por arquivo no n8n (granularidade real em lote);
+(C) "trickle" no frontend (barra avança suavemente entre marcos reais) — recomendada por cobrir
+inclusive 1 arquivo sem complexidade no n8n.
+
+## Melhoria (30/06/2026 #6) — progresso "trickle" (C)
+
+Novo componente reutilizável [`ProcessingProgressRow`](../src/features/payroll/components/ProcessingProgressRow.tsx):
+entre os marcos reais do n8n a barra avança suavemente sozinha (desacelerando perto de um teto) e
+**snapa** no valor real quando um novo marco chega — nunca passa do teto nem chega a 100 antes da
+conclusão. Resolve o "travado em 70" durante a IA, inclusive para 1 arquivo. Usado nas duas páginas
+(`PayrollManagement` e `documents/Payroll`). **(B — loop por arquivo no n8n: pendente, ver abaixo.)**
+
+## Melhoria (30/06/2026 #7) — loop por arquivo na IA (B)
+
+Implementado no workflow ativo `yWiDyYB7gLhFpLBq`. O OCR (Mistral) segue em lote (rápido); a
+**extração por IA** passou a rodar dentro de um **Loop Over Items (Split In Batches, 1/vez)** —
+a etapa mais lenta — com **callback de progresso por arquivo** (`Callback Progresso Arquivo`:
+`30 + round((done_count/total)*60)`, 30→90). Assim a barra mostra "arquivo X de Y" avançando em
+tempo real em lotes.
+
+Topologia: `Preparar chatInput → Loop Arquivos`; loop(1)→`AI Agent`→`Acumular Resultado`
+(acumula em `staticData[acc_<pid>]` + dispara callback) → volta ao loop; done(0)→`Ler Acumulados`
+(lê/limpa o acumulado) → `Processar e Calcular` **reescrito** (lê competência/file_id/output de
+cada item, sem referências cruzadas). OCR callback reduzido para ~30 (era 70) para o loop ter
+range (a RPC de progresso é monotônica — GREATEST). `AI Agent` com `onError:
+continueRegularOutput` (uma falha de arquivo não trava o loop; o arquivo é pulado).
+
+> ⚠️ **Testar com lote real (1 e depois 5–12 PDFs)**: validei a estrutura (errorCount=0) mas o
+> comportamento do loop/acumulação não foi testado com PDFs. **Rollback:** restaurar a versão
+> anterior do workflow no histórico do n8n (estado pós-async, pré-loop, de 30/06).
+
 ## ⚠️ AÇÃO MANUAL OBRIGATÓRIA — cadastrar o segredo
 
 Os callbacks só funcionam após o segredo existir **dos dois lados** (já está nos nós do n8n;
