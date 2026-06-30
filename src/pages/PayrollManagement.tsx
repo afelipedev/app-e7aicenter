@@ -51,6 +51,7 @@ import type {
   BatchUploadResult,
   ProcessingHistory,
   PaginatedResult,
+  PayrollProcessing,
 } from '../../shared/types/payroll';
 
 // Constants
@@ -83,15 +84,23 @@ export const PayrollManagement: React.FC = () => {
   const { handleError, handleAsync, validateFile, validateBatchUpload } = useErrorHandler();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Handler de término (atribuído mais abaixo). O hook detecta o término e chama via ref.
+  const handleTerminalRef = useRef<((p: PayrollProcessing) => void) | null>(null);
+
   // Use real-time processing updates hook
-  const { 
-    activeProcessings, 
-    loading: processingLoading, 
+  const {
+    activeProcessings,
+    loading: processingLoading,
     error: processingError,
     refresh: refreshProcessings,
     cancelProcessing,
     reprocessBatch
-  } = useActiveProcessings();
+  } = useActiveProcessings({
+    onTerminal: (p) => handleTerminalRef.current?.(p),
+  });
+
+  // Banner persistente de conclusão (sinal visual claro, independente do auto-download)
+  const [completedBanner, setCompletedBanner] = useState<PayrollProcessing | null>(null);
 
   const [company, setCompany] = useState<Company | null>(null);
   const [payrollFiles, setPayrollFiles] = useState<PayrollFile[]>([]);
@@ -117,16 +126,29 @@ export const PayrollManagement: React.FC = () => {
   // Use useMemo to directly compute upload progress without useEffect to prevent loops
   const uploadProgress = useMemo(() => {
     if (companyProcessings.length > 0) {
-      return companyProcessings.map(p => ({
-        file_id: p.id,
-        filename: `Processamento ${p.competency}`,
-        progress: p.progress || 0,
-        status: p.status,
-        estimated_time: p.estimated_completion_time
-      }));
+      return companyProcessings.map(p => {
+        const meta = p as { files_total?: number | null; files_done?: number | null };
+        const filesTotal = meta.files_total;
+        const filesDone = meta.files_done;
+        const filesLabel =
+          filesTotal && filesTotal > 0
+            ? ` — arquivo ${Math.min(filesDone || 0, filesTotal)} de ${filesTotal}`
+            : '';
+        return {
+          file_id: p.id,
+          filename: `Processamento ${p.competency}${filesLabel}`,
+          progress: p.progress || 0,
+          status: p.status,
+          estimated_time: p.estimated_completion_time
+        };
+      });
     }
     return [];
   }, [companyProcessings]);
+
+  // Handler de término (completed/error) — definido em ref e atribuído mais abaixo,
+  // após as funções de download/histórico estarem disponíveis. O hook chama via onTerminal.
+  // Banner persistente de conclusão (sinal visual claro, independe do auto-download).
 
   // Load data with enhanced error handling and retry logic - memoize with stable dependencies
   const loadData = useCallback(async (retryCount = 0) => {
@@ -480,6 +502,49 @@ export const PayrollManagement: React.FC = () => {
 
   const isUploading = uploadStatus === 'uploading';
 
+  // Baixa o Excel consolidado de um processamento concluído (reutilizável).
+  const downloadCompletedExcel = async (p: PayrollProcessing) => {
+    if (!p.result_file_url) {
+      toast({
+        title: 'Arquivo não disponível',
+        description: 'O Excel deste processamento ainda não está disponível.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const companyName =
+      (p as PayrollProcessing & { company?: { name?: string } }).company?.name ||
+      company?.name ||
+      'processado';
+    const filename = `holerite_${(p.competency || 'lote').replace(/\//g, '_')}_${companyName}.xlsx`;
+    await PayrollService.downloadFile(p.result_file_url, filename);
+  };
+
+  // Handler de término chamado pelo hook (onTerminal) quando um processamento desta
+  // empresa atinge completed/error. Atribuição em cada render captura o closure atual.
+  handleTerminalRef.current = (processing: PayrollProcessing) => {
+    if (processing.company_id !== companyId) return;
+
+    if (processing.status === 'completed') {
+      setCompletedBanner(processing);
+      toast({
+        title: 'Processamento concluído',
+        description: `Competência ${processing.competency} — Excel consolidado pronto.`,
+      });
+      // Auto-download (não bloqueia o sinal visual se falhar)
+      downloadCompletedExcel(processing).catch((err) =>
+        console.error('Falha no download automático do Excel:', err)
+      );
+      loadProcessingHistory(1);
+    } else if (processing.status === 'error') {
+      toast({
+        title: 'Erro no processamento',
+        description: processing.error_message || 'Falha ao processar o lote de holerites.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -644,6 +709,41 @@ export const PayrollManagement: React.FC = () => {
             </Card>
           )}
         </div>
+
+        {/* Banner de conclusão */}
+        {completedBanner && (
+          <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm sm:text-base font-medium text-foreground">
+                Processamento concluído — competência {completedBanner.competency}
+              </p>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                O Excel consolidado foi baixado automaticamente. Se o download não iniciar, use o botão ao lado.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Button
+                size="sm"
+                onClick={() => downloadCompletedExcel(completedBanner)}
+                disabled={!completedBanner.result_file_url}
+                className="flex items-center gap-2"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Baixar Excel
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCompletedBanner(null)}
+                className="h-8 w-8 p-0"
+                title="Dispensar"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (

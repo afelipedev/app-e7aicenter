@@ -1,5 +1,4 @@
 {
-  "name": "e7-extrator-pdf-OPENAI-GPT5-mini-otimizado-ajustado",
   "nodes": [
     {
       "parameters": {
@@ -11,10 +10,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        2496,
-        -256
+        6128,
+        1648
       ],
-      "id": "eaf274cf-8a37-499a-9922-ea3b4d1a7b88",
+      "id": "70e772b9-eeb3-47de-97d5-e82c597e992b",
       "name": "Sticky Note6"
     },
     {
@@ -27,10 +26,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        2080,
-        -256
+        5712,
+        1648
       ],
-      "id": "197c8fd5-5879-4f3c-962d-70c6a707008b",
+      "id": "0cdd43d0-5331-44ce-ae31-a6835d83df1b",
       "name": "Sticky Note5"
     },
     {
@@ -43,10 +42,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1696,
-        -256
+        5328,
+        1648
       ],
-      "id": "db817dcb-23c7-4851-b90f-7a8e689f13f6",
+      "id": "57b98af1-c984-496c-9e0d-e227d5712f12",
       "name": "Sticky Note4"
     },
     {
@@ -59,10 +58,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1312,
-        -256
+        4944,
+        1648
       ],
-      "id": "f27a8f73-04a9-4084-bd40-1511c3d5a58a",
+      "id": "1df94b5c-3afd-4fa0-a1b9-3652b697dd76",
       "name": "Sticky Note3"
     },
     {
@@ -75,10 +74,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        928,
-        -256
+        4560,
+        1648
       ],
-      "id": "69aa0d04-63cc-4b5b-a564-7b90a982595a",
+      "id": "50c96a8a-0922-4d51-844b-59b52d6cf856",
       "name": "Sticky Note2"
     },
     {
@@ -91,10 +90,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        544,
-        -256
+        4176,
+        1648
       ],
-      "id": "6cf5387d-6b55-41aa-927e-29222793e9ae",
+      "id": "c905a808-8566-4321-923b-51a7b9edb7f9",
       "name": "Sticky Note1"
     },
     {
@@ -106,10 +105,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        160,
-        -256
+        3792,
+        1648
       ],
-      "id": "415a5b22-d8df-4bc1-abe9-c9e12ce4d771",
+      "id": "57e403b9-0272-45f8-b663-dfe6dd6b4045",
       "name": "Sticky Note"
     },
     {
@@ -151,10 +150,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        2624,
-        336
+        6256,
+        2224
       ],
-      "id": "7cb09297-01a2-47f5-b9e8-f5fe1d6994f9",
+      "id": "441fef8e-ceee-4a4a-ad58-6bb2297d9afa",
       "name": "Responder Webhook"
     },
     {
@@ -165,10 +164,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2624,
-        112
+        6256,
+        2000
       ],
-      "id": "15e0caac-baeb-4c59-a6f3-34afd4a5aa7a"
+      "id": "4cbc7708-ad37-40ef-a111-148c9c3b082e"
     },
     {
       "parameters": {
@@ -177,10 +176,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2624,
-        -144
+        6256,
+        1760
       ],
-      "id": "9f38fbc8-3924-4f02-9d8b-0d5c54f9ffaf",
+      "id": "76479aea-8edd-4f6f-aaff-113a3fafb988",
       "name": "Recuperar Metadados"
     },
     {
@@ -196,10 +195,10 @@
       "type": "n8n-nodes-base.awsS3",
       "typeVersion": 2,
       "position": [
-        2224,
-        592
+        5856,
+        2480
       ],
-      "id": "f05fc406-e687-4780-9ee4-dbfa38fb3503",
+      "id": "88efeeb0-bcea-417e-bd52-a756a9a89098",
       "name": "Upload XLSX para S3",
       "credentials": {
         "aws": {
@@ -215,10 +214,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2224,
-        336
+        5856,
+        2224
       ],
-      "id": "094165d9-d864-4b4b-b817-fca41e06908c",
+      "id": "418b4373-e888-4055-af9f-5d61c3c65bd7",
       "name": "Adicionar Metadados ao XLSX"
     },
     {
@@ -234,10 +233,10 @@
       "type": "n8n-nodes-base.spreadsheetFile",
       "typeVersion": 2,
       "position": [
-        2224,
-        96
+        5856,
+        1984
       ],
-      "id": "669423bb-da82-476a-9dc5-2f9a61cb3951"
+      "id": "29cd7a51-8031-402d-926c-19260775d28f"
     },
     {
       "parameters": {
@@ -247,37 +246,37 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2224,
-        -144
+        5856,
+        1760
       ],
-      "id": "d7d7b150-4df3-4488-b2bd-639d359bb8ef"
+      "id": "a718b47b-ab34-4ccc-896d-c3dd97dc7434"
     },
     {
       "parameters": {
-        "jsCode": "// SELIC zerada; período MM/AAAA por arquivo do lote (não só .first())\n\nconst inputItems = $input.all();\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('Nenhuma saída do AI Agent recebida');\n}\n\nconst metadadosPorArquivo = $('Validar e Preparar Dados').all().map(i => i.json);\n\nfunction parseOutput(output) {\n  if (!output) return null;\n  try {\n    if (typeof output === 'string') {\n      const clean = output.replace(/```json/g, '').replace(/```/g, '').trim();\n      const start = clean.indexOf('{');\n      const end = clean.lastIndexOf('}');\n      if (start >= 0 && end >= 0) return JSON.parse(clean.slice(start, end + 1));\n      return JSON.parse(clean);\n    }\n    return output;\n  } catch (e) {\n    return null;\n  }\n}\n\nfunction isResumoOuBase(prov) {\n  const codigo = String(prov.codigo || prov.cod || '').toUpperCase();\n  const nome = String(prov.nome || prov.nome_rubrica || '')\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase();\n  return codigo.includes('SALARIO_CONTRIB') ||\n    nome.includes('SALARIO CONTRIBUICAO') ||\n    nome.includes('SALARIO DE CONTRIBUICAO') ||\n    nome.includes('CONTRIBUICAO EMPREGADOS') ||\n    nome.includes('CONTRIBUICAO CONTRIBUINTES');\n}\n\nconst RAT = 2.00;\nconst TERCEIROS = 5.80;\nconst vistos = new Set();\nconst saida = [];\n\nfor (let idx = 0; idx < inputItems.length; idx++) {\n  const item = inputItems[idx];\n  const parsed = parseOutput(item.json.output);\n  if (!parsed || !Array.isArray(parsed.proventos)) continue;\n\n  const meta = metadadosPorArquivo[idx] || metadadosPorArquivo[0] || {};\n  const competenciaArquivo =\n    parsed.competencia ||\n    meta.competencia ||\n    (Array.isArray(meta.arquivos) && meta.arquivos[idx] ? meta.arquivos[idx].competencia : '') ||\n    '';\n\n  const empresaNome =\n    (typeof parsed.empresa === 'string' ? parsed.empresa : (parsed.empresa?.nome || '')) ||\n    meta.company_name ||\n    '';\n  const cnpjEmpresa =\n    parsed.cnpj ||\n    (typeof parsed.empresa === 'object' ? parsed.empresa?.cnpj : '') ||\n    meta.company_cnpj ||\n    '';\n\n  for (const prov of parsed.proventos) {\n    if (!prov || isResumoOuBase(prov)) continue;\n\n    const codigo = String(prov.codigo || prov.cod || '').trim();\n    const nome = String(prov.nome || prov.nome_rubrica || '').trim();\n\n    let valor = 0;\n    if (typeof prov.valor === 'number') {\n      valor = prov.valor;\n    } else {\n      const raw = String(prov.valor ?? '').trim();\n      valor = raw.includes(',')\n        ? parseFloat(raw.replace(/\\./g, '').replace(',', '.')) || 0\n        : parseFloat(raw) || 0;\n    }\n\n    const chave = `${competenciaArquivo}|${codigo}|${nome}|${valor.toFixed(2)}`;\n    if (vistos.has(chave)) continue;\n    vistos.add(chave);\n\n    const contribuicao = valor * (RAT / 100);\n    const vl_rat_ajustado = contribuicao * (RAT / 100);\n    const vl_cont_terceiros = valor * (TERCEIROS / 100);\n    const total = contribuicao + vl_rat_ajustado + vl_cont_terceiros;\n\n    saida.push({ json: {\n      cod: codigo,\n      nome_rubrica: nome,\n      valor,\n      contribuicao: parseFloat(contribuicao.toFixed(2)),\n      rat: RAT,\n      vl_rat_ajustado: parseFloat(vl_rat_ajustado.toFixed(2)),\n      terceiros: TERCEIROS,\n      vl_cont_terceiros: parseFloat(vl_cont_terceiros.toFixed(2)),\n      total: parseFloat(total.toFixed(2)),\n      selic: '',\n      vl_selic: '',\n      credito: parseFloat(total.toFixed(2)),\n      periodo: competenciaArquivo,\n      cnpj: cnpjEmpresa,\n      empresa_nome: empresaNome,\n      competencia: competenciaArquivo,\n      tipo_mapeado: prov.categoria || prov.tipo_mapeado || 'OUTROS',\n      file_id: meta.file_id,\n      processing_id: meta.processing_id\n    }});\n  }\n}\n\nif (saida.length === 0) throw new Error('Nenhum provento foi extraído pelo AI Agent');\n\nreturn saida;"
+        "jsCode": "// ✅ FIX FINAL: extrair competência do nome do arquivo (preservado pelo Mistral no binary)\n// Padrão do fileName: COMP[MM-AAAA]__IDX[N]__FID[file_id].pdf\n// Esse padrão é definido no Validar e Preparar Dados\n\nconst inputItems = $input.all();\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('Nenhuma saída do AI Agent recebida');\n}\n\n// Pega todos os itens do Validar (lista com competências)\nconst metadadosPorArquivo = $('Validar e Preparar Dados').all().map(i => i.json);\n\n// Função para extrair competência do fileName padronizado\nfunction extrairCompetenciaDoNome(fileName) {\n  if (!fileName) return null;\n  const m = fileName.match(/COMP\\[(\\d{2})-(\\d{4})\\]/);\n  if (m) return { mes: m[1], ano: m[2], competencia: `${m[1]}/${m[2]}` };\n  return null;\n}\n\nfunction extrairIdxDoNome(fileName) {\n  if (!fileName) return null;\n  const m = fileName.match(/IDX\\[(\\d+)\\]/);\n  return m ? (parseInt(m[1]) - 1) : null;\n}\n\nfunction extrairFileIdDoNome(fileName) {\n  if (!fileName) return null;\n  const m = fileName.match(/FID\\[([^\\]]+)\\]/);\n  return m ? m[1] : null;\n}\n\n// Função para buscar o fileName do PDF original a partir do output do AI\n// Pode estar em diferentes lugares dependendo do fluxo\nfunction buscarFileNameDoItem(idx) {\n  // Tenta pelo input do AI Agent\n  try {\n    const aiInputs = $('Preparar chatInput').all();\n    if (aiInputs[idx]) {\n      // Procura no binary\n      const bin = aiInputs[idx].binary;\n      if (bin) {\n        for (const key of Object.keys(bin)) {\n          if (bin[key].fileName) return bin[key].fileName;\n        }\n      }\n      // Procura no json\n      if (aiInputs[idx].json && aiInputs[idx].json.nomeArquivo) {\n        return aiInputs[idx].json.nomeArquivo;\n      }\n    }\n  } catch (e) {}\n\n  // Tenta pelo Preparar Texto Único\n  try {\n    const tu = $('Preparar Texto Único').all();\n    if (tu[idx]) {\n      const bin = tu[idx].binary;\n      if (bin) {\n        for (const key of Object.keys(bin)) {\n          if (bin[key].fileName) return bin[key].fileName;\n        }\n      }\n    }\n  } catch (e) {}\n\n  // Tenta pelo Extract text\n  try {\n    const ex = $('Extract text').all();\n    if (ex[idx]) {\n      const bin = ex[idx].binary;\n      if (bin) {\n        for (const key of Object.keys(bin)) {\n          if (bin[key].fileName) return bin[key].fileName;\n        }\n      }\n    }\n  } catch (e) {}\n\n  // Tenta pelo Validar (último recurso)\n  try {\n    const v = $('Validar e Preparar Dados').all();\n    if (v[idx]) {\n      const bin = v[idx].binary;\n      if (bin) {\n        for (const key of Object.keys(bin)) {\n          if (bin[key].fileName) return bin[key].fileName;\n        }\n      }\n    }\n  } catch (e) {}\n\n  return null;\n}\n\nfunction parseOutput(output) {\n  if (!output) return null;\n  try {\n    if (typeof output === 'string') {\n      const clean = output.replace(/```json/g, '').replace(/```/g, '').trim();\n      const start = clean.indexOf('{');\n      const end = clean.lastIndexOf('}');\n      if (start >= 0 && end >= 0) return JSON.parse(clean.slice(start, end + 1));\n      return JSON.parse(clean);\n    }\n    return output;\n  } catch (e) {\n    return null;\n  }\n}\n\nfunction isResumoOuBase(prov) {\n  const codigo = String(prov.codigo || prov.cod || '').toUpperCase();\n  const nome = String(prov.nome || prov.nome_rubrica || '')\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase();\n  return codigo.includes('SALARIO_CONTRIB') ||\n    nome.includes('SALARIO CONTRIBUICAO') ||\n    nome.includes('SALARIO DE CONTRIBUICAO') ||\n    nome.includes('CONTRIBUICAO EMPREGADOS') ||\n    nome.includes('CONTRIBUICAO CONTRIBUINTES');\n}\n\nconst RAT = 2.00;\nconst TERCEIROS = 5.80;\nconst vistos = new Set();\nconst saida = [];\n\nfor (let idx = 0; idx < inputItems.length; idx++) {\n  const item = inputItems[idx];\n  const parsed = parseOutput(item.json.output);\n  if (!parsed || !Array.isArray(parsed.proventos)) continue;\n\n  // 1ª TENTATIVA: extrair competência do fileName padronizado\n  const fileName = buscarFileNameDoItem(idx);\n  const fromName = extrairCompetenciaDoNome(fileName);\n  const idxDoNome = extrairIdxDoNome(fileName);\n  const fileIdDoNome = extrairFileIdDoNome(fileName);\n\n  // 2ª TENTATIVA: casar pelo índice do nome (mais confiável que idx do loop)\n  // Se o fileName tem IDX[N], usa esse N para indexar metadadosPorArquivo\n  const idxMeta = idxDoNome !== null ? idxDoNome : idx;\n  const meta = metadadosPorArquivo[idxMeta] || metadadosPorArquivo[idx] || metadadosPorArquivo[0] || {};\n\n  // Prioridade: nome do arquivo > metadados do Validar > JSON do AI\n  const competenciaArquivo =\n    (fromName ? fromName.competencia : null) ||\n    meta.competencia ||\n    parsed.competencia ||\n    '';\n\n  if (!competenciaArquivo) {\n    throw new Error(`Não foi possível determinar competência para o item ${idx}. fileName: ${fileName}, meta keys: ${Object.keys(meta).join(',')}`);\n  }\n\n  const empresaNome =\n    (typeof parsed.empresa === 'string' ? parsed.empresa : (parsed.empresa?.nome || '')) ||\n    meta.company_name ||\n    '';\n\n  const cnpjEmpresa =\n    parsed.cnpj ||\n    (typeof parsed.empresa === 'object' ? parsed.empresa?.cnpj : '') ||\n    meta.company_cnpj ||\n    '';\n\n  for (const prov of parsed.proventos) {\n    if (!prov || isResumoOuBase(prov)) continue;\n    const codigo = String(prov.codigo || prov.cod || '').trim();\n    const nome = String(prov.nome || prov.nome_rubrica || '').trim();\n\n    let valor = 0;\n    if (typeof prov.valor === 'number') {\n      valor = prov.valor;\n    } else {\n      const raw = String(prov.valor ?? '').trim();\n      valor = raw.includes(',')\n        ? parseFloat(raw.replace(/\\./g, '').replace(',', '.')) || 0\n        : parseFloat(raw) || 0;\n    }\n\n    const chave = `${competenciaArquivo}|${codigo}|${nome}|${valor.toFixed(2)}`;\n    if (vistos.has(chave)) continue;\n    vistos.add(chave);\n\n    const contribuicao = valor * (RAT / 100);\n    const vl_rat_ajustado = contribuicao * (RAT / 100);\n    const vl_cont_terceiros = valor * (TERCEIROS / 100);\n    const total = contribuicao + vl_rat_ajustado + vl_cont_terceiros;\n\n    saida.push({ json: {\n      cod: codigo,\n      nome_rubrica: nome,\n      valor,\n      contribuicao: parseFloat(contribuicao.toFixed(2)),\n      rat: RAT,\n      vl_rat_ajustado: parseFloat(vl_rat_ajustado.toFixed(2)),\n      terceiros: TERCEIROS,\n      vl_cont_terceiros: parseFloat(vl_cont_terceiros.toFixed(2)),\n      total: parseFloat(total.toFixed(2)),\n      selic: '',\n      vl_selic: '',\n      credito: parseFloat(total.toFixed(2)),\n      periodo: competenciaArquivo,\n      cnpj: cnpjEmpresa,\n      empresa_nome: empresaNome,\n      competencia: competenciaArquivo,\n      tipo_mapeado: prov.categoria || prov.tipo_mapeado || 'OUTROS',\n      // ✅ Auditoria: detecta possível agrupamento indevido de rubricas (nomes unidos por ' / ')\n      alerta_agrupamento: / \\/ /.test(nome) ? 'POSSIVEL RUBRICA AGRUPADA - VERIFICAR' : '',\n      file_id: fileIdDoNome || meta.file_id,\n      processing_id: meta.processing_id\n    }});\n  }\n}\n\nif (saida.length === 0) throw new Error('Nenhum provento foi extraído pelo AI Agent');\nreturn saida;"
       },
       "name": "Processar e Calcular",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1824,
-        -144
+        5456,
+        1760
       ],
-      "id": "f259cd70-adcb-410d-b356-41a03235f6f6"
+      "id": "eb4d13c9-e0dc-4d82-a7b0-e5670bbd3616"
     },
     {
       "parameters": {
         "options": {
-          "systemMessage": "Você receberá o texto completo de um PDF de folha/holerite, possivelmente com várias páginas.\n\nREGRAS CRÍTICAS PARA EVITAR DUPLICIDADE:\n- Retorne uma única extração final consolidada do documento inteiro.\n- Não retorne uma saída por página.\n- Quando houver páginas individuais e também uma página de resumo/consolidação, priorize a página de resumo/consolidação.\n- Não some páginas individuais com o resumo consolidado.\n- Não inclua linhas de base previdenciária/resumo como \"Salário contribuição empregados\" ou \"Salário contribuição contribuintes\" como proventos.\n- Extraia somente rubricas/eventos de proventos, férias, 13º, adicionais, horas e verbas similares.\n- Retorne somente JSON válido, sem markdown e sem texto fora do objeto JSON.\n\nVocê é um extrator especialista em holerites (folhas de pagamento) brasileiros com expertise avançada em:\n- Contabilidade empresarial e trabalhista\n- Análise de inteligência tributária\n- Interpretação de documentos fiscais e trabalhistas\n- Reconhecimento de padrões em diversos formatos de holerites\n\nOBJETIVO PRINCIPAL:\nExtrair com máxima precisão e fidelidade todos os eventos de PROVENTOS e informações estruturais de holerites, independentemente do sistema de origem.\n\n## INSTRUÇÕES CRÍTICAS DE FORMATAÇÃO:\n\n1. **RETORNE EXCLUSIVAMENTE JSON VÁLIDO**\n   - Nenhum texto explicativo antes ou depois do JSON\n   - Nenhum comentário dentro do JSON\n   - Nenhuma marcação de código (sem ```json)\n   - Apenas o objeto JSON puro\n\n2. **TRATAMENTO DE VALORES MONETÁRIOS**\n   - SEMPRE como número (type: number)\n   - Use ponto decimal (não vírgula): 1234.56\n   - SEM separadores de milhar\n   - Converta \"220:00\" para 220.00\n   - Converta \"1.234,56\" para 1234.56\n   - Converta \"575,34\" para 575.34\n\n3. **TRATAMENTO DE DADOS AUSENTES**\n   - Use null para valores desconhecidos\n   - Nunca use strings vazias para números\n   - Campos opcionais podem ser omitidos\n\n## SCHEMA JSON OBRIGATÓRIO:\n\n{\n  \"empresa\": \"string (nome completo da empresa)\",\n  \"cnpj\": \"string (apenas números, sem pontos/traços)\",\n  \"competencia\": \"string (formato MM/AAAA)\",\n  \"dataEmissao\": \"string (formato DD/MM/AAAA)\",\n  \"proventos\": [\n    {\n      \"codigo\": \"string (COD ou RUBRICA)\",\n      \"nome\": \"string (descrição da rubrica)\",\n      \"categoria\": \"string (ver categorias abaixo)\",\n      \"valor\": number,\n      \"referencia\": \"string (opcional)\"\n    }\n  ],\n  \"totalizadores\": {\n    \"totalProventos\": number,\n    \"totalDescontos\": number,\n    \"liquido\": number\n  }\n}\n\n## CATEGORIZAÇÃO DE PROVENTOS:\nSALARIO_BASE, ADICIONAL_INSALUBRIDADE, ADICIONAL_PERICULOSIDADE, HORA_EXTRA_50, HORA_EXTRA_100, DSRS, FERIAS, TERCO_FERIAS, SALARIO_13, INSS, FGTS, IRRF, VALE_TRANSPORTE, VALE_REFEICAO, OUTROS\n\n## REGRAS:\n1. Processar TODAS as páginas consolidando proventos\n2. Foco exclusivo em PROVENTOS\n3. Valores exatos como no documento\n4. Consolidar rubrica duplicada entre páginas\n5. Usar valor calculado/total da rubrica"
+          "systemMessage": "Você receberá o texto completo de um PDF de folha/holerite, possivelmente com várias páginas.\n\nREGRAS CRÍTICAS PARA EVITAR DUPLICIDADE:\n- Retorne uma única extração final consolidada do documento inteiro.\n- Não retorne uma saída por página.\n- Quando houver páginas individuais e também uma página de resumo/consolidação, priorize a página de resumo/consolidação.\n- Não some páginas individuais com o resumo consolidado.\n- Não inclua linhas de base previdenciária/resumo como \"Salário contribuição empregados\" ou \"Salário contribuição contribuintes\" como proventos.\n- Extraia somente rubricas/eventos de proventos, férias, 13º, adicionais, horas e verbas similares.\n- Retorne somente JSON válido, sem markdown e sem texto fora do objeto JSON.\n\n## REGRAS CRÍTICAS DE SEPARAÇÃO DE RUBRICAS (OBRIGATÓRIO):\n\n1. CADA RUBRICA/CÓDIGO DISTINTO DO HOLERITE DEVE SER UM ITEM SEPARADO no array \"proventos\". NUNCA agrupe rubricas diferentes em um único item, mesmo que pertençam à mesma categoria.\n2. NUNCA some valores de rubricas com códigos diferentes.\n3. NUNCA concatene nomes de rubricas diferentes usando \"/\", \"+\", \"-\", \",\" ou qualquer outro separador. O campo \"nome\" deve conter EXATAMENTE o nome de UMA única rubrica, como aparece no documento.\n4. A \"categoria\" serve APENAS para classificar cada item individualmente. Vários itens podem ter a mesma categoria — isso é normal e esperado. Categoria NÃO é motivo para juntar itens.\n5. A ÚNICA consolidação permitida é quando a MESMA rubrica (mesmo código E mesmo nome) aparece repetida em páginas diferentes referindo-se ao mesmo lançamento — nesse caso, use o valor total/consolidado uma única vez, sem duplicar.\n\n### EXEMPLO DO QUE É PROIBIDO (ERRADO):\n{ \"codigo\": \"vários\", \"nome\": \"Férias / Férias + 1/3 - Contrato Intermitente / Abono de Férias\", \"categoria\": \"FERIAS\", \"valor\": 15000.00 }\n\n### EXEMPLO DO QUE É CORRETO:\n{ \"codigo\": \"050\", \"nome\": \"Férias\", \"categoria\": \"FERIAS\", \"valor\": 8000.00 },\n{ \"codigo\": \"051\", \"nome\": \"Férias + 1/3 - Contrato Intermitente\", \"categoria\": \"FERIAS\", \"valor\": 4000.00 },\n{ \"codigo\": \"052\", \"nome\": \"Abono de Férias\", \"categoria\": \"FERIAS\", \"valor\": 3000.00 }\n\nVocê é um extrator especialista em holerites (folhas de pagamento) brasileiros com expertise avançada em:\n- Contabilidade empresarial e trabalhista\n- Análise de inteligência tributária\n- Interpretação de documentos fiscais e trabalhistas\n- Reconhecimento de padrões em diversos formatos de holerites\n\nOBJETIVO PRINCIPAL:\nExtrair com máxima precisão e fidelidade todos os eventos de PROVENTOS e informações estruturais de holerites, independentemente do sistema de origem, mantendo CADA RUBRICA COMO UMA LINHA INDIVIDUAL.\n\n## INSTRUÇÕES CRÍTICAS DE FORMATAÇÃO:\n\n1. **RETORNE EXCLUSIVAMENTE JSON VÁLIDO**\n   - Nenhum texto explicativo antes ou depois do JSON\n   - Nenhum comentário dentro do JSON\n   - Nenhuma marcação de código (sem ```json)\n   - Apenas o objeto JSON puro\n\n2. **TRATAMENTO DE VALORES MONETÁRIOS**\n   - SEMPRE como número (type: number)\n   - Use ponto decimal (não vírgula): 1234.56\n   - SEM separadores de milhar\n   - Converta \"220:00\" para 220.00\n   - Converta \"1.234,56\" para 1234.56\n   - Converta \"575,34\" para 575.34\n\n3. **TRATAMENTO DE DADOS AUSENTES**\n   - Use null para valores desconhecidos\n   - Nunca use strings vazias para números\n   - Campos opcionais podem ser omitidos\n\n## SCHEMA JSON OBRIGATÓRIO:\n\n{\n  \"empresa\": \"string (nome completo da empresa)\",\n  \"cnpj\": \"string (apenas números, sem pontos/traços)\",\n  \"competencia\": \"string (formato MM/AAAA)\",\n  \"dataEmissao\": \"string (formato DD/MM/AAAA)\",\n  \"proventos\": [\n    {\n      \"codigo\": \"string (COD ou RUBRICA — o código individual desta rubrica)\",\n      \"nome\": \"string (descrição de UMA única rubrica, exatamente como no documento)\",\n      \"categoria\": \"string (ver categorias abaixo)\",\n      \"valor\": number,\n      \"referencia\": \"string (opcional)\"\n    }\n  ],\n  \"totalizadores\": {\n    \"totalProventos\": number,\n    \"totalDescontos\": number,\n    \"liquido\": number\n  }\n}\n\n## CATEGORIZAÇÃO DE PROVENTOS:\nSALARIO_BASE, ADICIONAL_INSALUBRIDADE, ADICIONAL_PERICULOSIDADE, HORA_EXTRA_50, HORA_EXTRA_100, DSRS, FERIAS, TERCO_FERIAS, SALARIO_13, INSS, FGTS, IRRF, VALE_TRANSPORTE, VALE_REFEICAO, OUTROS\n\n## REGRAS:\n1. Processar TODAS as páginas, listando cada rubrica individualmente\n2. Foco exclusivo em PROVENTOS\n3. Valores exatos como no documento\n4. Consolidar APENAS a mesma rubrica (mesmo código e mesmo nome) repetida entre páginas — nunca rubricas diferentes\n5. Usar valor calculado/total da rubrica\n6. Rubricas de códigos diferentes JAMAIS devem ser somadas ou agrupadas em uma única linha"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3,
       "position": [
-        1376,
-        -144
+        5008,
+        1760
       ],
-      "id": "6768caa0-8070-41d3-bc86-e962f0e0a9a6",
+      "id": "f9c718aa-3b42-4b1a-abf3-94193f1740ce",
       "name": "AI Agent",
       "retryOnFail": true,
       "maxTries": 5,
@@ -285,15 +284,15 @@
     },
     {
       "parameters": {
-        "jsCode": "const out = [];\nfor (const item of $input.all()) {\n  const data = item.json || {};\n  const partes = [];\n  if (Array.isArray(data.pages) && data.pages.length > 0) {\n    for (const pg of data.pages) {\n      if (typeof pg === 'string') partes.push(pg);\n      else if (pg && typeof pg === 'object') partes.push(pg.markdown || pg.text || pg.content || JSON.stringify(pg));\n      else if (pg !== undefined && pg !== null) partes.push(String(pg));\n    }\n  } else {\n    partes.push(data.text || data.markdown || data.content || data.data || '');\n  }\n  const texto = partes.filter(Boolean).map(v => String(v).trim()).filter(Boolean).join('\\n\\n--- QUEBRA DE PÁGINA ---\\n\\n');\n  if (!texto) throw new Error('Nenhum texto extraído para enviar ao modelo');\n  out.push({ json: { chatInput: texto, totalCaracteres: texto.length, totalPartes: partes.filter(Boolean).length } });\n}\nreturn out;"
+        "jsCode": "// ✅ FIX: propagar metadados do item (competência, file_id) junto com o texto\nconst out = [];\nfor (const item of $input.all()) {\n  const data = item.json || {};\n  const partes = [];\n  if (Array.isArray(data.pages) && data.pages.length > 0) {\n    for (const pg of data.pages) {\n      if (typeof pg === 'string') partes.push(pg);\n      else if (pg && typeof pg === 'object') partes.push(pg.markdown || pg.text || pg.content || JSON.stringify(pg));\n      else if (pg !== undefined && pg !== null) partes.push(String(pg));\n    }\n  } else {\n    partes.push(data.text || data.markdown || data.content || data.data || '');\n  }\n  const texto = partes.filter(Boolean).map(v => String(v).trim()).filter(Boolean).join('\\n\\n--- QUEBRA DE PÁGINA ---\\n\\n');\n  if (!texto) throw new Error('Nenhum texto extraído para enviar ao modelo');\n\n  // Buscar metadados do Validar usando o file_id ou índice\n  // Como o paired item pode estar quebrado, usamos $('Validar e Preparar Dados').all()\n  // e tentamos casar pelo file_id se disponível\n  let metadados = {};\n  try {\n    const todosValidar = $('Validar e Preparar Dados').all();\n    // Tenta encontrar pelo file_id do binary\n    const fileIdBin = data.file_id || (item.binary && item.binary.pdf && item.binary.pdf.fileName);\n    metadados = todosValidar.find(v => v.json.file_id === fileIdBin || v.json.nomeArquivo === fileIdBin)?.json\n              || todosValidar[0]?.json || {};\n  } catch (e) {\n    metadados = {};\n  }\n\n  out.push({\n    json: {\n      chatInput: texto,\n      totalCaracteres: texto.length,\n      totalPartes: partes.filter(Boolean).length,\n      // ✅ Propaga os metadados da competência junto\n      competencia: metadados.competencia || '',\n      mes: metadados.mes || '',\n      ano: metadados.ano || '',\n      file_id: metadados.file_id || '',\n      nomeArquivo: metadados.nomeArquivo || '',\n      company_name: metadados.company_name || '',\n      company_cnpj: metadados.company_cnpj || '',\n      processing_id: metadados.processing_id || '',\n      total_arquivos: metadados.total_arquivos || 1\n    },\n    pairedItem: item.pairedItem !== undefined ? item.pairedItem : 0\n  });\n}\nreturn out;"
       },
-      "id": "e18b675a-6961-4b97-b9a0-60bbfee30390",
+      "id": "b718b94a-2cc7-4104-a91b-3d94d2319524",
       "name": "Preparar Texto Único",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1056,
-        224
+        4688,
+        2112
       ]
     },
     {
@@ -304,10 +303,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        288,
-        112
+        3920,
+        2000
       ],
-      "id": "c2d9b1e6-e183-47eb-9c2e-395c76a2671c"
+      "id": "e8dda3a5-47b5-43ea-9b72-c6373f38d7df"
     },
     {
       "parameters": {
@@ -322,34 +321,24 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        288,
-        -144
+        3920,
+        1760
       ],
-      "id": "aa83a28e-57fc-4049-bbb6-f27b159ba6b5",
+      "id": "5bad52b5-ce7b-48eb-8479-3b3e2a31fac0",
       "name": "Webhook - Receber PDF",
-      "webhookId": "e7d29d71-91a9-4824-b0f1-3ffd7119f611"
+      "webhookId": "f77b7e2a-40fe-4975-b41d-7bab9c2e9d42"
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "af45f2e4-54db-410f-b805-d66a99a42b91",
-              "name": "chatInput",
-              "value": "={{ $json.chatInput }}",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
+        "jsCode": "// ✅ FIX: propagar TODOS os campos, não só chatInput\nconst out = [];\nfor (const item of $input.all()) {\n  out.push({\n    json: { ...item.json },\n    pairedItem: item.pairedItem !== undefined ? item.pairedItem : 0\n  });\n}\nreturn out;"
       },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        1040,
-        448
+        4672,
+        2336
       ],
-      "id": "15c0d390-f07d-4618-9298-dbae96b7eaaf",
+      "id": "ecf1cbf2-c45c-488e-9b3b-dc25955fb102",
       "name": "Preparar chatInput"
     },
     {
@@ -360,10 +349,10 @@
       "type": "n8n-nodes-base.mistralAi",
       "typeVersion": 1,
       "position": [
-        1040,
-        16
+        4672,
+        1904
       ],
-      "id": "f2422849-63bc-4984-a9b3-113f0bf593c7",
+      "id": "e28070d6-e320-4b68-a1ca-da36e5994ccd",
       "name": "Extract text",
       "credentials": {
         "mistralCloudApi": {
@@ -388,10 +377,10 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        1456,
-        112
+        5088,
+        2000
       ],
-      "id": "68ce8f53-73f3-492c-b79c-4b646c90b671",
+      "id": "014922ee-b53a-4dc9-80ea-ccab66ca8407",
       "name": "OpenAI Chat Model - GPT-5 mini",
       "retryOnFail": true,
       "maxTries": 3,
@@ -417,10 +406,10 @@
       "type": "n8n-nodes-base.awsS3",
       "typeVersion": 2,
       "position": [
-        656,
-        48
+        4288,
+        1936
       ],
-      "id": "86ce1494-4eb5-44b7-a5d4-c5eeb16bd550",
+      "id": "d51b637b-0add-4997-a938-6fa3b2ac1f9e",
       "name": "Upload PDF para S",
       "credentials": {
         "aws": {
@@ -436,10 +425,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        672,
-        -176
+        4304,
+        1728
       ],
-      "id": "eddb2b95-c881-4460-8607-f9c46b04f5c9",
+      "id": "72f6797e-0eba-4f2e-93fb-da33c48df9fe",
       "name": "Deduplicar Execução"
     },
     {
@@ -469,10 +458,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        656,
-        224
+        4288,
+        2112
       ],
-      "id": "48b0ca82-6c6a-4b38-87ba-c1f28047f308",
+      "id": "17060d29-7688-4b03-bed0-58fd78b29047",
       "name": "É Execução Duplicada?"
     },
     {
@@ -514,14 +503,13 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1040,
-        -160
+        4672,
+        1744
       ],
-      "id": "4ef815c5-6f2c-4121-a433-a4d59c33dc96",
+      "id": "66be3920-28e5-48a0-a2f6-5cfc5114e889",
       "name": "Responder Execução Duplicada"
     }
   ],
-  "pinData": {},
   "connections": {
     "Preparar Resposta": {
       "main": [
@@ -611,6 +599,17 @@
         ]
       ]
     },
+    "Preparar Texto Único": {
+      "main": [
+        [
+          {
+            "node": "Preparar chatInput",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Validar e Preparar Dados": {
       "main": [
         [
@@ -655,12 +654,12 @@
         ]
       ]
     },
-    "Preparar Texto Único": {
-      "main": [
+    "OpenAI Chat Model - GPT-5 mini": {
+      "ai_languageModel": [
         [
           {
-            "node": "Preparar chatInput",
-            "type": "main",
+            "node": "AI Agent",
+            "type": "ai_languageModel",
             "index": 0
           }
         ]
@@ -699,52 +698,11 @@
           }
         ]
       ]
-    },
-    "OpenAI Chat Model - GPT-5 mini": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
     }
   },
-  "active": true,
-  "settings": {
-    "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false,
-    "errorWorkflow": "I0qhbP5Tnm5ek25C",
-    "timeSavedMode": "fixed",
-    "binaryMode": "separate"
-  },
-  "versionId": "d5cd5f98-5156-460d-9b76-f9a311280e2e",
+  "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "9474c6a00514abf32e506ac1e8a3630f4ad5062151d13e4e269bbbc8b5e3f423"
-  },
-  "id": "k77i2pdBDkyu7IDJ",
-  "tags": [
-    {
-      "updatedAt": "2026-05-05T01:49:43.367Z",
-      "createdAt": "2026-05-05T01:36:19.816Z",
-      "id": "eTFe4UERyDpm27Bk",
-      "name": "🔶 v-test"
-    },
-    {
-      "updatedAt": "2026-05-05T01:47:36.228Z",
-      "createdAt": "2026-05-05T01:36:06.074Z",
-      "id": "p2Rnblgoar2vh3Xp",
-      "name": "❇️ prod"
-    },
-    {
-      "updatedAt": "2025-11-01T02:27:10.924Z",
-      "createdAt": "2025-11-01T02:27:10.924Z",
-      "id": "zM7RJq2WaolB45Ck",
-      "name": "e7aicenter"
-    }
-  ]
+  }
 }

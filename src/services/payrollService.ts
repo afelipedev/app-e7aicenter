@@ -432,8 +432,9 @@ export class PayrollService {
         })),
       });
 
-      // Implementar retry logic para webhook
-      const maxRetries = 3;
+      // Implementar retry logic para webhook.
+      // O N8N responde 202 imediatamente (assíncrono); poucas tentativas bastam.
+      const maxRetries = 2;
       let response: Response | null = null;
       let lastError: Error | null = null;
 
@@ -609,16 +610,17 @@ export class PayrollService {
       if (result && isHoleriteProcessingComplete(result)) {
         await this.applyWebhookResult(processingId, result, filesOrdered.length, sentCompetencias);
       } else if (result?.success) {
+        // 202 aceito: processamento iniciado no N8N. Progresso/conclusão chegam por callback + Realtime.
         await this.updateProcessing(processingId, {
           status: 'processing',
-          progress: 30,
+          progress: 10,
           webhook_response: result,
           estimated_time: result?.estimated_time,
         });
       } else {
         await this.updateProcessing(processingId, {
           status: 'processing',
-          progress: 30,
+          progress: 10,
           webhook_response: result || {
             status: 'accepted',
             message: 'Webhook processou a requisição com sucesso',
@@ -1798,6 +1800,30 @@ export class PayrollService {
       .subscribe();
 
     // Retornar função para cancelar subscrição
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }
+
+  /**
+   * Subscreve a qualquer mudança em payroll_processing (para o painel de ativos).
+   * Usa Realtime (websocket) — evita polling REST contínuo. O callback é chamado em
+   * INSERT/UPDATE/DELETE; o consumidor decide refazer o fetch da lista de ativos.
+   */
+  static subscribeToActiveProcessings(callback: () => void): () => void {
+    const subscription = supabase
+      .channel('payroll_active_processings')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'payroll_processing',
+        },
+        () => callback()
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(subscription);
     };

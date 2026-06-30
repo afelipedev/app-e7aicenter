@@ -12,6 +12,12 @@ interface UseProcessingUpdatesOptions {
   refreshInterval?: number;
   /** Se deve mostrar notificações toast */
   showNotifications?: boolean;
+  /**
+   * Chamado UMA vez quando um processamento ativo atinge estado terminal
+   * (completed/error). A detecção é feita aqui (fonte única dos dados), evitando
+   * inferências frágeis no componente.
+   */
+  onTerminal?: (processing: PayrollProcessing) => void;
 }
 
 interface UseProcessingUpdatesReturn {
@@ -41,8 +47,17 @@ export function useProcessingUpdates(options: UseProcessingUpdatesOptions = {}):
     processingId,
     monitorAll = false,
     refreshInterval = 5000,
-    showNotifications = true
+    showNotifications = true,
+    onTerminal
   } = options;
+
+  // Mantém o callback mais recente sem re-disparar effects
+  const onTerminalRef = useRef(onTerminal);
+  onTerminalRef.current = onTerminal;
+
+  // Detecção de término: ids vistos como ativos e os já tratados (evita duplicar)
+  const prevActiveIdsRef = useRef<Set<string>>(new Set());
+  const handledTerminalRef = useRef<Set<string>>(new Set());
 
   const [processing, setProcessing] = useState<PayrollProcessing | null>(null);
   const [activeProcessings, setActiveProcessings] = useState<PayrollProcessing[]>([]);
@@ -349,67 +364,86 @@ export function useProcessingUpdates(options: UseProcessingUpdatesOptions = {}):
     };
   }, [processingId, showNotifications]);
 
-  // Effect para configurar polling
+  // Effect: monitorar processamentos ativos via Realtime (websocket), com heartbeat de
+  // fallback APENAS enquanto houver processamento ativo.
+  //
+  // Antes era um polling REST a cada 3s que (a) gerava requisições contínuas mesmo ocioso e
+  // (b) ou parava de vez (UI congelada) ou nunca parava. Agora:
+  // - Realtime empurra qualquer mudança em payroll_processing → refazemos o fetch da lista.
+  // - Ocioso (sem ativos) = ZERO requisições REST (apenas o canal Realtime escutando).
+  // - Durante um processamento, um heartbeat leve (fallback) cobre eventuais eventos perdidos
+  //   e para sozinho quando não há mais ativos.
   useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
+    if (!monitorAll) return;
 
-    if (monitorAll) {
-      intervalRef.current = setInterval(async () => {
-        try {
-          const activeData = await PayrollService.getCurrentProcessings();
-          
-          setActiveProcessings(prev => {
-            // Verificar novos processamentos para notificação
-            if (showNotifications && prev.length > 0) {
-              const newProcessings = activeData.filter(
-                current => !prev.some(p => p.id === current.id)
-              );
+    let cancelled = false;
 
-              newProcessings.forEach(processing => {
-                toast.info(`Novo processamento iniciado: Empresa ${processing.company_id}`);
-              });
-            }
-
-            // Verificar se todos os processamentos estão finalizados
-            const hasActiveProcessings = activeData.some(p => 
-              p.status === 'processing' || p.status === 'pending'
-            );
-
-            // Se não há processamentos ativos, parar o polling
-            if (!hasActiveProcessings) {
-              if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-                console.log('Polling parado: nenhum processamento ativo encontrado');
-              }
-            }
-
-            return activeData;
-          });
-        } catch (err) {
-          console.error('Erro no polling de processamentos ativos:', err);
-          // Em caso de erro, reduzir a frequência do polling
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = setInterval(async () => {
-              try {
-                const activeData = await PayrollService.getCurrentProcessings();
-                setActiveProcessings(activeData);
-              } catch (retryErr) {
-                console.error('Erro persistente no polling:', retryErr);
-              }
-            }, refreshInterval * 3); // Triplicar o intervalo em caso de erro
-          }
-        }
-      }, refreshInterval);
-    }
-
-    return () => {
+    const stopHeartbeat = () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
+    };
+
+    const fetchActive = async () => {
+      try {
+        const activeData = await PayrollService.getCurrentProcessings();
+        if (cancelled) return;
+
+        setActiveProcessings(prev => {
+          if (showNotifications && prev.length > 0) {
+            const novos = activeData.filter(
+              current => !prev.some(p => p.id === current.id)
+            );
+            novos.forEach(processing => {
+              toast.info(`Novo processamento iniciado: Empresa ${processing.company_id}`);
+            });
+          }
+          return activeData;
+        });
+
+        // Detecção de TÉRMINO: ids que estavam ativos e não estão mais → buscar resultado.
+        const newIds = new Set(activeData.map(p => p.id));
+        const terminados = [...prevActiveIdsRef.current].filter(
+          id => !newIds.has(id) && !handledTerminalRef.current.has(id)
+        );
+        for (const id of terminados) {
+          handledTerminalRef.current.add(id);
+          try {
+            const details = await PayrollService.getProcessingDetails(id);
+            if (details && (details.status === 'completed' || details.status === 'error')) {
+              onTerminalRef.current?.(details);
+            }
+          } catch (e) {
+            console.error('Erro ao obter detalhes do processamento finalizado:', e);
+          }
+        }
+        prevActiveIdsRef.current = newIds;
+
+        // Heartbeat de fallback só enquanto houver ativos
+        const temAtivos = activeData.some(
+          p => p.status === 'processing' || p.status === 'pending'
+        );
+        if (temAtivos && !intervalRef.current) {
+          intervalRef.current = setInterval(fetchActive, Math.max(refreshInterval, 8000));
+        } else if (!temAtivos) {
+          stopHeartbeat();
+        }
+      } catch (err) {
+        console.error('Erro ao buscar processamentos ativos:', err);
+      }
+    };
+
+    // Carga inicial + assinatura Realtime
+    fetchActive();
+    const unsubscribe = PayrollService.subscribeToActiveProcessings(() => {
+      fetchActive();
+    });
+
+    return () => {
+      cancelled = true;
+      stopHeartbeat();
+      unsubscribe();
     };
   }, [monitorAll, refreshInterval, showNotifications]);
 
@@ -454,10 +488,13 @@ export function useProcessingDetails(processingId: string) {
 /**
  * Hook simplificado para monitorar todos os processamentos ativos
  */
-export function useActiveProcessings() {
+export function useActiveProcessings(
+  options: { onTerminal?: (processing: PayrollProcessing) => void } = {}
+) {
   return useProcessingUpdates({
     monitorAll: true,
     showNotifications: true,
-    refreshInterval: 3000 // Mais frequente para processamentos ativos
+    refreshInterval: 3000, // intervalo do heartbeat de fallback (só enquanto há ativos)
+    onTerminal: options.onTerminal
   });
 }

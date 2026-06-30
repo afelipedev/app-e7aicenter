@@ -145,12 +145,19 @@ export function getCompetenciasFromWebhookResponse(
   return fallbackCompetency;
 }
 
-/** Timeout em ms para fetch ao webhook (N8N responde só ao final do fluxo síncrono) */
+/**
+ * Timeout em ms para fetch ao webhook.
+ *
+ * O N8N agora responde 202 imediatamente (fluxo assíncrono): o processamento OCR/IA roda em
+ * segundo plano e o progresso/conclusão chegam por callback (Edge Function) + Realtime.
+ * Portanto o timeout só precisa cobrir o UPLOAD do lote (PDFs em base64) + a validação inicial,
+ * não o processamento inteiro. Mantém uma folga proporcional ao nº de arquivos.
+ */
 export function getHoleriteWebhookTimeoutMs(fileCount: number): number {
-  if (fileCount <= 1) return 120_000;
-  if (fileCount <= 3) return 600_000;
-  if (fileCount <= 6) return 900_000;
-  return 1_200_000;
+  if (fileCount <= 1) return 45_000;
+  if (fileCount <= 3) return 90_000;
+  if (fileCount <= 6) return 150_000;
+  return 240_000;
 }
 
 /** Erros em que o N8N pode ter recebido o lote mas o browser não obteve a resposta HTTP */
