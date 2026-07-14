@@ -29,6 +29,7 @@ import {
   MessageSquare,
   Paperclip,
   Plus,
+  ShieldAlert,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -79,6 +80,7 @@ export default function LegalKanbanPage() {
   const [activeDrag, setActiveDrag] = useState<ActiveDragState>(null);
 
   const canManageBoard = ["administrator", "it", "advogado_adm"].includes(user?.role || "");
+  const canFinalizeCards = ["administrator", "advogado_adm"].includes(user?.role || "");
   const { filters, setFilters, filteredColumns, filteredCardsCount, totalCardsCount, resetFilters } =
     useLegalKanbanFilters(boardQuery.data, user?.id || null);
 
@@ -157,6 +159,14 @@ export default function LegalKanbanPage() {
 
     const destinationColumnId = overCard?.column.id || overColumn?.id;
     if (!destinationColumnId) return;
+
+    if (destinationColumnId !== activeCard.column.id && !canFinalizeCards) {
+      const destinationColumn = findColumnById(boardData.columns, destinationColumnId);
+      if (destinationColumn?.kind === "done") {
+        toast.error("Somente Administrador e Advogado Administrativo podem concluir cards.");
+        return;
+      }
+    }
 
     const destinationIndex = overCard
       ? overCard.column.cards.findIndex((card) => card.id === overCard.card.id)
@@ -604,6 +614,15 @@ function CardPreview({ card }: { card: LegalKanbanCard }) {
             <Paperclip className="h-3.5 w-3.5" />
             {card.attachmentsCount}
           </span>
+          {card.status === "aguardando_aprovacao" ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300"
+              title="Card aguardando aprovação"
+            >
+              <ShieldAlert className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-semibold uppercase">Aprovação</span>
+            </span>
+          ) : null}
           {card.hasLinkedPost ? (
             <span
               className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-primary dark:bg-primary/20"

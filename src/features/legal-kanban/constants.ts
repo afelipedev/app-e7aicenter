@@ -43,6 +43,10 @@ export const LEGAL_KANBAN_STATUS_META: Record<
     label: "Bloqueado",
     chip: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
   },
+  aguardando_aprovacao: {
+    label: "Aguardando Aprovação",
+    chip: "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:border-orange-800",
+  },
   concluido: {
     label: "Concluído",
     chip: "bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-800",
@@ -80,10 +84,18 @@ export const LEGAL_KANBAN_COLOR_PRESETS = [
   "#475569",
 ];
 
+export const LEGAL_KANBAN_APPROVAL_COLUMN = {
+  title: "Aguardando Aprovação",
+  color: "#f59e0b",
+  position: 350,
+  kind: "approval",
+} as const;
+
 export const LEGAL_KANBAN_DEFAULT_COLUMNS = [
   { title: "Caixa de Entrada", color: "#2563eb", position: 100, kind: "inbox" },
   { title: "Audiencias", color: "#7c3aed", position: 200, kind: "event" },
   { title: "Holding", color: "#ea580c", position: 300, kind: "team" },
+  LEGAL_KANBAN_APPROVAL_COLUMN,
   { title: "Concluídos", color: "#16a34a", position: 400, kind: "done" },
   { title: "Arquivados", color: "#64748b", position: 500, kind: "archived" },
 ] as const;
@@ -92,6 +104,7 @@ export const OPERATIONAL_KANBAN_DEFAULT_COLUMNS = [
   { title: "Entrada", color: "#2563eb", position: 100, kind: "inbox" },
   { title: "Em andamento", color: "#7c3aed", position: 200, kind: "custom" },
   { title: "Aguardando", color: "#ea580c", position: 300, kind: "team" },
+  LEGAL_KANBAN_APPROVAL_COLUMN,
   { title: "Concluídos", color: "#16a34a", position: 400, kind: "done" },
   { title: "Arquivados", color: "#64748b", position: 500, kind: "archived" },
 ] as const;

@@ -4,6 +4,7 @@ import {
   LEGAL_KANBAN_BOARD_COVER_BUCKET,
   LEGAL_KANBAN_INLINE_IMAGE_BUCKET,
   LEGAL_KANBAN_DEFAULT_COLUMNS,
+  LEGAL_KANBAN_APPROVAL_COLUMN,
   LEGAL_KANBAN_STORAGE_BUCKET,
 } from "../constants";
 import { KANBAN_MODULE_CONFIG, type KanbanDomain } from "@/features/kanban-shared/kanbanModuleConfig";
@@ -268,6 +269,57 @@ function isBoardManagerRole(role: string) {
 
 function canForceConcludedStatus(role: string) {
   return ["administrator", "advogado_adm"].includes(role);
+}
+
+async function findColumnIdByKind(boardId: string, kind: string) {
+  const response = await db
+    .from("legal_kanban_columns")
+    .select("id")
+    .eq("board_id", boardId)
+    .eq("kind", kind)
+    .maybeSingle();
+
+  return response.data?.id ?? null;
+}
+
+async function ensureApprovalColumnId(boardId: string) {
+  const existingId = await findColumnIdByKind(boardId, LEGAL_KANBAN_APPROVAL_COLUMN.kind);
+  if (existingId) return existingId;
+
+  const created = await db
+    .from("legal_kanban_columns")
+    .insert({
+      board_id: boardId,
+      title: LEGAL_KANBAN_APPROVAL_COLUMN.title,
+      color: LEGAL_KANBAN_APPROVAL_COLUMN.color,
+      position: LEGAL_KANBAN_APPROVAL_COLUMN.position,
+      kind: LEGAL_KANBAN_APPROVAL_COLUMN.kind,
+      is_default: true,
+    })
+    .select("id")
+    .single();
+
+  return ensureData<{ id: string }>(created, "Não foi possível criar a raia Aguardando Aprovação.").id;
+}
+
+async function moveCardToColumn(cardId: string, columnId: string, actorId: string) {
+  const cardsResponse = await db
+    .from("legal_kanban_cards")
+    .select("id, position")
+    .eq("column_id", columnId)
+    .order("position");
+
+  const columnCards = maybeArray(cardsResponse.data) as { position: number }[];
+  const nextPosition = columnCards.reduce((max, item) => Math.max(max, item.position || 0), 0) + 100;
+
+  await db
+    .from("legal_kanban_cards")
+    .update({
+      column_id: columnId,
+      position: nextPosition,
+      updated_by_user_id: actorId,
+    })
+    .eq("id", cardId);
 }
 
 async function logActivity(
@@ -989,31 +1041,16 @@ export const legalKanbanService = {
     const card = mapCardBase(ensureData(response, "Não foi possível atualizar o card."));
 
     if (input.status === "concluido") {
-      const doneColumnResponse = await db
-        .from("legal_kanban_columns")
-        .select("id")
-        .eq("board_id", currentCard.board_id)
-        .eq("kind", "done")
-        .maybeSingle();
+      const doneColumnId = await findColumnIdByKind(currentCard.board_id, "done");
+      if (doneColumnId && doneColumnId !== card.columnId) {
+        await moveCardToColumn(cardId, doneColumnId, actor.id);
+      }
+    }
 
-      if (doneColumnResponse.data && doneColumnResponse.data.id !== card.columnId) {
-        const doneCardsResponse = await db
-          .from("legal_kanban_cards")
-          .select("id, position")
-          .eq("column_id", doneColumnResponse.data.id)
-          .order("position");
-
-        const nextPosition =
-          maybeArray(doneCardsResponse.data).reduce((max: number, item: any) => Math.max(max, item.position || 0), 0) + 100;
-
-        await db
-          .from("legal_kanban_cards")
-          .update({
-            column_id: doneColumnResponse.data.id,
-            position: nextPosition,
-            updated_by_user_id: actor.id,
-          })
-          .eq("id", cardId);
+    if (input.status === "aguardando_aprovacao") {
+      const approvalColumnId = await ensureApprovalColumnId(currentCard.board_id);
+      if (approvalColumnId !== card.columnId) {
+        await moveCardToColumn(cardId, approvalColumnId, actor.id);
       }
     }
 
@@ -1057,6 +1094,18 @@ export const legalKanbanService = {
 
   async moveCard(cardId: string, sourceColumnId: string, destinationColumnId: string, destinationIndex: number) {
     const actor = await getCurrentPublicUser();
+
+    if (sourceColumnId !== destinationColumnId && !canForceConcludedStatus(actor.role)) {
+      const destinationColumnResponse = await db
+        .from("legal_kanban_columns")
+        .select("kind")
+        .eq("id", destinationColumnId)
+        .maybeSingle();
+
+      if (destinationColumnResponse.data?.kind === "done") {
+        throw new Error("Somente Administrador e Advogado Administrativo podem mover cards para Concluídos.");
+      }
+    }
 
     const response = await db
       .from("legal_kanban_cards")

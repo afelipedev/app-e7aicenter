@@ -2,7 +2,7 @@ import type { UserRole } from "@/lib/supabase";
 import type { KanbanDomain } from "@/features/kanban-shared/kanbanModuleConfig";
 
 export type KanbanPriority = "baixa" | "media" | "alta" | "urgente";
-export type KanbanStatus = "ativo" | "bloqueado" | "concluido" | "arquivado";
+export type KanbanStatus = "ativo" | "bloqueado" | "aguardando_aprovacao" | "concluido" | "arquivado";
 export type KanbanFieldType = "text" | "number" | "date" | "select" | "checkbox";
 export type KanbanAttachmentType = "file" | "link";
 export type KanbanDueFilter = "all" | "none" | "overdue" | "day" | "week" | "month";

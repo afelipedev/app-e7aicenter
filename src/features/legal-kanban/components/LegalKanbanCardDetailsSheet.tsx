@@ -8,6 +8,7 @@ import {
   CheckSquare,
   ChevronDown,
   Circle,
+  Clock,
   Copy,
   Download,
   ExternalLink,
@@ -23,6 +24,7 @@ import {
   Paperclip,
   Plus,
   Save,
+  ShieldAlert,
   Tag,
   Trash2,
   Unlink,
@@ -497,8 +499,21 @@ export function LegalKanbanCardDetailsSheet({
 
   async function handleToggleCompleted() {
     if (!data) return;
+
     if (!canFinalizeOrArchive) {
-      toast.error("Somente Administrador e Advogado Administrativo podem concluir cards.");
+      const nextStatus: KanbanStatus = data.status === "aguardando_aprovacao" ? "ativo" : "aguardando_aprovacao";
+
+      try {
+        await updateCard.mutateAsync({ status: nextStatus, completedAt: null });
+        setStatus(nextStatus);
+        toast.success(
+          nextStatus === "aguardando_aprovacao"
+            ? "Card enviado para aprovação."
+            : "Envio para aprovação cancelado.",
+        );
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Erro ao atualizar o status do card.");
+      }
       return;
     }
 
@@ -1032,6 +1047,13 @@ export function LegalKanbanCardDetailsSheet({
               </div>
             ) : null}
 
+            {cardData?.status === "aguardando_aprovacao" ? (
+              <div className="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 sm:px-5">
+                <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden />
+                Este card está aguardando aprovação de um Administrador ou Advogado Administrativo.
+              </div>
+            ) : null}
+
             <div
               className={cn(
                 "grid min-h-0 min-w-0 flex-1 grid-cols-1",
@@ -1043,12 +1065,29 @@ export function LegalKanbanCardDetailsSheet({
                     <button
                       type="button"
                       onClick={handleToggleCompleted}
-                      disabled={!canFinalizeOrArchive}
-                      className="mt-0.5 shrink-0 rounded-full text-muted-foreground transition-colors hover:text-primary"
-                      title={cardData.status === "concluido" ? "Reabrir card" : "Concluir card"}
+                      disabled={updateCard.isPending}
+                      className={cn(
+                        "mt-0.5 shrink-0 rounded-full text-muted-foreground transition-colors hover:text-primary",
+                        !canFinalizeOrArchive && "hover:text-amber-600 dark:hover:text-amber-400",
+                      )}
+                      title={
+                        canFinalizeOrArchive
+                          ? cardData.status === "concluido"
+                            ? "Reabrir card"
+                            : "Concluir card"
+                          : cardData.status === "aguardando_aprovacao"
+                            ? "Cancelar envio para aprovação"
+                            : "Enviar para aprovação"
+                      }
                     >
-                      {cardData.status === "concluido" ? (
-                        <CheckCircle2 className="h-8 w-8 text-primary" />
+                      {canFinalizeOrArchive ? (
+                        cardData.status === "concluido" ? (
+                          <CheckCircle2 className="h-8 w-8 text-primary" />
+                        ) : (
+                          <Circle className="h-8 w-8" />
+                        )
+                      ) : cardData.status === "aguardando_aprovacao" ? (
+                        <Clock className="h-8 w-8 text-amber-600 dark:text-amber-400" />
                       ) : (
                         <Circle className="h-8 w-8" />
                       )}
