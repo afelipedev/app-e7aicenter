@@ -140,7 +140,7 @@ async function copyCardRelations(
       attachments.map((att) => ({
         card_id: targetCardId,
         attachment_type: att.attachment_type,
-        file_name: att.file_name,
+        name: att.name,
         file_path: att.file_path,
         file_size: att.file_size,
         mime_type: att.mime_type,
@@ -153,13 +153,57 @@ async function copyCardRelations(
   const { data: comments } = await admin.from("legal_kanban_comments")
     .select("*").eq("card_id", sourceCardId);
   for (const comment of comments || []) {
+    const mirrorGroupId = (comment.mirror_group_id as string | null) ?? (comment.id as string);
+
+    if (!comment.mirror_group_id) {
+      await admin.from("legal_kanban_comments")
+        .update({ mirror_group_id: mirrorGroupId }).eq("id", comment.id);
+    }
+
     await admin.from("legal_kanban_comments").insert({
       card_id: targetCardId,
       author_user_id: comment.author_user_id,
       content: comment.content,
       mirrored_card_comment_id: comment.id,
+      mirror_group_id: mirrorGroupId,
     });
   }
+}
+
+// Cria o card cópia com os mesmos campos core do card origem, no fim da raia destino.
+async function insertMirrorCard(
+  admin: ReturnType<typeof createClient>,
+  sourceCard: Record<string, unknown>,
+  targetBoardId: string,
+  targetColumnId: string,
+  actorId: string,
+) {
+  const { data: maxPos } = await admin.from("legal_kanban_cards")
+    .select("position").eq("column_id", targetColumnId)
+    .order("position", { ascending: false }).limit(1).maybeSingle();
+  const nextPos = ((maxPos?.position as number | undefined) ?? 0) + 100;
+
+  const { data: mirrorCard, error } = await admin.from("legal_kanban_cards").insert({
+    board_id: targetBoardId,
+    column_id: targetColumnId,
+    title: sourceCard.title,
+    description_json: sourceCard.description_json ?? {},
+    description_text: sourceCard.description_text ?? "",
+    position: nextPos,
+    status: sourceCard.status,
+    priority: sourceCard.priority,
+    cover_color: sourceCard.cover_color,
+    start_date: sourceCard.start_date,
+    due_date: sourceCard.due_date,
+    reminder_at: sourceCard.reminder_at,
+    recurrence_rule: sourceCard.recurrence_rule,
+    completed_at: sourceCard.completed_at,
+    created_by_user_id: actorId,
+    updated_by_user_id: actorId,
+  }).select().single();
+  if (error) throw new Error(error.message);
+
+  return mirrorCard;
 }
 
 async function actionShareCard(ctx: BridgeCtx, payload: Record<string, unknown>) {
@@ -171,7 +215,8 @@ async function actionShareCard(ctx: BridgeCtx, payload: Record<string, unknown>)
   }
 
   const { data: existing } = await admin.from("kanban_card_links")
-    .select("id").or(`source_card_id.eq.${source_card_id},target_card_id.eq.${source_card_id}`).maybeSingle();
+    .select("id").eq("link_type", "share")
+    .or(`source_card_id.eq.${source_card_id},target_card_id.eq.${source_card_id}`).maybeSingle();
   if (existing?.id) throw new Error("Card já compartilhado");
 
   const { data: sourceCard, error: sourceErr } = await admin.from("legal_kanban_cards")
@@ -195,32 +240,13 @@ async function actionShareCard(ctx: BridgeCtx, payload: Record<string, unknown>)
     .select("board_id").eq("id", target_column_id).single();
   if (colErr || !col || col.board_id !== target_board_id) throw new Error("Coluna inválida para este quadro");
 
-  const { data: maxPos } = await admin.from("legal_kanban_cards")
-    .select("position").eq("column_id", target_column_id)
-    .order("position", { ascending: false }).limit(1).maybeSingle();
-  const nextPos = ((maxPos?.position as number | undefined) ?? 0) + 100;
-
   const event_id = await genEvent(admin, "kanban_card_share");
 
-  const { data: mirrorCard, error: mirrorErr } = await admin.from("legal_kanban_cards").insert({
-    board_id: target_board_id,
-    column_id: target_column_id,
-    title: sourceCard.title,
-    description_json: sourceCard.description_json ?? {},
-    description_text: sourceCard.description_text ?? "",
-    position: nextPos,
-    status: sourceCard.status,
-    priority: sourceCard.priority,
-    cover_color: sourceCard.cover_color,
-    start_date: sourceCard.start_date,
-    due_date: sourceCard.due_date,
-    reminder_at: sourceCard.reminder_at,
-    recurrence_rule: sourceCard.recurrence_rule,
-    completed_at: sourceCard.completed_at,
-    created_by_user_id: ctx.profileId,
-    updated_by_user_id: ctx.profileId,
-  }).select().single();
-  if (mirrorErr) throw new Error(mirrorErr.message);
+  const mirrorCard = await insertMirrorCard(admin, sourceCard, target_board_id, target_column_id, ctx.profileId);
+
+  // Copiar as relações ANTES de criar o vínculo: com o vínculo já criado, os triggers
+  // de sync espelhariam cada insert da cópia de volta para o card origem.
+  await copyCardRelations(admin, source_card_id, mirrorCard.id, target_board_id);
 
   const linkDirection = sourceBoard.domain === "operational" ? "operational_to_legal" : "legal_to_operational";
 
@@ -231,11 +257,10 @@ async function actionShareCard(ctx: BridgeCtx, payload: Record<string, unknown>)
     target_board_id: sourceBoard.domain === "operational" ? target_board_id : sourceCard.board_id,
     target_column_id,
     link_direction: linkDirection,
+    link_type: "share",
     created_by_user_id: ctx.profileId,
   }).select().single();
   if (linkErr) throw new Error(linkErr.message);
-
-  await copyCardRelations(admin, source_card_id, mirrorCard.id, target_board_id);
 
   await admin.from("legal_kanban_activities").insert([
     {
@@ -257,26 +282,103 @@ async function actionShareCard(ctx: BridgeCtx, payload: Record<string, unknown>)
   return { link, mirrorCard };
 }
 
+// Duplica o card em outra raia do mesmo quadro. Original e cópias formam um grupo
+// sincronizado: a raiz do grupo é sempre o card original (source dos vínculos).
+async function actionDuplicateCard(ctx: BridgeCtx, payload: Record<string, unknown>) {
+  const admin = ctx.admin;
+  const { source_card_id, target_column_id } = payload ?? {};
+  if (!source_card_id || !target_column_id ||
+    typeof source_card_id !== "string" || typeof target_column_id !== "string") {
+    throw new Error("source_card_id e target_column_id obrigatórios");
+  }
+
+  const { data: sourceCard, error: sourceErr } = await admin.from("legal_kanban_cards")
+    .select("*").eq("id", source_card_id).single();
+  if (sourceErr || !sourceCard) throw new Error("Card de origem não encontrado");
+
+  const boardId = sourceCard.board_id as string;
+
+  const { data: col, error: colErr } = await admin.from("legal_kanban_columns")
+    .select("board_id").eq("id", target_column_id).single();
+  if (colErr || !col || col.board_id !== boardId) {
+    throw new Error("Raia inválida para este quadro");
+  }
+
+  await assertCanEditBoard(admin, ctx, boardId);
+
+  // Se o card origem já é uma cópia, a nova cópia entra no mesmo grupo (sem cadeias).
+  const { data: parentLink } = await admin.from("kanban_card_links")
+    .select("source_card_id").eq("link_type", "duplicate").eq("target_card_id", source_card_id).maybeSingle();
+  const rootCardId = (parentLink?.source_card_id as string | undefined) ?? source_card_id;
+
+  const event_id = await genEvent(admin, "kanban_card_duplicate");
+
+  const mirrorCard = await insertMirrorCard(admin, sourceCard, boardId, target_column_id, ctx.profileId);
+
+  await copyCardRelations(admin, rootCardId, mirrorCard.id, boardId);
+
+  const { data: link, error: linkErr } = await admin.from("kanban_card_links").insert({
+    source_card_id: rootCardId,
+    target_card_id: mirrorCard.id,
+    source_board_id: boardId,
+    target_board_id: boardId,
+    target_column_id,
+    link_direction: "bi",
+    link_type: "duplicate",
+    created_by_user_id: ctx.profileId,
+  }).select().single();
+  if (linkErr) throw new Error(linkErr.message);
+
+  await admin.from("legal_kanban_activities").insert([
+    {
+      card_id: rootCardId,
+      actor_user_id: ctx.profileId,
+      activity_type: "card_duplicated",
+      message: "Card duplicado em outra raia.",
+      metadata: { target_card_id: mirrorCard.id, target_column_id, source_event_id: event_id },
+    },
+    {
+      card_id: mirrorCard.id,
+      actor_user_id: ctx.profileId,
+      activity_type: "card_duplicated_mirror",
+      message: "Card criado a partir da duplicação de outro card.",
+      metadata: { source_card_id: rootCardId, source_event_id: event_id },
+    },
+  ]);
+
+  return { link, mirrorCard };
+}
+
 async function actionUnlink(ctx: BridgeCtx, payload: Record<string, unknown>) {
   const admin = ctx.admin;
-  const card_id = payload?.card_id;
+  const { card_id, link_type } = payload ?? {};
   if (!card_id || typeof card_id !== "string") throw new Error("card_id obrigatório");
 
-  const { data: link } = await admin.from("kanban_card_links")
+  let query = admin.from("kanban_card_links")
     .select("*")
-    .or(`source_card_id.eq.${card_id},target_card_id.eq.${card_id}`)
-    .maybeSingle();
-  if (!link) return { unlinked: false };
+    .or(`source_card_id.eq.${card_id},target_card_id.eq.${card_id}`);
+  if (typeof link_type === "string") query = query.eq("link_type", link_type);
 
-  await assertCanEditBoard(admin, ctx, link.source_board_id);
-  await assertCanEditBoard(admin, ctx, link.target_board_id);
+  const { data: links } = await query;
 
-  await admin.from("kanban_card_links").delete().eq("id", link.id);
-  return { unlinked: true };
+  if (!links?.length) return { unlinked: false };
+
+  // Card é cópia: desvincula só ele. Card é raiz: dissolve o grupo de duplicatas.
+  const asCopy = links.filter((link) => link.link_type === "duplicate" && link.target_card_id === card_id);
+  const toRemove = asCopy.length ? asCopy : links;
+
+  for (const link of toRemove) {
+    await assertCanEditBoard(admin, ctx, link.source_board_id as string);
+    await assertCanEditBoard(admin, ctx, link.target_board_id as string);
+  }
+
+  await admin.from("kanban_card_links").delete().in("id", toRemove.map((link) => link.id));
+  return { unlinked: true, count: toRemove.length };
 }
 
 const ACTIONS: Record<string, (ctx: BridgeCtx, payload: Record<string, unknown>) => Promise<unknown>> = {
   share_card: actionShareCard,
+  duplicate_card: actionDuplicateCard,
   unlink: actionUnlink,
 };
 

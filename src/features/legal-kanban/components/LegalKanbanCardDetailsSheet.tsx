@@ -8,6 +8,7 @@ import {
   CheckSquare,
   ChevronDown,
   Circle,
+  Copy,
   Download,
   ExternalLink,
   File,
@@ -24,6 +25,7 @@ import {
   Save,
   Tag,
   Trash2,
+  Unlink,
   UserPlus,
   Users,
   X,
@@ -100,9 +102,10 @@ import {
   useUploadLegalKanbanAttachment,
 } from "../hooks/useLegalKanbanBoard";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ShareKanbanCardDialog } from "@/features/kanban-shared/components/ShareKanbanCardDialog";
+import { DuplicateKanbanCardDialog } from "@/features/kanban-shared/components/DuplicateKanbanCardDialog";
 import { KANBAN_MODULE_CONFIG, kanbanBoardDetailPath } from "@/features/kanban-shared/kanbanModuleConfig";
 import { useKanbanModule } from "@/features/kanban-shared/KanbanModuleContext";
 import { kanbanCardBridgeService } from "@/features/kanban-shared/services/kanbanCardBridgeService";
@@ -158,6 +161,7 @@ export function LegalKanbanCardDetailsSheet({
   const { user: authUser } = useAuth();
   const navigate = useNavigate();
   const kanbanModule = useKanbanModule();
+  const queryClient = useQueryClient();
 
   const { data: linkedPost } = useQuery({
     queryKey: ["legal-kanban", "card-post-link", cardId],
@@ -230,6 +234,8 @@ export function LegalKanbanCardDetailsSheet({
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [unlinkDuplicateConfirmOpen, setUnlinkDuplicateConfirmOpen] = useState(false);
   const [attachmentDeleteTarget, setAttachmentDeleteTarget] = useState<LegalKanbanAttachment | null>(null);
   const attachmentFileInputRef = useRef<HTMLInputElement | null>(null);
   const commentsSectionRef = useRef<HTMLElement | null>(null);
@@ -599,6 +605,18 @@ export function LegalKanbanCardDetailsSheet({
     }
   }
 
+  async function confirmUnlinkDuplicate() {
+    if (!cardId) return;
+    try {
+      await kanbanCardBridgeService.unlink(cardId, "duplicate");
+      await queryClient.invalidateQueries({ queryKey: [kanbanModule.queryKeyPrefix] });
+      setUnlinkDuplicateConfirmOpen(false);
+      toast.success("Cards desvinculados. As alterações deixam de ser sincronizadas.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao desvincular as cópias.");
+    }
+  }
+
   async function confirmDeleteCard() {
     if (!cardId) return;
     if (!canFinalizeOrArchive) {
@@ -918,6 +936,19 @@ export function LegalKanbanCardDetailsSheet({
                       <Archive className="mr-2 h-4 w-4" />
                       Arquivar
                     </DropdownMenuItem>
+                    <DropdownMenuItem disabled={cardActionsBusy} onClick={() => setDuplicateDialogOpen(true)}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Duplicar
+                    </DropdownMenuItem>
+                    {cardData?.duplicateInfo ? (
+                      <DropdownMenuItem
+                        disabled={cardActionsBusy}
+                        onClick={() => setUnlinkDuplicateConfirmOpen(true)}
+                      >
+                        <Unlink className="mr-2 h-4 w-4" />
+                        Desvincular cópia
+                      </DropdownMenuItem>
+                    ) : null}
                     {kanbanModule.canShareToLegal && !cardData?.hasLinkedCard ? (
                       <DropdownMenuItem disabled={cardActionsBusy} onClick={() => setShareDialogOpen(true)}>
                         <Link2 className="mr-2 h-4 w-4" />
@@ -987,7 +1018,8 @@ export function LegalKanbanCardDetailsSheet({
                     onClick={async () => {
                       if (!cardId) return;
                       try {
-                        await kanbanCardBridgeService.unlink(cardId);
+                        await kanbanCardBridgeService.unlink(cardId, "share");
+                        await queryClient.invalidateQueries({ queryKey: [kanbanModule.queryKeyPrefix] });
                         toast.success("Compartilhamento removido.");
                       } catch (error) {
                         toast.error(error instanceof Error ? error.message : "Erro ao desvincular card.");
@@ -1893,6 +1925,25 @@ export function LegalKanbanCardDetailsSheet({
               </AlertDialogContent>
             </AlertDialog>
 
+            <AlertDialog open={unlinkDuplicateConfirmOpen} onOpenChange={setUnlinkDuplicateConfirmOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Desvincular cópia?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {cardData?.duplicateInfo?.isRoot
+                      ? `Este é o card original de ${cardData.duplicateInfo.peerCount} cópia(s). Todos os cards continuarão existindo, mas deixarão de ser sincronizados entre si.`
+                      : "Os cards continuarão existindo, mas esta cópia deixará de receber e enviar alterações."}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+                  <Button type="button" onClick={() => void confirmUnlinkDuplicate()}>
+                    Desvincular
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
             <AlertDialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -2106,6 +2157,15 @@ export function LegalKanbanCardDetailsSheet({
         open={shareDialogOpen}
         onOpenChange={setShareDialogOpen}
         onShared={() => onOpenChange(false)}
+      />
+    ) : null}
+    {cardId ? (
+      <DuplicateKanbanCardDialog
+        cardId={cardId}
+        board={board}
+        open={duplicateDialogOpen}
+        onOpenChange={setDuplicateDialogOpen}
+        onDuplicated={() => onOpenChange(false)}
       />
     ) : null}
     </>

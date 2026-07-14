@@ -17,6 +17,7 @@ export const kanbanCardBridgeService = {
       .select(
         "id, source_card_id, target_card_id, source_board_id, target_board_id, source_board:legal_kanban_boards!kanban_card_links_source_board_id_fkey(slug, domain), target_board:legal_kanban_boards!kanban_card_links_target_board_id_fkey(slug, domain)",
       )
+      .eq("link_type", "share")
       .or(`source_card_id.eq.${cardId},target_card_id.eq.${cardId}`)
       .maybeSingle();
 
@@ -38,7 +39,11 @@ export const kanbanCardBridgeService = {
     return invoke("share_card", input);
   },
 
-  unlink(card_id: string) {
-    return invoke("unlink", { card_id });
+  duplicateCard(input: { source_card_id: string; target_column_id: string }) {
+    return invoke("duplicate_card", input);
+  },
+
+  unlink(card_id: string, link_type?: "share" | "duplicate") {
+    return invoke("unlink", { card_id, link_type });
   },
 };

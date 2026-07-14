@@ -42,6 +42,11 @@ export interface KanbanCardLinkInfo {
   isSource: boolean;
 }
 
+export interface KanbanCardDuplicateInfo {
+  isRoot: boolean;
+  peerCount: number;
+}
+
 export interface LegalKanbanColumn {
   id: string;
   boardId: string;
@@ -169,6 +174,7 @@ export interface LegalKanbanCard extends LegalKanbanCardBase {
   hasLinkedPost: boolean;
   hasLinkedCard: boolean;
   linkedCard: KanbanCardLinkInfo | null;
+  isDuplicate: boolean;
 }
 
 export interface LegalKanbanCardDetails extends LegalKanbanCard {
@@ -176,6 +182,7 @@ export interface LegalKanbanCardDetails extends LegalKanbanCard {
   activities: LegalKanbanActivity[];
   attachments: LegalKanbanAttachment[];
   checklists: LegalKanbanChecklist[];
+  duplicateInfo: KanbanCardDuplicateInfo | null;
 }
 
 export interface LegalKanbanColumnWithCards extends LegalKanbanColumn {

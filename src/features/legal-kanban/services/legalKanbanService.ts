@@ -12,6 +12,7 @@ import type {
   CreateLegalKanbanColumnInput,
   CreateLegalKanbanCustomFieldInput,
   CreateLegalKanbanLabelInput,
+  KanbanCardDuplicateInfo,
   KanbanCardLinkInfo,
   LegalKanbanActivity,
   LegalKanbanAttachment,
@@ -486,7 +487,7 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
       db
         .from("kanban_card_links")
         .select(
-          "id, source_card_id, target_card_id, source_board_id, target_board_id, source_board:legal_kanban_boards!kanban_card_links_source_board_id_fkey(id, slug, domain), target_board:legal_kanban_boards!kanban_card_links_target_board_id_fkey(id, slug, domain)",
+          "id, link_type, source_card_id, target_card_id, source_board_id, target_board_id, source_board:legal_kanban_boards!kanban_card_links_source_board_id_fkey(id, slug, domain), target_board:legal_kanban_boards!kanban_card_links_target_board_id_fkey(id, slug, domain)",
         )
         .or(`source_card_id.in.(${cardIds.join(",")}),target_card_id.in.(${cardIds.join(",")})`),
     ]);
@@ -553,9 +554,16 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
   );
 
   const cardLinkMap = new Map<string, KanbanCardLinkInfo>();
+  const duplicatedCardIds = new Set<string>();
   maybeArray(cardLinksResponse.data).forEach((row: any) => {
     const sourceCardId = row.source_card_id as string;
     const targetCardId = row.target_card_id as string;
+
+    if (row.link_type === "duplicate") {
+      duplicatedCardIds.add(sourceCardId);
+      duplicatedCardIds.add(targetCardId);
+      return;
+    }
 
     if (cardIds.includes(sourceCardId)) {
       cardLinkMap.set(sourceCardId, {
@@ -591,7 +599,36 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
     hasLinkedPost: linkedCardIds.has(card.id),
     hasLinkedCard: cardLinkMap.has(card.id),
     linkedCard: cardLinkMap.get(card.id) || null,
+    isDuplicate: duplicatedCardIds.has(card.id),
   }));
+}
+
+// O grupo de duplicatas tem um card raiz (source dos vínculos) e N cópias (targets).
+async function getDuplicateInfo(
+  cardId: string,
+  cardLinks: any[],
+): Promise<KanbanCardDuplicateInfo | null> {
+  const duplicateLinks = cardLinks.filter((row) => row.link_type === "duplicate");
+  if (duplicateLinks.length === 0) {
+    return null;
+  }
+
+  const asCopy = duplicateLinks.find((row) => row.target_card_id === cardId);
+  const rootCardId = asCopy ? (asCopy.source_card_id as string) : cardId;
+
+  const { count } = await db
+    .from("kanban_card_links")
+    .select("id", { count: "exact", head: true })
+    .eq("link_type", "duplicate")
+    .eq("source_card_id", rootCardId);
+
+  // Tamanho do grupo = raiz + cópias; os pares do card são todos os outros.
+  const groupSize = (count || 0) + 1;
+
+  return {
+    isRoot: !asCopy,
+    peerCount: Math.max(groupSize - 1, 1),
+  };
 }
 
 export const legalKanbanService = {
@@ -844,30 +881,35 @@ export const legalKanbanService = {
       { total: 0, completed: 0 },
     );
 
-    const [postLinkResponse, cardLinkResponse] = await Promise.all([
+    const [postLinkResponse, cardLinksResponse] = await Promise.all([
       db.from("post_kanban_links").select("card_id").eq("card_id", cardId).maybeSingle(),
       db
         .from("kanban_card_links")
         .select(
-          "id, source_card_id, target_card_id, source_board_id, target_board_id, source_board:legal_kanban_boards!kanban_card_links_source_board_id_fkey(id, slug, domain), target_board:legal_kanban_boards!kanban_card_links_target_board_id_fkey(id, slug, domain)",
+          "id, link_type, source_card_id, target_card_id, source_board_id, target_board_id, source_board:legal_kanban_boards!kanban_card_links_source_board_id_fkey(id, slug, domain), target_board:legal_kanban_boards!kanban_card_links_target_board_id_fkey(id, slug, domain)",
         )
-        .or(`source_card_id.eq.${cardId},target_card_id.eq.${cardId}`)
-        .maybeSingle(),
+        .or(`source_card_id.eq.${cardId},target_card_id.eq.${cardId}`),
     ]);
 
+    const cardLinks = maybeArray(cardLinksResponse.data);
+
     let linkedCard: KanbanCardLinkInfo | null = null;
-    if (cardLinkResponse.data) {
-      const row = cardLinkResponse.data as any;
-      const isSource = row.source_card_id === cardId;
+    const shareRow = cardLinks.find((row: any) => row.link_type === "share") as any;
+    if (shareRow) {
+      const isSource = shareRow.source_card_id === cardId;
       linkedCard = {
-        linkId: row.id,
-        peerCardId: isSource ? row.target_card_id : row.source_card_id,
-        peerBoardId: isSource ? row.target_board_id : row.source_board_id,
-        peerBoardSlug: isSource ? row.target_board?.slug || "" : row.source_board?.slug || "",
-        peerBoardDomain: isSource ? row.target_board?.domain || "legal" : row.source_board?.domain || "operational",
+        linkId: shareRow.id,
+        peerCardId: isSource ? shareRow.target_card_id : shareRow.source_card_id,
+        peerBoardId: isSource ? shareRow.target_board_id : shareRow.source_board_id,
+        peerBoardSlug: isSource ? shareRow.target_board?.slug || "" : shareRow.source_board?.slug || "",
+        peerBoardDomain: isSource
+          ? shareRow.target_board?.domain || "legal"
+          : shareRow.source_board?.domain || "operational",
         isSource,
       };
     }
+
+    const duplicateInfo = await getDuplicateInfo(cardId, cardLinks);
 
     return {
       ...card,
@@ -884,6 +926,8 @@ export const legalKanbanService = {
       hasLinkedPost: Boolean(postLinkResponse.data?.card_id),
       hasLinkedCard: Boolean(linkedCard),
       linkedCard,
+      isDuplicate: Boolean(duplicateInfo),
+      duplicateInfo,
     };
   },
 

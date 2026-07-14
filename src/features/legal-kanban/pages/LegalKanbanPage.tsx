@@ -23,6 +23,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ArrowUpRight,
   CalendarDays,
+  Copy,
   Hash,
   ListChecks,
   MessageSquare,
@@ -619,6 +620,15 @@ function CardPreview({ card }: { card: LegalKanbanCard }) {
             >
               <ArrowUpRight className="h-3.5 w-3.5" />
               <span className="text-[10px] font-semibold uppercase">Compartilhado</span>
+            </span>
+          ) : null}
+          {card.isDuplicate ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300"
+              title="Card sincronizado com outras cópias"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-semibold uppercase">Duplicado</span>
             </span>
           ) : null}
         </div>
