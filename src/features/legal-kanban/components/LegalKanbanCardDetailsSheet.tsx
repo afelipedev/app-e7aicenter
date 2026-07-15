@@ -81,6 +81,8 @@ import {
 } from "@/features/legal-kanban/components/editor/LegalKanbanRichTextEditor";
 import { createEmptyRichTextDoc } from "@/features/legal-kanban/components/editor/extensions";
 import {
+  LEGAL_KANBAN_ATTACHMENT_ACCEPT,
+  LEGAL_KANBAN_ATTACHMENT_MAX_BYTES,
   LEGAL_KANBAN_COLOR_PRESETS,
   LEGAL_KANBAN_PRIORITY_META,
   LEGAL_KANBAN_STATUS_META,
@@ -769,17 +771,26 @@ export function LegalKanbanCardDetailsSheet({
     }
   }
 
-  async function handleUploadFile(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
+  async function processUploadFile(file: File) {
+    if (file.size > LEGAL_KANBAN_ATTACHMENT_MAX_BYTES) {
+      const maxMb = Math.round(LEGAL_KANBAN_ATTACHMENT_MAX_BYTES / (1024 * 1024));
+      toast.error(`Arquivo muito grande. O tamanho máximo é ${maxMb} MB.`);
+      return;
+    }
 
     try {
       await uploadAttachment.mutateAsync(file);
       toast.success("Arquivo anexado.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao enviar o arquivo.");
+      toast.error(describeUploadError(error, file.name));
     }
+  }
+
+  // Aciona o input de arquivo (renderizado fora do Dialog/ScrollArea). Chamada
+  // síncrona a partir do clique preserva a ativação do usuário exigida pelo browser.
+  function handlePickAndUpload() {
+    if (!cardId || uploadAttachment.isPending) return;
+    attachmentFileInputRef.current?.click();
   }
 
   async function handleOpenAttachment(attachmentId: string) {
@@ -1582,8 +1593,17 @@ export function LegalKanbanCardDetailsSheet({
                             </Button>
                           </div>
                           <div className="space-y-1.5">
-                            <Label htmlFor="kanban-file-upload">Arquivo</Label>
-                            <Input id="kanban-file-upload" type="file" onChange={handleUploadFile} />
+                            <Label>Arquivo</Label>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full justify-start font-normal"
+                              disabled={uploadAttachment.isPending || !cardId}
+                              onClick={handlePickAndUpload}
+                            >
+                              <Paperclip className="mr-2 h-4 w-4" />
+                              {uploadAttachment.isPending ? "Enviando…" : "Escolher arquivo"}
+                            </Button>
                           </div>
                         </TopPanelBlock>
                       ) : null}
@@ -1609,14 +1629,6 @@ export function LegalKanbanCardDetailsSheet({
                   </section>
 
                   <section className="rounded-xl border border-border/70 bg-card p-4">
-                    <input
-                      ref={attachmentFileInputRef}
-                      type="file"
-                      className="sr-only"
-                      tabIndex={-1}
-                      aria-hidden
-                      onChange={handleUploadFile}
-                    />
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <Paperclip className="h-4 w-4 text-primary" />
@@ -1628,7 +1640,7 @@ export function LegalKanbanCardDetailsSheet({
                         size="sm"
                         className="h-8 shrink-0 text-xs"
                         disabled={uploadAttachment.isPending || !cardId}
-                        onClick={() => attachmentFileInputRef.current?.click()}
+                        onClick={handlePickAndUpload}
                         title="Escolher arquivo para anexar"
                       >
                         {uploadAttachment.isPending ? "Enviando…" : "Adicionar"}
@@ -2190,6 +2202,19 @@ export function LegalKanbanCardDetailsSheet({
         </div>
       </DialogContent>
     </Dialog>
+    {/* Input de arquivo fora do Dialog/ScrollArea do Radix: dentro do modal, o
+        seletor nativo não abria. Acionado por ref.click() a partir dos botões. */}
+    <input
+      ref={attachmentFileInputRef}
+      type="file"
+      accept={LEGAL_KANBAN_ATTACHMENT_ACCEPT}
+      className="hidden"
+      onChange={(event) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (file) void processUploadFile(file);
+      }}
+    />
     {cardId ? (
       <ShareKanbanCardDialog
         cardId={cardId}
@@ -2463,6 +2488,23 @@ function renderCommentWithMentionHighlight(content: string, mentionNames: string
   }
 
   return <>{parts}</>;
+}
+
+// Traduz erros técnicos do Storage (mime/tamanho) para mensagens claras ao usuário.
+function describeUploadError(error: unknown, fileName: string): string {
+  const message = error instanceof Error ? error.message : "";
+  const lower = message.toLowerCase();
+
+  if (lower.includes("mime") || lower.includes("not supported") || lower.includes("invalid_mime_type")) {
+    return `O tipo do arquivo "${fileName}" não é permitido para anexos.`;
+  }
+  if (lower.includes("maximum allowed size") || lower.includes("payload too large") || lower.includes("413")) {
+    return "Arquivo muito grande. O tamanho máximo é 50 MB.";
+  }
+  if (lower.includes("duplicate") || lower.includes("already exists") || lower.includes("conflict")) {
+    return "Este arquivo já está anexado a este card.";
+  }
+  return message || "Erro ao enviar o arquivo.";
 }
 
 function attachmentKindLabel(attachment: LegalKanbanAttachment) {

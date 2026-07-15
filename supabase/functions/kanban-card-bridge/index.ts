@@ -136,18 +136,30 @@ async function copyCardRelations(
   const { data: attachments } = await admin.from("legal_kanban_attachments")
     .select("*").eq("card_id", sourceCardId);
   if (attachments?.length) {
-    await admin.from("legal_kanban_attachments").insert(
-      attachments.map((att) => ({
-        card_id: targetCardId,
-        attachment_type: att.attachment_type,
-        name: att.name,
-        file_path: att.file_path,
-        file_size: att.file_size,
-        mime_type: att.mime_type,
-        url: att.url,
-        created_by_user_id: att.created_by_user_id,
-      })),
-    );
+    const mapped = attachments.map((att) => ({
+      card_id: targetCardId,
+      attachment_type: att.attachment_type,
+      name: att.name,
+      file_path: att.file_path,
+      file_size: att.file_size,
+      mime_type: att.mime_type,
+      url: att.url,
+      created_by_user_id: att.created_by_user_id,
+    }));
+
+    // ignoreDuplicates evita gravar em dobro caso a operação seja reprocessada
+    // (índices únicos: card_id+file_path para arquivos, card_id+url para links).
+    const fileRows = mapped.filter((att) => att.attachment_type === "file" && att.file_path);
+    const linkRows = mapped.filter((att) => att.attachment_type === "link" && att.url);
+
+    if (fileRows.length) {
+      await admin.from("legal_kanban_attachments")
+        .upsert(fileRows, { onConflict: "card_id,file_path", ignoreDuplicates: true });
+    }
+    if (linkRows.length) {
+      await admin.from("legal_kanban_attachments")
+        .upsert(linkRows, { onConflict: "card_id,url", ignoreDuplicates: true });
+    }
   }
 
   const { data: comments } = await admin.from("legal_kanban_comments")

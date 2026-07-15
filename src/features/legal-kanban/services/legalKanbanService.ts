@@ -518,7 +518,7 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
   }
 
   const cardIds = cards.map((card) => card.id);
-  const [membersResponse, labelsResponse, commentsResponse, attachmentsResponse, checklistsResponse, customValuesResponse, postLinksResponse, cardLinksResponse] =
+  const [membersResponse, labelsResponse, engagementResponse, checklistsResponse, customValuesResponse, postLinksResponse, cardLinksResponse] =
     await Promise.all([
       db
         .from("legal_kanban_card_members")
@@ -528,8 +528,9 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
         .from("legal_kanban_card_labels")
         .select("id, card_id, label:legal_kanban_labels ( id, board_id, name, color, position )")
         .in("card_id", cardIds),
-      db.from("legal_kanban_comments").select("id, card_id").in("card_id", cardIds),
-      db.from("legal_kanban_attachments").select("id, card_id").in("card_id", cardIds),
+      // Contagem agregada no banco: evita o truncamento de linhas do PostgREST que
+      // subcontava comentários/anexos em quadros grandes.
+      db.rpc("legal_kanban_card_engagement_counts", { p_card_ids: cardIds }),
       db.from("legal_kanban_checklists").select("id, card_id").in("card_id", cardIds),
       db
         .from("legal_kanban_card_custom_field_values")
@@ -570,13 +571,10 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
   });
 
   const commentsCountMap = new Map<string, number>();
-  maybeArray(commentsResponse.data).forEach((row: any) => {
-    commentsCountMap.set(row.card_id, (commentsCountMap.get(row.card_id) || 0) + 1);
-  });
-
   const attachmentsCountMap = new Map<string, number>();
-  maybeArray(attachmentsResponse.data).forEach((row: any) => {
-    attachmentsCountMap.set(row.card_id, (attachmentsCountMap.get(row.card_id) || 0) + 1);
+  maybeArray(engagementResponse.data).forEach((row: any) => {
+    commentsCountMap.set(row.card_id, Number(row.comments_count) || 0);
+    attachmentsCountMap.set(row.card_id, Number(row.attachments_count) || 0);
   });
 
   const checklistToCardMap = new Map<string, string>();
@@ -1642,16 +1640,30 @@ export const legalKanbanService = {
 
     const row = ensureData(response, "Anexo não encontrado.");
 
-    if (row.attachment_type === "file" && row.file_path) {
-      const removeResponse = await supabase.storage.from(LEGAL_KANBAN_STORAGE_BUCKET).remove([row.file_path]);
-      if (removeResponse.error) {
-        throw new Error(removeResponse.error.message);
-      }
-    }
-
+    // Exclui o registro primeiro. Os triggers de sync removem em cascata as cópias
+    // nos cards vinculados que apontam para o mesmo arquivo.
     const deleteResponse = await db.from("legal_kanban_attachments").delete().eq("id", attachmentId);
     if (deleteResponse.error) {
       throw new Error(deleteResponse.error.message || "Não foi possível excluir o anexo.");
+    }
+
+    // Só remove o objeto do Storage quando nenhum outro registro ainda o referencia.
+    // Evita apagar um arquivo compartilhado por cards vinculados/duplicados,
+    // o que deixaria "anexos fantasmas" que não abrem.
+    if (row.attachment_type === "file" && row.file_path) {
+      const remaining = await db
+        .from("legal_kanban_attachments")
+        .select("id")
+        .eq("file_path", row.file_path)
+        .limit(1);
+
+      const stillReferenced = maybeArray(remaining.data).length > 0;
+      if (!stillReferenced) {
+        const removeResponse = await supabase.storage.from(LEGAL_KANBAN_STORAGE_BUCKET).remove([row.file_path]);
+        if (removeResponse.error) {
+          throw new Error(removeResponse.error.message);
+        }
+      }
     }
 
     await logActivity(row.card_id, actor.id, "attachment_deleted", `Removeu o anexo "${row.name}".`);

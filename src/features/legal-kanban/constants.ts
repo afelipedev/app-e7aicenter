@@ -5,6 +5,22 @@ export const LEGAL_KANBAN_STORAGE_BUCKET = "legal-kanban-attachments";
 export const LEGAL_KANBAN_INLINE_IMAGE_BUCKET = "legal-kanban-inline-images";
 export const LEGAL_KANBAN_BOARD_COVER_BUCKET = "legal-kanban-board-covers";
 
+// Limite alinhado ao file_size_limit do bucket de anexos (50 MB).
+export const LEGAL_KANBAN_ATTACHMENT_MAX_BYTES = 50 * 1024 * 1024;
+
+// Extensões aceitas no seletor de arquivos (alinhadas ao allowed_mime_types do bucket).
+export const LEGAL_KANBAN_ATTACHMENT_ACCEPT = [
+  ".pdf",
+  ".doc", ".docx", ".odt", ".rtf",
+  ".xls", ".xlsx", ".ods", ".csv",
+  ".ppt", ".pptx", ".odp",
+  ".txt", ".xml", ".json",
+  ".eml", ".msg",
+  ".zip", ".rar", ".7z", ".gz",
+  ".p7s",
+  ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif", ".svg",
+].join(",");
+
 export const LEGAL_KANBAN_PRIORITY_META: Record<
   KanbanPriority,
   { label: string; color: string; chip: string }
