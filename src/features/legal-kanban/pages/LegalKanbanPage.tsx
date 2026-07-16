@@ -519,6 +519,20 @@ function KanbanCardItem({
 function CardPreview({ card }: { card: LegalKanbanCard }) {
   return (
     <div className="space-y-3">
+      {card.labels.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {card.labels.map((label) => (
+            <span
+              key={label.id}
+              className="inline-flex items-center gap-1 rounded-full border border-transparent px-2.5 py-1 text-[11px] font-semibold text-white"
+              style={{ backgroundColor: label.color }}
+            >
+              {label.name}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <p className="break-words text-sm font-semibold leading-5 text-foreground [overflow-wrap:anywhere]">
@@ -537,20 +551,6 @@ function CardPreview({ card }: { card: LegalKanbanCard }) {
           #{card.cardNumber}
         </span>
       </div>
-
-      {card.labels.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {card.labels.map((label) => (
-            <span
-              key={label.id}
-              className="inline-flex items-center gap-1 rounded-full border border-transparent px-2.5 py-1 text-[11px] font-semibold text-white"
-              style={{ backgroundColor: label.color }}
-            >
-              {label.name}
-            </span>
-          ))}
-        </div>
-      ) : null}
 
       <div className="grid gap-2.5 text-xs text-muted-foreground">
         {card.reminderAt ? (

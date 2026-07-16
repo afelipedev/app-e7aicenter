@@ -35,7 +35,7 @@ import type {
   UpsertLegalKanbanBoardInput,
   UpdateLegalKanbanCardInput,
 } from "../types";
-import { buildColorFromName, normalizeRichTextDoc, reindexByHundreds, sortByPosition } from "../utils";
+import { buildColorFromName, normalizeRichTextDoc, reindexByHundreds, sortByPosition, sortCardsByDueDate } from "../utils";
 
 type QueryResponse<T> = {
   data: T | null;
@@ -512,22 +512,43 @@ async function getBoardContext(boardSlug: string, domain: KanbanDomain = "legal"
   };
 }
 
+// Busca as etiquetas de vários cards em lotes. Uma única consulta `.in(cardIds)`
+// é truncada pelo PostgREST (~1000 linhas) em quadros grandes, o que fazia as
+// etiquetas sumirem dos cards no board (o modal, que consulta 1 card por vez,
+// não sofria o problema). Ver comentário análogo em `hydrateCards`.
+const CARD_LABELS_BATCH_SIZE = 300;
+
+async function fetchCardLabelRows(cardIds: string[]) {
+  const batches: string[][] = [];
+  for (let i = 0; i < cardIds.length; i += CARD_LABELS_BATCH_SIZE) {
+    batches.push(cardIds.slice(i, i + CARD_LABELS_BATCH_SIZE));
+  }
+
+  const responses = await Promise.all(
+    batches.map((ids) =>
+      db
+        .from("legal_kanban_card_labels")
+        .select("id, card_id, label:legal_kanban_labels ( id, board_id, name, color, position )")
+        .in("card_id", ids),
+    ),
+  );
+
+  return responses.flatMap((response) => maybeArray(response.data));
+}
+
 async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCard[]> {
   if (cards.length === 0) {
     return [];
   }
 
   const cardIds = cards.map((card) => card.id);
-  const [membersResponse, labelsResponse, engagementResponse, checklistsResponse, customValuesResponse, postLinksResponse, cardLinksResponse] =
+  const [membersResponse, labelRows, engagementResponse, checklistsResponse, customValuesResponse, postLinksResponse, cardLinksResponse] =
     await Promise.all([
       db
         .from("legal_kanban_card_members")
         .select("id, card_id, user:users ( id, name, email, role, status, avatar_url )")
         .in("card_id", cardIds),
-      db
-        .from("legal_kanban_card_labels")
-        .select("id, card_id, label:legal_kanban_labels ( id, board_id, name, color, position )")
-        .in("card_id", cardIds),
+      fetchCardLabelRows(cardIds),
       // Contagem agregada no banco: evita o truncamento de linhas do PostgREST que
       // subcontava comentários/anexos em quadros grandes.
       db.rpc("legal_kanban_card_engagement_counts", { p_card_ids: cardIds }),
@@ -564,7 +585,7 @@ async function hydrateCards(cards: LegalKanbanCardBase[]): Promise<LegalKanbanCa
   });
 
   const labelsMap = new Map<string, LegalKanbanLabel[]>();
-  maybeArray(labelsResponse.data).forEach((row: any) => {
+  labelRows.forEach((row: any) => {
     const current = labelsMap.get(row.card_id) || [];
     current.push(mapLabel(row.label));
     labelsMap.set(row.card_id, sortByPosition(current));
@@ -857,7 +878,7 @@ export const legalKanbanService = {
 
     const columns = sortByPosition(context.columns).map((column) => ({
       ...column,
-      cards: sortByPosition(cards.filter((card) => card.columnId === column.id)),
+      cards: sortCardsByDueDate(cards.filter((card) => card.columnId === column.id)),
     }));
 
     return {

@@ -113,7 +113,8 @@ export function filterBoardColumns(
 
   return columns.map((column) => ({
     ...column,
-    cards: column.cards.filter((card) => {
+    cards: sortCardsByDueDate(
+      column.cards.filter((card) => {
       const matchesSearch =
         !normalizedSearch ||
         normalizeText(card.title).includes(normalizedSearch) ||
@@ -140,12 +141,31 @@ export function filterBoardColumns(
       const matchesDue = matchesDueFilter(card.dueDate, filters.dueFilter);
 
       return matchesSearch && matchesMemberMode && matchesStatus && matchesLabels && matchesDue;
-    }),
+      }),
+    ),
   }));
 }
 
 export function sortByPosition<T extends { position: number }>(items: T[]) {
   return [...items].sort((left, right) => left.position - right.position);
+}
+
+/**
+ * Ordena os cards pela data de entrega (dueDate) mais próxima primeiro.
+ * Cards sem prazo vão para o final. Desempate estável por `position` para
+ * evitar "pulos" entre renders quando as datas são iguais.
+ */
+export function sortCardsByDueDate<T extends { dueDate: string | null; position: number }>(cards: T[]) {
+  return [...cards].sort((left, right) => {
+    const leftTime = left.dueDate ? new Date(left.dueDate).getTime() : Number.POSITIVE_INFINITY;
+    const rightTime = right.dueDate ? new Date(right.dueDate).getTime() : Number.POSITIVE_INFINITY;
+
+    if (leftTime !== rightTime) {
+      return leftTime - rightTime;
+    }
+
+    return left.position - right.position;
+  });
 }
 
 export function reorderList<T>(items: T[], from: number, to: number) {
