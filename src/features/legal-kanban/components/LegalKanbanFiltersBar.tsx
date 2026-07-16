@@ -145,7 +145,9 @@ export function LegalKanbanFiltersBar({
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Status</p>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(LEGAL_KANBAN_STATUS_META).map(([status, meta]) => {
+            {Object.entries(LEGAL_KANBAN_STATUS_META)
+              .filter(([status]) => status !== "arquivado")
+              .map(([status, meta]) => {
               const selected = filters.statuses.includes(status as LegalKanbanFiltersState["statuses"][number]);
               return (
                 <button

@@ -384,19 +384,13 @@ export function LegalKanbanCardDetailsSheet({
     () => board.columns.find((column) => column.id === data?.columnId) || null,
     [board.columns, data?.columnId],
   );
-  const archivedColumn = useMemo(
-    () => board.columns.find((column) => column.kind === "archived") ?? null,
-    [board.columns],
-  );
   const cardActionsBusy =
     updateCard.isPending ||
     moveCard.isPending ||
     deleteCard.isPending ||
     setMembers.isPending;
   const canFinalizeOrArchive = ["administrator", "advogado_adm"].includes(authUser?.role || "");
-  const archiveActionDisabled =
-    !archivedColumn ||
-    (Boolean(data?.columnId === archivedColumn?.id) && status === "arquivado");
+  const archiveActionDisabled = status === "arquivado";
   const filteredLabels = useMemo(() => {
     const normalized = labelSearch.trim().toLowerCase();
     if (!normalized) return board.labels;
@@ -594,22 +588,14 @@ export function LegalKanbanCardDetailsSheet({
   }
 
   async function confirmArchiveCard() {
-    if (!cardId || !data || !archivedColumn) return;
+    if (!cardId || !data) return;
     if (!canFinalizeOrArchive) {
       toast.error("Somente Administrador e Advogado Administrativo podem arquivar cards.");
       return;
     }
     try {
-      const needsMove = data.columnId !== archivedColumn.id;
-      if (needsMove) {
-        const destinationIndex = archivedColumn.cards.filter((c) => c.id !== cardId).length;
-        await moveCard.mutateAsync({
-          cardId,
-          sourceColumnId: data.columnId,
-          destinationColumnId: archivedColumn.id,
-          destinationIndex,
-        });
-      }
+      // Arquivar apenas altera o status; o card permanece na coluna de origem
+      // para poder retornar a ela ao ser desarquivado em "Itens Arquivados".
       if (status !== "arquivado") {
         await updateCard.mutateAsync({ status: "arquivado", completedAt: null });
         setStatus("arquivado");
@@ -2000,8 +1986,8 @@ export function LegalKanbanCardDetailsSheet({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Arquivar card?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    O card será movido para a raia &quot;{archivedColumn?.title ?? "Arquivados"}&quot; e o status
-                    será alterado para arquivado.
+                    O card sairá do quadro e ficará disponível em &quot;Itens Arquivados&quot;. Ao desarquivar,
+                    ele retornará à raia atual.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

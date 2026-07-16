@@ -111,10 +111,15 @@ export function filterBoardColumns(
 ) {
   const normalizedSearch = normalizeText(filters.search);
 
-  return columns.map((column) => ({
+  // Raias arquivadas e cards arquivados só aparecem na central de Itens Arquivados.
+  return columns
+    .filter((column) => !column.isArchived)
+    .map((column) => ({
     ...column,
     cards: sortCardsByDueDate(
       column.cards.filter((card) => {
+      if (card.status === "arquivado") return false;
+
       const matchesSearch =
         !normalizedSearch ||
         normalizeText(card.title).includes(normalizedSearch) ||

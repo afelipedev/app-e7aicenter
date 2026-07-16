@@ -217,6 +217,43 @@ export function useReorderLegalKanbanColumns() {
   });
 }
 
+export function useArchiveLegalKanbanColumn() {
+  const { module, kanbanKeys } = useKanbanScope();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (columnId: string) => legalKanbanService.archiveColumn(columnId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: kanbanKeys.boardPrefix() });
+    },
+  });
+}
+
+export function useUnarchiveLegalKanbanColumn() {
+  const { module, kanbanKeys } = useKanbanScope();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (columnId: string) => legalKanbanService.unarchiveColumn(columnId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: kanbanKeys.boardPrefix() });
+    },
+  });
+}
+
+export function useUnarchiveLegalKanbanCard() {
+  const { module, kanbanKeys } = useKanbanScope();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (cardId: string) => legalKanbanService.unarchiveCard(cardId),
+    onSuccess: (_data, cardId) => {
+      queryClient.invalidateQueries({ queryKey: kanbanKeys.card(cardId) });
+      queryClient.invalidateQueries({ queryKey: kanbanKeys.boardPrefix() });
+    },
+  });
+}
+
 export function useDeleteLegalKanbanColumn() {
   const { module, kanbanKeys } = useKanbanScope();
   const queryClient = useQueryClient();

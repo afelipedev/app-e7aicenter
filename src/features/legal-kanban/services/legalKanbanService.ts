@@ -1111,6 +1111,26 @@ export const legalKanbanService = {
     }
   },
 
+  async unarchiveCard(cardId: string) {
+    const actor = await getCurrentPublicUser();
+    if (!canForceConcludedStatus(actor.role)) {
+      throw new Error("Somente Administrador e Advogado Administrativo podem desarquivar cards.");
+    }
+
+    const response = await db
+      .from("legal_kanban_cards")
+      .update({ status: "ativo", completed_at: null, updated_by_user_id: actor.id })
+      .eq("id", cardId)
+      .select("*")
+      .single();
+
+    const card = mapCardBase(ensureData(response, "Não foi possível desarquivar o card."));
+    await logActivity(cardId, actor.id, "status_changed", 'Desarquivou o card (status "ativo").', {
+      status: "ativo",
+    });
+    return card;
+  },
+
   async moveCard(cardId: string, sourceColumnId: string, destinationColumnId: string, destinationIndex: number) {
     const actor = await getCurrentPublicUser();
 
@@ -1238,6 +1258,38 @@ export const legalKanbanService = {
     }
 
     await db.from("legal_kanban_columns").delete().eq("id", columnId);
+  },
+
+  async archiveColumn(columnId: string) {
+    const actor = await getCurrentPublicUser();
+    if (!canForceConcludedStatus(actor.role)) {
+      throw new Error("Somente Administrador e Advogado Administrativo podem arquivar raias.");
+    }
+
+    const response = await db
+      .from("legal_kanban_columns")
+      .update({ is_archived: true })
+      .eq("id", columnId)
+      .select("*")
+      .single();
+
+    return mapColumn(ensureData(response, "Não foi possível arquivar a raia."));
+  },
+
+  async unarchiveColumn(columnId: string) {
+    const actor = await getCurrentPublicUser();
+    if (!canForceConcludedStatus(actor.role)) {
+      throw new Error("Somente Administrador e Advogado Administrativo podem desarquivar raias.");
+    }
+
+    const response = await db
+      .from("legal_kanban_columns")
+      .update({ is_archived: false })
+      .eq("id", columnId)
+      .select("*")
+      .single();
+
+    return mapColumn(ensureData(response, "Não foi possível desarquivar a raia."));
   },
 
   async createLabel(input: CreateLegalKanbanLabelInput) {
