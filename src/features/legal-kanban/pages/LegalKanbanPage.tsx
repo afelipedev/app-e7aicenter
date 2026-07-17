@@ -20,7 +20,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Archive, ArrowUpRight, MoreVertical, Plus } from "lucide-react";
+import { Archive, ArchiveX, ArrowUpRight, MoreVertical, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,7 @@ import { LegalKanbanArchivedItemsDialog } from "../components/LegalKanbanArchive
 import { LegalKanbanFiltersBar } from "../components/LegalKanbanFiltersBar";
 import {
   useArchiveLegalKanbanColumn,
+  useArchiveLegalKanbanColumnCards,
   useCreateLegalKanbanCard,
   useLegalKanbanBoard,
   useMoveLegalKanbanCard,
@@ -85,6 +86,7 @@ export default function LegalKanbanPage() {
   const [archivedItemsOpen, setArchivedItemsOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState<ActiveDragState>(null);
   const archiveColumn = useArchiveLegalKanbanColumn();
+  const archiveColumnCards = useArchiveLegalKanbanColumnCards();
 
   const canManageBoard = ["administrator", "it", "advogado_adm"].includes(user?.role || "");
   const canFinalizeCards = ["administrator", "advogado_adm"].includes(user?.role || "");
@@ -119,6 +121,16 @@ export default function LegalKanbanPage() {
       toast.success("Raia arquivada.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao arquivar a raia.");
+      throw error;
+    }
+  }
+
+  async function handleArchiveColumnCards(columnId: string) {
+    try {
+      const count = await archiveColumnCards.mutateAsync(columnId);
+      toast.success(count > 0 ? `${count} card(s) arquivado(s).` : "Nenhum card para arquivar.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao arquivar os cards da raia.");
       throw error;
     }
   }
@@ -299,6 +311,7 @@ export default function LegalKanbanPage() {
                       column={column}
                       canArchive={canFinalizeCards}
                       onArchive={handleArchiveColumn}
+                      onArchiveCards={handleArchiveColumnCards}
                       onCreateCard={handleCreateCard}
                       onOpenCard={(cardId) => {
                         setSelectedCardId(cardId);
@@ -375,16 +388,20 @@ function KanbanColumnCard({
   onOpenCard,
   canArchive,
   onArchive,
+  onArchiveCards,
 }: {
   column: LegalKanbanColumnWithCards;
   onCreateCard: (columnId: string, title: string) => Promise<void>;
   onOpenCard: (cardId: string) => void;
   canArchive: boolean;
   onArchive: (columnId: string) => Promise<void>;
+  onArchiveCards: (columnId: string) => Promise<void>;
 }) {
   const [newCardTitle, setNewCardTitle] = useState("");
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [archiveCardsConfirmOpen, setArchiveCardsConfirmOpen] = useState(false);
+  const [archivingCards, setArchivingCards] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `column-${column.id}`,
     data: {
@@ -444,6 +461,13 @@ function KanbanColumnCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem
+                    disabled={column.cards.length === 0}
+                    onClick={() => setArchiveCardsConfirmOpen(true)}
+                  >
+                    <ArchiveX className="mr-2 h-4 w-4" />
+                    Arquivar cards
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setArchiveConfirmOpen(true)}>
                     <Archive className="mr-2 h-4 w-4" />
                     Arquivar raia
@@ -479,6 +503,37 @@ function KanbanColumnCard({
                 }}
               >
                 Arquivar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={archiveCardsConfirmOpen} onOpenChange={setArchiveCardsConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Arquivar todos os cards da raia?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Todos os {column.cards.length} card(s) da raia <strong>{column.title}</strong> serão
+                arquivados e sairão do quadro. A raia permanece visível. Você poderá restaurá-los em
+                "Itens Arquivados".
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={archivingCards}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={archivingCards}
+                onClick={async (event) => {
+                  event.preventDefault();
+                  setArchivingCards(true);
+                  try {
+                    await onArchiveCards(column.id);
+                    setArchiveCardsConfirmOpen(false);
+                  } finally {
+                    setArchivingCards(false);
+                  }
+                }}
+              >
+                Arquivar cards
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

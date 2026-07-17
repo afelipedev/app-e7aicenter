@@ -17,6 +17,7 @@ Implementar arquivamento/desarquivamento coeso de **cards** e de **raias inteira
 ### Backend/service — `services/legalKanbanService.ts`
 - `unarchiveCard(cardId)` — seta `status='ativo'`, `completed_at=null` (com guarda de permissão e log de atividade).
 - `archiveColumn(columnId)` / `unarchiveColumn(columnId)` — alternam `is_archived` (com guarda de permissão). `archiveColumn` não bloqueia quando há cards (diferente de `deleteColumn`).
+- `archiveColumnCards(columnId)` — arquiva **todos os cards** da raia (`status='arquivado'`) **mantendo a raia visível** no quadro. Retorna a quantidade arquivada e loga a atividade em cada card.
 
 ### Hooks — `hooks/useLegalKanbanBoard.ts`
 - `useUnarchiveLegalKanbanCard`, `useArchiveLegalKanbanColumn`, `useUnarchiveLegalKanbanColumn` (invalidam a query do board).

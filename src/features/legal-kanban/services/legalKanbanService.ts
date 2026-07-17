@@ -1276,6 +1276,38 @@ export const legalKanbanService = {
     return mapColumn(ensureData(response, "Não foi possível arquivar a raia."));
   },
 
+  async archiveColumnCards(columnId: string) {
+    const actor = await getCurrentPublicUser();
+    if (!canForceConcludedStatus(actor.role)) {
+      throw new Error("Somente Administrador e Advogado Administrativo podem arquivar cards.");
+    }
+
+    // Arquiva todos os cards da raia mantendo a raia visível no quadro.
+    // Os cards permanecem na coluna (column_id intacto) e passam a aparecer
+    // apenas em "Itens Arquivados", de onde podem retornar à raia de origem.
+    const response = await db
+      .from("legal_kanban_cards")
+      .update({ status: "arquivado", completed_at: null, updated_by_user_id: actor.id })
+      .eq("column_id", columnId)
+      .neq("status", "arquivado")
+      .select("id");
+
+    if (response.error) {
+      throw new Error(response.error.message || "Não foi possível arquivar os cards da raia.");
+    }
+
+    const archivedIds = maybeArray(response.data).map((row: any) => row.id);
+    await Promise.all(
+      archivedIds.map((id: string) =>
+        logActivity(id, actor.id, "status_changed", 'Arquivou o card (status "arquivado").', {
+          status: "arquivado",
+        }),
+      ),
+    );
+
+    return archivedIds.length;
+  },
+
   async unarchiveColumn(columnId: string) {
     const actor = await getCurrentPublicUser();
     if (!canForceConcludedStatus(actor.role)) {

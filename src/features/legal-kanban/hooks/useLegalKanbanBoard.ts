@@ -229,6 +229,18 @@ export function useArchiveLegalKanbanColumn() {
   });
 }
 
+export function useArchiveLegalKanbanColumnCards() {
+  const { module, kanbanKeys } = useKanbanScope();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (columnId: string) => legalKanbanService.archiveColumnCards(columnId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: kanbanKeys.boardPrefix() });
+    },
+  });
+}
+
 export function useUnarchiveLegalKanbanColumn() {
   const { module, kanbanKeys } = useKanbanScope();
   const queryClient = useQueryClient();
