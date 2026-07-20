@@ -110,6 +110,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { ShareKanbanCardDialog } from "@/features/kanban-shared/components/ShareKanbanCardDialog";
 import { DuplicateKanbanCardDialog } from "@/features/kanban-shared/components/DuplicateKanbanCardDialog";
+import { MoveKanbanCardPopover } from "@/features/legal-kanban/components/MoveKanbanCardPopover";
 import { KANBAN_MODULE_CONFIG, kanbanBoardDetailPath } from "@/features/kanban-shared/kanbanModuleConfig";
 import { useKanbanModule } from "@/features/kanban-shared/KanbanModuleContext";
 import { kanbanCardBridgeService } from "@/features/kanban-shared/services/kanbanCardBridgeService";
@@ -900,9 +901,11 @@ export function LegalKanbanCardDetailsSheet({
           <>
             <div className="flex min-h-0 flex-1 flex-col bg-background">
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 px-4 py-3 sm:px-5">
-              <p className="min-w-0 truncate rounded-md border border-border/80 bg-muted/60 px-3 py-1.5 text-left text-xs font-bold uppercase tracking-wide text-foreground">
-                {currentColumn?.title || "Sem raia"}
-              </p>
+              <MoveKanbanCardPopover
+                cardId={cardData.id}
+                board={board}
+                currentColumn={currentColumn}
+              />
               <div className="flex shrink-0 items-center gap-1">
                 <Button
                   type="button"
