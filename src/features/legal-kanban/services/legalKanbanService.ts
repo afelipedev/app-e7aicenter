@@ -271,6 +271,11 @@ function canForceConcludedStatus(role: string) {
   return ["administrator", "advogado_adm"].includes(role);
 }
 
+/** Desarquivar card é permitido também ao perfil Advogado. */
+function canUnarchiveCards(role: string) {
+  return ["administrator", "advogado_adm", "advogado"].includes(role);
+}
+
 async function findColumnIdByKind(boardId: string, kind: string) {
   const response = await db
     .from("legal_kanban_columns")
@@ -1040,6 +1045,11 @@ export const legalKanbanService = {
       throw new Error("Somente Administrador e Advogado Administrativo podem concluir ou arquivar cards.");
     }
 
+    // Card arquivado tem o status congelado: só volta a "ativo" pelo desarquivamento.
+    if (currentCard.status === "arquivado" && input.status !== undefined && input.status !== "arquivado") {
+      throw new Error("Desarquive o card para alterar o status.");
+    }
+
     const payload: Record<string, unknown> = {
       updated_by_user_id: actor.id,
     };
@@ -1113,8 +1123,8 @@ export const legalKanbanService = {
 
   async unarchiveCard(cardId: string) {
     const actor = await getCurrentPublicUser();
-    if (!canForceConcludedStatus(actor.role)) {
-      throw new Error("Somente Administrador e Advogado Administrativo podem desarquivar cards.");
+    if (!canUnarchiveCards(actor.role)) {
+      throw new Error("Você não tem permissão para desarquivar cards.");
     }
 
     const response = await db

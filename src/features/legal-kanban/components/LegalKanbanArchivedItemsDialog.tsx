@@ -38,6 +38,8 @@ interface LegalKanbanArchivedItemsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   canManageArchive: boolean;
+  /** Desarquivar card é permitido também ao perfil Advogado. */
+  canUnarchiveCards: boolean;
   onOpenCard: (cardId: string) => void;
 }
 
@@ -46,6 +48,7 @@ export function LegalKanbanArchivedItemsDialog({
   open,
   onOpenChange,
   canManageArchive,
+  canUnarchiveCards,
   onOpenCard,
 }: LegalKanbanArchivedItemsDialogProps) {
   const [search, setSearch] = useState("");
@@ -167,7 +170,7 @@ export function LegalKanbanArchivedItemsDialog({
                               variant="outline"
                               size="sm"
                               className="h-8 rounded-full px-3"
-                              disabled={busy || !canManageArchive}
+                              disabled={busy || !canUnarchiveCards}
                               onClick={() => handleUnarchiveCard(card.id)}
                             >
                               <ArchiveRestore className="mr-1.5 h-4 w-4" />

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AtSign, Bell, Check, MessageSquarePlus, Trello, UserPlus } from "lucide-react";
+import { AtSign, Bell, Check, MessageSquarePlus, ShieldAlert, Trello, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -62,6 +62,10 @@ function describe(n: NotificationRow): string {
       return p.board_title
         ? `Você foi adicionado ao quadro "${p.board_title}"`
         : "Você foi adicionado a um quadro";
+    case "card_pending_approval":
+      return p.card_title
+        ? `O card "${p.card_title}" está aguardando aprovação`
+        : "Um card está aguardando aprovação";
     case "post_created":
       return p.post_title && p.channel_name
         ? `Nova postagem em #${p.channel_name}: "${p.post_title}"`
@@ -80,6 +84,8 @@ function iconFor(n: NotificationRow) {
     case "card_member_added":
     case "board_member_added":
       return UserPlus;
+    case "card_pending_approval":
+      return ShieldAlert;
     case "post_created":
       return MessageSquarePlus;
     case "team_invite":
@@ -107,6 +113,7 @@ function linkFor(n: NotificationRow): string | null {
       return null;
     case "kanban_comment_mention":
     case "card_member_added":
+    case "card_pending_approval":
       if (p.board_slug && p.card_id) {
         return `/documents/cases/quadros/${p.board_slug}?card=${p.card_id}`;
       }

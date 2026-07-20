@@ -392,6 +392,8 @@ export function LegalKanbanCardDetailsSheet({
     setMembers.isPending;
   const canFinalizeOrArchive = ["administrator", "advogado_adm"].includes(authUser?.role || "");
   const archiveActionDisabled = status === "arquivado";
+  // Card arquivado tem o status congelado: ele volta a "ativo" apenas ao ser desarquivado.
+  const isCardArchived = cardData?.status === "arquivado";
   const filteredLabels = useMemo(() => {
     const normalized = labelSearch.trim().toLowerCase();
     if (!normalized) return board.labels;
@@ -496,6 +498,10 @@ export function LegalKanbanCardDetailsSheet({
 
   async function handleToggleCompleted() {
     if (!data) return;
+    if (isCardArchived) {
+      toast.error("Desarquive o card para alterar o status.");
+      return;
+    }
 
     if (!canFinalizeOrArchive) {
       const nextStatus: KanbanStatus = data.status === "aguardando_aprovacao" ? "ativo" : "aguardando_aprovacao";
@@ -530,6 +536,10 @@ export function LegalKanbanCardDetailsSheet({
 
   async function handleStatusChange(next: KanbanStatus) {
     if (!cardId || next === status) return;
+    if (isCardArchived) {
+      toast.error("Desarquive o card para alterar o status.");
+      return;
+    }
     if ((next === "concluido" || next === "arquivado") && !canFinalizeOrArchive) {
       toast.error("Somente Administrador e Advogado Administrativo podem concluir ou arquivar cards.");
       return;
@@ -1047,6 +1057,14 @@ export function LegalKanbanCardDetailsSheet({
               </div>
             ) : null}
 
+            {isCardArchived ? (
+              <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300 sm:px-5">
+                <Archive className="h-4 w-4 shrink-0" aria-hidden />
+                Card arquivado. Desarquive em Itens Arquivados para alterar o status — ele volta automaticamente para
+                Ativo.
+              </div>
+            ) : null}
+
             {cardData?.status === "aguardando_aprovacao" ? (
               <div className="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 sm:px-5">
                 <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden />
@@ -1065,13 +1083,16 @@ export function LegalKanbanCardDetailsSheet({
                     <button
                       type="button"
                       onClick={handleToggleCompleted}
-                      disabled={updateCard.isPending}
+                      disabled={updateCard.isPending || isCardArchived}
                       className={cn(
                         "mt-0.5 shrink-0 rounded-full text-muted-foreground transition-colors hover:text-primary",
                         !canFinalizeOrArchive && "hover:text-amber-600 dark:hover:text-amber-400",
+                        isCardArchived && "cursor-not-allowed opacity-60 hover:text-muted-foreground",
                       )}
                       title={
-                        canFinalizeOrArchive
+                        isCardArchived
+                          ? "Desarquive o card para alterar o status."
+                          : canFinalizeOrArchive
                           ? cardData.status === "concluido"
                             ? "Reabrir card"
                             : "Concluir card"
@@ -1113,12 +1134,17 @@ export function LegalKanbanCardDetailsSheet({
                           <DropdownMenuTrigger asChild>
                             <button
                               type="button"
-                              disabled={updateCard.isPending}
+                              disabled={updateCard.isPending || isCardArchived}
+                              title={
+                                isCardArchived
+                                  ? "Desarquive o card para alterar o status."
+                                  : undefined
+                              }
                               className={cn(
                                 "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-opacity",
                                 "hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                                 LEGAL_KANBAN_STATUS_META[status].chip,
-                                updateCard.isPending && "pointer-events-none opacity-60",
+                                (updateCard.isPending || isCardArchived) && "pointer-events-none opacity-60",
                               )}
                               aria-label={`Status: ${LEGAL_KANBAN_STATUS_META[status].label}. Abrir opções`}
                             >

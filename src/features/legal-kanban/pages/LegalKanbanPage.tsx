@@ -90,6 +90,8 @@ export default function LegalKanbanPage() {
 
   const canManageBoard = ["administrator", "it", "advogado_adm"].includes(user?.role || "");
   const canFinalizeCards = ["administrator", "advogado_adm"].includes(user?.role || "");
+  // Desarquivar card também é permitido ao perfil Advogado.
+  const canUnarchiveCards = ["administrator", "advogado_adm", "advogado"].includes(user?.role || "");
   const { filters, setFilters, filteredColumns, filteredCardsCount, totalCardsCount, resetFilters } =
     useLegalKanbanFilters(boardQuery.data, user?.id || null);
 
@@ -362,6 +364,7 @@ export default function LegalKanbanPage() {
             open={archivedItemsOpen}
             onOpenChange={setArchivedItemsOpen}
             canManageArchive={canFinalizeCards}
+            canUnarchiveCards={canUnarchiveCards}
             onOpenCard={(cardId) => {
               setArchivedItemsOpen(false);
               setSelectedCardId(cardId);
