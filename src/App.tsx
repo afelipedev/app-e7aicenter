@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Suspense, lazy } from "react";
 import { AppLayout } from "./components/layout/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -43,6 +44,11 @@ import SystemSettingsPage from "./features/system-settings/pages/SystemSettingsP
 import ProfilePage from "./features/profile/pages/ProfilePage";
 import { ThemeProvider } from "./features/theme/providers/ThemeProvider";
 
+// Tutoriais carregam sob demanda: mantém o Video.js fora do bundle inicial.
+const TutorialsPage = lazy(() => import("./features/tutorials/pages/TutorialsPage"));
+const TutorialWatchPage = lazy(() => import("./features/tutorials/pages/TutorialWatchPage"));
+const TutorialsAdminPage = lazy(() => import("./features/tutorials/pages/admin/TutorialsAdminPage"));
+
 // Configuração do QueryClient com cache otimizado
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +74,10 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const PageFallback = () => (
+  <div className="p-6 text-sm text-muted-foreground">Carregando…</div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -163,6 +173,26 @@ const App = () => (
               <Route path="/teams/:teamSlug/:channelSlug" element={<ChannelPage />} />
               <Route path="/teams/:teamSlug/:channelSlug/:postId" element={<PostPage />} />
               <Route path="/perfil" element={<ProfilePage />} />
+
+              {/* Tutoriais - catálogo aberto a todos; gestão só para admin */}
+              <Route path="/tutoriais" element={
+                <Suspense fallback={<PageFallback />}>
+                  <TutorialsPage />
+                </Suspense>
+              } />
+              <Route path="/tutoriais/:slug" element={
+                <Suspense fallback={<PageFallback />}>
+                  <TutorialWatchPage />
+                </Suspense>
+              } />
+              <Route path="/admin/tutoriais" element={
+                <ProtectedRoute requiredPermission="admin">
+                  <Suspense fallback={<PageFallback />}>
+                    <TutorialsAdminPage />
+                  </Suspense>
+                </ProtectedRoute>
+              } />
+
               <Route path="/admin/teams" element={
                 <ProtectedRoute requiredPermission="admin">
                   <TeamsAdminPage />

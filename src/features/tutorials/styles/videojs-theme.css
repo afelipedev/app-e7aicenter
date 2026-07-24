@@ -1,0 +1,100 @@
+/**
+ * Skin do Video.js alinhada ao design system do AI Center.
+ * Só ajusta cor, raio e ritmo dos controles — o layout é o padrão do player.
+ */
+
+.video-js.vjs-e7-theme {
+  font-family: inherit;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* Botão central de play */
+.video-js.vjs-e7-theme .vjs-big-play-button {
+  width: 4.5rem;
+  height: 4.5rem;
+  line-height: 4.5rem;
+  border: none;
+  border-radius: 999px;
+  background-color: hsl(var(--primary) / 0.92);
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 8px 24px hsl(0 0% 0% / 0.35);
+  transition: transform 160ms ease, background-color 160ms ease;
+}
+
+.video-js.vjs-e7-theme:hover .vjs-big-play-button,
+.video-js.vjs-e7-theme .vjs-big-play-button:focus-visible {
+  background-color: hsl(var(--primary));
+  transform: scale(1.04);
+}
+
+/* Barra de controles */
+.video-js.vjs-e7-theme .vjs-control-bar {
+  background-color: hsl(235 32% 10% / 0.88);
+  backdrop-filter: blur(6px);
+  height: 3rem;
+  align-items: center;
+}
+
+.video-js.vjs-e7-theme .vjs-button > .vjs-icon-placeholder::before {
+  line-height: 3rem;
+}
+
+/* Progresso e volume usam o acento quente da paleta */
+.video-js.vjs-e7-theme .vjs-play-progress,
+.video-js.vjs-e7-theme .vjs-volume-level {
+  background-color: hsl(var(--brown));
+}
+
+.video-js.vjs-e7-theme .vjs-play-progress::before {
+  color: hsl(var(--brown));
+}
+
+.video-js.vjs-e7-theme .vjs-load-progress,
+.video-js.vjs-e7-theme .vjs-load-progress div {
+  background-color: hsl(0 0% 100% / 0.25);
+}
+
+.video-js.vjs-e7-theme .vjs-progress-holder {
+  height: 0.35em;
+  border-radius: 999px;
+}
+
+.video-js.vjs-e7-theme .vjs-slider {
+  background-color: hsl(0 0% 100% / 0.18);
+}
+
+/* Menus (velocidade, qualidade, legendas) */
+.video-js.vjs-e7-theme .vjs-menu-content {
+  background-color: hsl(235 32% 12% / 0.96);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.25rem;
+}
+
+.video-js.vjs-e7-theme .vjs-menu li {
+  border-radius: calc(var(--radius) - 4px);
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.75rem;
+}
+
+.video-js.vjs-e7-theme .vjs-menu li.vjs-selected,
+.video-js.vjs-e7-theme .vjs-menu li:hover {
+  background-color: hsl(var(--brown) / 0.85);
+  color: hsl(var(--primary-foreground));
+}
+
+/* Foco visível para navegação por teclado */
+.video-js.vjs-e7-theme .vjs-control:focus-visible {
+  outline: 2px solid hsl(var(--brown));
+  outline-offset: -2px;
+}
+
+.video-js.vjs-e7-theme .vjs-time-control {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-js.vjs-e7-theme .vjs-big-play-button {
+    transition: none;
+  }
+}

@@ -22,6 +22,8 @@ import {
   Settings,
   Sparkles,
   Gavel,
+  GraduationCap,
+  Upload as UploadIcon,
 } from "lucide-react";
 import {
   Sidebar,
@@ -129,12 +131,18 @@ const menuItems: SidebarEntry[] = [
     url: "/teams",
   },
   {
+    title: "Tutoriais",
+    icon: GraduationCap,
+    url: "/tutoriais",
+  },
+  {
     title: "Administração",
     icon: ShieldCheck,
     requiredPermission: "admin",
     items: [
       { title: "Usuários", url: "/admin/users", icon: UserCog },
       { title: "Gestão de Equipes", url: "/admin/teams", icon: UsersGroupIcon },
+      { title: "Upload Tutoriais", url: "/admin/tutoriais", icon: UploadIcon },
       { title: "Configurações", url: "/admin/settings", icon: Settings },
     ],
   },
