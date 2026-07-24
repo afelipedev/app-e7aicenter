@@ -131,7 +131,7 @@ export function TutorialPlayer({
     <div
       ref={containerRef}
       data-vjs-player
-      className="overflow-hidden rounded-xl border border-border bg-black"
+      className="overflow-hidden rounded-xl border-4 border-card bg-card shadow-xl shadow-black/25 ring-1 ring-border/60"
       aria-label={`Player do tutorial ${title}`}
       onContextMenu={(event) => event.preventDefault()}
     />

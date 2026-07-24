@@ -16,7 +16,7 @@ export function TutorialCard({ tutorial, onToggleFavorite }: TutorialCardProps) 
   const watchUrl = `/tutoriais/${tutorial.slug}`;
 
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:border-border hover:shadow-lg motion-reduce:transform-none motion-reduce:transition-none">
+    <article className="group relative flex flex-col overflow-hidden rounded-xl border border-border/70 bg-card ring-1 ring-transparent transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:ring-primary/15 hover:shadow-lg hover:shadow-primary/5 motion-reduce:transform-none motion-reduce:transition-none">
       <Link
         to={watchUrl}
         className="relative block aspect-video overflow-hidden bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
