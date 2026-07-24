@@ -8,6 +8,7 @@ import {
   Building,
   Trello,
   LayoutGrid,
+  GraduationCap,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
@@ -36,6 +37,12 @@ const quickActions = [
     description: "Explore a biblioteca de assistentes de IA",
     icon: MessageSquare,
     url: "/assistants/library",
+  },
+  {
+    title: "Tutoriais",
+    description: "Aprenda a utilizar o AI Center E7 com vídeos rápidos",
+    icon: GraduationCap,
+    url: "/tutoriais",
   },
   {
     title: "Gestão de Holerites",
