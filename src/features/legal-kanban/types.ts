@@ -197,6 +197,12 @@ export interface LegalKanbanBoardData {
   members: LegalKanbanUser[];
 }
 
+/** Conteúdo da central "Itens Arquivados", carregado sob demanda. */
+export interface LegalKanbanArchivedItems {
+  cards: { card: LegalKanbanCard; columnTitle: string }[];
+  columns: { column: LegalKanbanColumn; cardsCount: number }[];
+}
+
 export interface UpsertLegalKanbanBoardInput {
   title: string;
   description?: string | null;

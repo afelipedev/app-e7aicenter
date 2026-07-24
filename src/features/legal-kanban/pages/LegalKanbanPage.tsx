@@ -199,9 +199,14 @@ export default function LegalKanbanPage() {
       }
     }
 
-    const destinationIndex = overCard
-      ? overCard.column.cards.findIndex((card) => card.id === overCard.card.id)
-      : findColumnById(boardData.columns, destinationColumnId)?.cards.length || 0;
+    // A posição é calculada sobre a lista renderizada (sem arquivados/filtrados),
+    // que é a mesma ordem usada pelo serviço ao reposicionar o card.
+    const renderedDestinationColumn = findColumnById(filteredColumns, destinationColumnId);
+    const overCardIndex = overCard
+      ? renderedDestinationColumn?.cards.findIndex((card) => card.id === overCard.card.id) ?? -1
+      : -1;
+    const destinationIndex =
+      overCardIndex >= 0 ? overCardIndex : renderedDestinationColumn?.cards.length || 0;
 
     try {
       await moveCard.mutateAsync({
@@ -360,7 +365,7 @@ export default function LegalKanbanPage() {
           />
 
           <LegalKanbanArchivedItemsDialog
-            board={boardData}
+            boardId={boardData?.board.id}
             open={archivedItemsOpen}
             onOpenChange={setArchivedItemsOpen}
             canManageArchive={canFinalizeCards}

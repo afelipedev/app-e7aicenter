@@ -24,17 +24,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   useDeleteLegalKanbanCard,
+  useLegalKanbanArchivedItems,
   useUnarchiveLegalKanbanCard,
   useUnarchiveLegalKanbanColumn,
 } from "../hooks/useLegalKanbanBoard";
-import type { LegalKanbanBoardData, LegalKanbanCard } from "../types";
+import type { LegalKanbanCard } from "../types";
 import { normalizeText } from "../utils";
 import { LegalKanbanCardPreview } from "./LegalKanbanCardPreview";
 
-type ArchivedCardItem = { card: LegalKanbanCard; columnTitle: string };
-
 interface LegalKanbanArchivedItemsDialogProps {
-  board: LegalKanbanBoardData | undefined;
+  boardId: string | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   canManageArchive: boolean;
@@ -44,7 +43,7 @@ interface LegalKanbanArchivedItemsDialogProps {
 }
 
 export function LegalKanbanArchivedItemsDialog({
-  board,
+  boardId,
   open,
   onOpenChange,
   canManageArchive,
@@ -58,41 +57,28 @@ export function LegalKanbanArchivedItemsDialog({
   const unarchiveColumn = useUnarchiveLegalKanbanColumn();
   const deleteCard = useDeleteLegalKanbanCard();
 
+  // Carregado sob demanda: o quadro não traz mais os cards arquivados.
+  const { data: archivedItems, isLoading } = useLegalKanbanArchivedItems(boardId, open);
+
   const busy = unarchiveCard.isPending || unarchiveColumn.isPending || deleteCard.isPending;
-
-  // Cards arquivados individualmente: status "arquivado" em raias NÃO arquivadas.
-  const archivedCards = useMemo<ArchivedCardItem[]>(() => {
-    if (!board) return [];
-    return board.columns
-      .filter((column) => !column.isArchived)
-      .flatMap((column) =>
-        column.cards
-          .filter((card) => card.status === "arquivado")
-          .map((card) => ({ card, columnTitle: column.title })),
-      );
-  }, [board]);
-
-  // Raias arquivadas (com todos os seus cards).
-  const archivedColumns = useMemo(() => {
-    if (!board) return [];
-    return board.columns.filter((column) => column.isArchived);
-  }, [board]);
 
   const normalizedSearch = normalizeText(search);
 
   const filteredCards = useMemo(() => {
-    if (!normalizedSearch) return archivedCards;
-    return archivedCards.filter(
+    const cards = archivedItems?.cards ?? [];
+    if (!normalizedSearch) return cards;
+    return cards.filter(
       ({ card }) =>
         normalizeText(card.title).includes(normalizedSearch) ||
         String(card.cardNumber).includes(normalizedSearch),
     );
-  }, [archivedCards, normalizedSearch]);
+  }, [archivedItems, normalizedSearch]);
 
   const filteredColumns = useMemo(() => {
-    if (!normalizedSearch) return archivedColumns;
-    return archivedColumns.filter((column) => normalizeText(column.title).includes(normalizedSearch));
-  }, [archivedColumns, normalizedSearch]);
+    const columns = archivedItems?.columns ?? [];
+    if (!normalizedSearch) return columns;
+    return columns.filter(({ column }) => normalizeText(column.title).includes(normalizedSearch));
+  }, [archivedItems, normalizedSearch]);
 
   async function handleUnarchiveCard(cardId: string) {
     try {
@@ -152,7 +138,9 @@ export function LegalKanbanArchivedItemsDialog({
 
             <TabsContent value="cards">
               <ScrollArea className="h-[52vh] pr-3">
-                {filteredCards.length === 0 ? (
+                {isLoading ? (
+                  <EmptyState label="Carregando itens arquivados..." />
+                ) : filteredCards.length === 0 ? (
                   <EmptyState label="Nenhum card arquivado." />
                 ) : (
                   <div className="space-y-3">
@@ -204,11 +192,13 @@ export function LegalKanbanArchivedItemsDialog({
 
             <TabsContent value="columns">
               <ScrollArea className="h-[52vh] pr-3">
-                {filteredColumns.length === 0 ? (
+                {isLoading ? (
+                  <EmptyState label="Carregando itens arquivados..." />
+                ) : filteredColumns.length === 0 ? (
                   <EmptyState label="Nenhuma raia arquivada." />
                 ) : (
                   <div className="space-y-3">
-                    {filteredColumns.map((column) => (
+                    {filteredColumns.map(({ column, cardsCount }) => (
                       <div
                         key={column.id}
                         className="flex items-center justify-between gap-3 rounded-[20px] border border-border/70 bg-card p-4 dark:bg-background"
@@ -222,7 +212,7 @@ export function LegalKanbanArchivedItemsDialog({
                           </span>
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-foreground">{column.title}</p>
-                            <p className="text-xs text-muted-foreground">{column.cards.length} card(s) arquivado(s)</p>
+                            <p className="text-xs text-muted-foreground">{cardsCount} card(s) na raia</p>
                           </div>
                         </div>
                         <Button

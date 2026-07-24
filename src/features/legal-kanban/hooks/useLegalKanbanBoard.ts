@@ -22,6 +22,9 @@ function useKanbanQueryKeys() {
     boards: () => [queryKeyPrefix, "boards"] as const,
     boardPrefix: () => [queryKeyPrefix, "board"] as const,
     board: (boardSlug: string) => [queryKeyPrefix, "board", boardSlug] as const,
+    // Sob o prefixo "board" de propósito: herda as invalidações já disparadas
+    // pelas mutações de card/raia (arquivar, desarquivar, excluir).
+    archivedItems: (boardId: string) => [queryKeyPrefix, "board", boardId, "archived"] as const,
     card: (cardId: string) => [queryKeyPrefix, "card", cardId] as const,
   };
 }
@@ -56,6 +59,16 @@ export function useLegalKanbanBoard(boardSlug: string) {
   return useQuery({
     queryKey: kanbanKeys.board(boardSlug),
     queryFn: () => legalKanbanService.getBoardData(boardSlug, module.domain),
+  });
+}
+
+/** Itens arquivados são carregados apenas quando a central é aberta. */
+export function useLegalKanbanArchivedItems(boardId: string | undefined, enabled: boolean) {
+  const { kanbanKeys } = useKanbanScope();
+  return useQuery({
+    queryKey: kanbanKeys.archivedItems(boardId || "empty"),
+    queryFn: () => legalKanbanService.getArchivedItems(boardId as string),
+    enabled: Boolean(boardId) && enabled,
   });
 }
 

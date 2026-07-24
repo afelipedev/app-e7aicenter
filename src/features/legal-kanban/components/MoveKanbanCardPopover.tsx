@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuth } from "@/contexts/AuthContext";
 import { useMoveLegalKanbanCard } from "@/features/legal-kanban/hooks/useLegalKanbanBoard";
 import type { LegalKanbanBoardData, LegalKanbanColumn } from "@/features/legal-kanban/types";
 
@@ -24,6 +25,9 @@ export function MoveKanbanCardPopover({ cardId, board, currentColumn }: MoveKanb
   const [open, setOpen] = useState(false);
   const [targetColumnId, setTargetColumnId] = useState("");
   const moveCard = useMoveLegalKanbanCard();
+  const { user: authUser } = useAuth();
+
+  const canMoveToDone = ["administrator", "advogado_adm"].includes(authUser?.role || "");
 
   const columns = useMemo(
     () => board.columns.filter((column) => !column.isArchived),
@@ -38,19 +42,25 @@ export function MoveKanbanCardPopover({ cardId, board, currentColumn }: MoveKanb
   }
 
   async function handleMove() {
+    if (moveCard.isPending) return;
     if (!targetColumnId || !currentColumn || targetColumnId === currentColumn.id) return;
 
     const destination = board.columns.find((column) => column.id === targetColumnId);
+    // Cards arquivados não aparecem na raia, logo não contam para a posição final.
+    const visibleCardsCount =
+      destination?.cards?.filter((card) => card.status !== "arquivado").length ?? 0;
+
+    // Fecha imediatamente: o painel do card recarrega após o move e desmontaria este popover.
+    handleOpenChange(false);
 
     try {
       await moveCard.mutateAsync({
         cardId,
         sourceColumnId: currentColumn.id,
         destinationColumnId: targetColumnId,
-        destinationIndex: destination?.cards?.length ?? 0,
+        destinationIndex: visibleCardsCount,
       });
       toast.success(`Card movido para ${destination?.title}.`);
-      handleOpenChange(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao mover o card.");
     }
@@ -61,12 +71,18 @@ export function MoveKanbanCardPopover({ cardId, board, currentColumn }: MoveKanb
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex min-w-0 items-center gap-1.5 rounded-md border border-border/80 bg-muted/60 px-3 py-1.5 text-left text-xs font-bold uppercase tracking-wide text-foreground transition-colors hover:bg-muted"
+          disabled={moveCard.isPending}
+          className="flex min-w-0 items-center gap-1.5 rounded-md border border-border/80 bg-muted/60 px-3 py-1.5 text-left text-xs font-bold uppercase tracking-wide text-foreground transition-colors hover:bg-muted disabled:opacity-70"
           title="Mover card de raia"
           aria-label="Mover card de raia"
         >
-          <span className="min-w-0 truncate">{currentColumn?.title || "Sem raia"}</span>
-          <ChevronDown className="h-3 w-3 shrink-0 opacity-70" />
+          {moveCard.isPending ? (
+            <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+          ) : null}
+          <span className="min-w-0 truncate">
+            {moveCard.isPending ? "Movendo..." : currentColumn?.title || "Sem raia"}
+          </span>
+          {moveCard.isPending ? null : <ChevronDown className="h-3 w-3 shrink-0 opacity-70" />}
         </button>
       </PopoverTrigger>
 
@@ -108,16 +124,22 @@ export function MoveKanbanCardPopover({ cardId, board, currentColumn }: MoveKanb
                 <SelectValue placeholder="Selecione uma raia" />
               </SelectTrigger>
               <SelectContent>
-                {columns.map((column) => (
-                  <SelectItem
-                    key={column.id}
-                    value={column.id}
-                    disabled={column.id === currentColumn?.id}
-                  >
-                    {column.title}
-                    {column.id === currentColumn?.id ? " (atual)" : ""}
-                  </SelectItem>
-                ))}
+                {columns.map((column) => {
+                  const isCurrent = column.id === currentColumn?.id;
+                  const isBlockedByRole = column.kind === "done" && !canMoveToDone;
+
+                  return (
+                    <SelectItem
+                      key={column.id}
+                      value={column.id}
+                      disabled={isCurrent || isBlockedByRole}
+                    >
+                      {column.title}
+                      {isCurrent ? " (atual)" : ""}
+                      {!isCurrent && isBlockedByRole ? " (sem permissão)" : ""}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>

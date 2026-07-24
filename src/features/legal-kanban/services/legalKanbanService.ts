@@ -16,6 +16,7 @@ import type {
   KanbanCardDuplicateInfo,
   KanbanCardLinkInfo,
   LegalKanbanActivity,
+  LegalKanbanArchivedItems,
   LegalKanbanAttachment,
   LegalKanbanBoard,
   LegalKanbanBoardData,
@@ -43,6 +44,29 @@ type QueryResponse<T> = {
 };
 
 const db = supabase as any;
+
+/** Timeout padrão para requisições do kanban (evita a UI travar em "carregando" indefinidamente). */
+const DEFAULT_TIMEOUT_MS = 15000;
+
+function withTimeout<T = any>(promise: PromiseLike<T> | any, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("Tempo esgotado. Verifique sua conexão e tente novamente.")),
+      timeoutMs,
+    );
+
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value as T);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 function ensureData<T>(response: QueryResponse<T>, fallbackMessage: string) {
   if (response.error) {
@@ -217,17 +241,15 @@ async function getCurrentPublicUser() {
   const {
     data: { session },
     error: sessionError,
-  } = await supabase.auth.getSession();
+  } = await withTimeout(supabase.auth.getSession());
 
   if (sessionError || !session?.user) {
     throw new Error("Usuário autenticado não encontrado.");
   }
 
-  const response = await supabase
-    .from("users")
-    .select("*")
-    .eq("auth_user_id", session.user.id)
-    .single();
+  const response = await withTimeout(
+    supabase.from("users").select("*").eq("auth_user_id", session.user.id).single(),
+  );
 
   return mapUser(ensureData(response as QueryResponse<User>, "Perfil do usuário não encontrado."));
 }
@@ -307,24 +329,47 @@ async function ensureApprovalColumnId(boardId: string) {
   return ensureData<{ id: string }>(created, "Não foi possível criar a raia Aguardando Aprovação.").id;
 }
 
+const POSITION_GAP = 100;
+
+/**
+ * Calcula a posição do card entre dois vizinhos sem reescrever a raia inteira.
+ * Retorna null quando não há espaço entre eles (aí a raia precisa ser reindexada).
+ */
+function resolvePositionBetween(previous: number | null, next: number | null) {
+  if (previous == null && next == null) return POSITION_GAP;
+  if (previous == null) return next > 1 ? Math.floor(next / 2) : null;
+  if (next == null) return previous + POSITION_GAP;
+  if (next - previous > 1) return Math.floor((previous + next) / 2);
+  return null;
+}
+
 async function moveCardToColumn(cardId: string, columnId: string, actorId: string) {
-  const cardsResponse = await db
-    .from("legal_kanban_cards")
-    .select("id, position")
-    .eq("column_id", columnId)
-    .order("position");
+  const lastCardResponse = await withTimeout(
+    db
+      .from("legal_kanban_cards")
+      .select("position")
+      .eq("column_id", columnId)
+      .order("position", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  );
 
-  const columnCards = maybeArray(cardsResponse.data) as { position: number }[];
-  const nextPosition = columnCards.reduce((max, item) => Math.max(max, item.position || 0), 0) + 100;
+  const nextPosition = (lastCardResponse.data?.position || 0) + POSITION_GAP;
 
-  await db
-    .from("legal_kanban_cards")
-    .update({
-      column_id: columnId,
-      position: nextPosition,
-      updated_by_user_id: actorId,
-    })
-    .eq("id", cardId);
+  const updateResponse = await withTimeout(
+    db
+      .from("legal_kanban_cards")
+      .update({
+        column_id: columnId,
+        position: nextPosition,
+        updated_by_user_id: actorId,
+      })
+      .eq("id", cardId),
+  );
+
+  if (updateResponse.error) {
+    throw new Error(updateResponse.error.message || "Não foi possível mover o card de raia.");
+  }
 }
 
 async function logActivity(
@@ -334,13 +379,20 @@ async function logActivity(
   message: string,
   metadata: Record<string, unknown> = {},
 ) {
-  await db.from("legal_kanban_activities").insert({
-    card_id: cardId,
-    actor_user_id: actorUserId,
-    activity_type: activityType,
-    message,
-    metadata,
-  });
+  // Log é auditoria: uma falha aqui não deve travar nem reverter a ação do usuário.
+  try {
+    await withTimeout(
+      db.from("legal_kanban_activities").insert({
+        card_id: cardId,
+        actor_user_id: actorUserId,
+        activity_type: activityType,
+        message,
+        metadata,
+      }),
+    );
+  } catch (error) {
+    console.warn("Não foi possível registrar a atividade do card.", error);
+  }
 }
 
 async function updateRowsSequentially<T extends { id: string }>(
@@ -349,7 +401,7 @@ async function updateRowsSequentially<T extends { id: string }>(
   buildPayload: (row: T) => Record<string, unknown>,
 ) {
   for (const row of rows) {
-    const response = await db.from(table).update(buildPayload(row)).eq("id", row.id);
+    const response = await withTimeout(db.from(table).update(buildPayload(row)).eq("id", row.id));
 
     if (response.error) {
       throw new Error(response.error.message || `Não foi possível atualizar registros em ${table}.`);
@@ -477,7 +529,15 @@ async function getBoardContext(boardSlug: string, domain: KanbanDomain = "legal"
     db.from("legal_kanban_columns").select("*").eq("board_id", board.id).order("position"),
     db.from("legal_kanban_labels").select("*").eq("board_id", board.id).order("name", { ascending: true }),
     db.from("legal_kanban_custom_fields").select("*").eq("board_id", board.id).order("position"),
-    db.from("legal_kanban_cards").select("*").eq("board_id", board.id).order("position"),
+    // Cards arquivados não são exibidos no quadro; eles são carregados sob demanda
+    // por `getArchivedItems` ao abrir "Itens Arquivados". Manter todos aqui fazia o
+    // quadro carregar (e hidratar) milhares de cards invisíveis a cada refetch.
+    db
+      .from("legal_kanban_cards")
+      .select("*")
+      .eq("board_id", board.id)
+      .neq("status", "arquivado")
+      .order("position"),
     db
       .from("legal_kanban_board_members")
       .select("user_id, user:users!legal_kanban_board_members_user_id_fkey(id,name,email,role,status,avatar_url)")
@@ -895,6 +955,74 @@ export const legalKanbanService = {
     };
   },
 
+  /**
+   * Itens da central "Itens Arquivados": cards arquivados (de raias visíveis) e
+   * raias arquivadas com a contagem de cards. Consulta separada do quadro para
+   * que o board não carregue cards que não aparecem nele.
+   */
+  async getArchivedItems(boardId: string): Promise<LegalKanbanArchivedItems> {
+    const [columnsResponse, archivedCardsResponse] = await Promise.all([
+      withTimeout(db.from("legal_kanban_columns").select("*").eq("board_id", boardId).order("position")),
+      withTimeout(
+        db
+          .from("legal_kanban_cards")
+          .select("*")
+          .eq("board_id", boardId)
+          .eq("status", "arquivado")
+          .order("position"),
+      ),
+    ]);
+
+    if (columnsResponse.error) {
+      throw new Error(columnsResponse.error.message || "Não foi possível carregar as raias do quadro.");
+    }
+
+    if (archivedCardsResponse.error) {
+      throw new Error(archivedCardsResponse.error.message || "Não foi possível carregar os cards arquivados.");
+    }
+
+    const columns = maybeArray(columnsResponse.data).map(mapColumn);
+    const columnById = new Map(columns.map((column) => [column.id, column]));
+    const archivedColumns = columns.filter((column) => column.isArchived);
+
+    // Aba "Cards": apenas cards arquivados em raias visíveis — os de raias
+    // arquivadas são restaurados junto com a raia, na aba "Raias".
+    const archivedCardsBase = maybeArray(archivedCardsResponse.data)
+      .map(mapCardBase)
+      .filter((card) => !columnById.get(card.columnId)?.isArchived);
+
+    const [hydratedCards, archivedColumnCardsResponse] = await Promise.all([
+      hydrateCards(archivedCardsBase),
+      archivedColumns.length > 0
+        ? withTimeout(
+            db
+              .from("legal_kanban_cards")
+              .select("id, column_id")
+              .in(
+                "column_id",
+                archivedColumns.map((column) => column.id),
+              ),
+          )
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    const cardsCountByColumn = new Map<string, number>();
+    maybeArray(archivedColumnCardsResponse.data).forEach((row: any) => {
+      cardsCountByColumn.set(row.column_id, (cardsCountByColumn.get(row.column_id) || 0) + 1);
+    });
+
+    return {
+      cards: sortCardsByDueDate(hydratedCards).map((card) => ({
+        card,
+        columnTitle: columnById.get(card.columnId)?.title || "Sem raia",
+      })),
+      columns: archivedColumns.map((column) => ({
+        column,
+        cardsCount: cardsCountByColumn.get(column.id) || 0,
+      })),
+    };
+  },
+
   async getCardDetails(cardId: string): Promise<LegalKanbanCardDetails> {
     const [cardResponse, membersResponse, labelsResponse, commentsResponse, activitiesResponse, attachmentsResponse, checklistsResponse, customValuesResponse] =
       await Promise.all([
@@ -1145,67 +1273,70 @@ export const legalKanbanService = {
     const actor = await getCurrentPublicUser();
 
     if (sourceColumnId !== destinationColumnId && !canForceConcludedStatus(actor.role)) {
-      const destinationColumnResponse = await db
-        .from("legal_kanban_columns")
-        .select("kind")
-        .eq("id", destinationColumnId)
-        .maybeSingle();
+      const destinationColumnResponse = await withTimeout(
+        db.from("legal_kanban_columns").select("kind").eq("id", destinationColumnId).maybeSingle(),
+      );
 
       if (destinationColumnResponse.data?.kind === "done") {
         throw new Error("Somente Administrador e Advogado Administrativo podem mover cards para Concluídos.");
       }
     }
 
-    const response = await db
-      .from("legal_kanban_cards")
-      .select("id, column_id, position")
-      .in("column_id", sourceColumnId === destinationColumnId ? [sourceColumnId] : [sourceColumnId, destinationColumnId])
-      .order("position");
+    // Apenas os cards visíveis da raia destino entram no cálculo da posição:
+    // arquivados ficam fora da ordenação exibida e não devem ser reescritos.
+    const destinationResponse = await withTimeout(
+      db
+        .from("legal_kanban_cards")
+        .select("id, position")
+        .eq("column_id", destinationColumnId)
+        .neq("status", "arquivado")
+        .order("position"),
+    );
 
-    const rows = maybeArray(response.data);
-    const sourceCards = sortByPosition(rows.filter((row: any) => row.column_id === sourceColumnId));
-    const destinationCards =
-      sourceColumnId === destinationColumnId
-        ? [...sourceCards]
-        : sortByPosition(rows.filter((row: any) => row.column_id === destinationColumnId));
-
-    const sourceIndex = sourceCards.findIndex((row: any) => row.id === cardId);
-    if (sourceIndex === -1) {
-      throw new Error("Card não encontrado para movimentação.");
+    if (destinationResponse.error) {
+      throw new Error(destinationResponse.error.message || "Não foi possível mover o card.");
     }
 
-    const [moved] = sourceCards.splice(sourceIndex, 1);
-    const normalizedDestinationIndex =
-      sourceColumnId === destinationColumnId && sourceIndex < destinationIndex
-        ? Math.max(destinationIndex - 1, 0)
-        : destinationIndex;
+    const siblings = sortByPosition(maybeArray(destinationResponse.data)).filter(
+      (row: any) => row.id !== cardId,
+    ) as { id: string; position: number }[];
 
-    if (sourceColumnId === destinationColumnId) {
-      sourceCards.splice(normalizedDestinationIndex, 0, moved);
-      const nextSource = reindexByHundreds(sourceCards);
+    const targetIndex = Math.max(0, Math.min(destinationIndex, siblings.length));
+    const previousPosition = targetIndex > 0 ? siblings[targetIndex - 1]?.position ?? null : null;
+    const nextPosition = targetIndex < siblings.length ? siblings[targetIndex]?.position ?? null : null;
+    const resolvedPosition = resolvePositionBetween(previousPosition, nextPosition);
 
-      await updateRowsSequentially("legal_kanban_cards", nextSource, (item) => ({
-        column_id: sourceColumnId,
+    if (resolvedPosition === null) {
+      // Sem espaço entre os vizinhos: reindexa somente a raia destino (caso raro).
+      const reordered = [...siblings];
+      reordered.splice(targetIndex, 0, { id: cardId, position: 0 });
+
+      await updateRowsSequentially("legal_kanban_cards", reindexByHundreds(reordered), (item) => ({
+        column_id: destinationColumnId,
         position: item.position,
         updated_by_user_id: actor.id,
       }));
     } else {
-      destinationCards.splice(destinationIndex, 0, { ...moved, column_id: destinationColumnId });
+      const updateResponse = await withTimeout(
+        db
+          .from("legal_kanban_cards")
+          .update({
+            column_id: destinationColumnId,
+            position: resolvedPosition,
+            updated_by_user_id: actor.id,
+          })
+          .eq("id", cardId)
+          .select("id")
+          .maybeSingle(),
+      );
 
-      const nextSource = reindexByHundreds(sourceCards);
-      const nextDestination = reindexByHundreds(destinationCards);
+      if (updateResponse.error) {
+        throw new Error(updateResponse.error.message || "Não foi possível mover o card.");
+      }
 
-      await updateRowsSequentially("legal_kanban_cards", nextSource, (item) => ({
-        column_id: sourceColumnId,
-        position: item.position,
-        updated_by_user_id: actor.id,
-      }));
-
-      await updateRowsSequentially("legal_kanban_cards", nextDestination, (item: any) => ({
-        column_id: item.column_id,
-        position: item.position,
-        updated_by_user_id: actor.id,
-      }));
+      if (!updateResponse.data) {
+        throw new Error("Card não encontrado ou sem permissão para movimentação.");
+      }
     }
 
     await logActivity(cardId, actor.id, "card_moved", "Movimentou o card entre raias.", {
