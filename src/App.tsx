@@ -44,6 +44,13 @@ import SystemSettingsPage from "./features/system-settings/pages/SystemSettingsP
 import ProfilePage from "./features/profile/pages/ProfilePage";
 import { ThemeProvider } from "./features/theme/providers/ThemeProvider";
 
+// AI Center E7 carrega sob demanda (React Flow e afins ficam fora do bundle inicial).
+const GaleriaAgentesPage = lazy(() => import("./features/ai-center-e7/pages/GaleriaAgentesPage"));
+const ConstrutorAgentePage = lazy(() => import("./features/ai-center-e7/pages/ConstrutorAgentePage"));
+const ChatAgentePage = lazy(() => import("./features/ai-center-e7/pages/ChatAgentePage"));
+const ConhecimentoPage = lazy(() => import("./features/ai-center-e7/pages/ConhecimentoPage"));
+const ConfiguracaoIAPage = lazy(() => import("./features/ai-center-e7/pages/ConfiguracaoIAPage"));
+
 // Tutoriais carregam sob demanda: mantém o Video.js fora do bundle inicial.
 const TutorialsPage = lazy(() => import("./features/tutorials/pages/TutorialsPage"));
 const TutorialWatchPage = lazy(() => import("./features/tutorials/pages/TutorialWatchPage"));
@@ -110,6 +117,14 @@ const App = () => (
               <Route path="/assistants/library" element={<AILibrary />} />
               <Route path="/assistants/library/:themeId" element={<AgentsByTheme />} />
               <Route path="/assistants/library/agent/:agentId" element={<AgentChat />} />
+
+              {/* AI Center E7 - novo modulo de criacao/execucao de agentes */}
+              <Route path="/ai-center-e7" element={<Suspense fallback={<PageFallback />}><GaleriaAgentesPage /></Suspense>} />
+              <Route path="/ai-center-e7/agentes/novo" element={<Suspense fallback={<PageFallback />}><ConstrutorAgentePage /></Suspense>} />
+              <Route path="/ai-center-e7/agentes/:agenteId/editar" element={<Suspense fallback={<PageFallback />}><ConstrutorAgentePage /></Suspense>} />
+              <Route path="/ai-center-e7/agentes/:agenteId" element={<Suspense fallback={<PageFallback />}><ChatAgentePage /></Suspense>} />
+              <Route path="/ai-center-e7/conhecimento" element={<Suspense fallback={<PageFallback />}><ConhecimentoPage /></Suspense>} />
+              <Route path="/ai-center-e7/config" element={<ProtectedRoute requiredPermission="admin"><Suspense fallback={<PageFallback />}><ConfiguracaoIAPage /></Suspense></ProtectedRoute>} />
               
               {/* Documents - accessible to all authenticated users */}
               <Route path="/documents/payroll" element={<Payroll />} />

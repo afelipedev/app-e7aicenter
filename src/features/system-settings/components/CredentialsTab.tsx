@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ShieldCheck, ShieldAlert, KeyRound, Trash2 } from "lucide-react";
+import { Loader2, ShieldCheck, ShieldAlert, KeyRound, Trash2, Plus } from "lucide-react";
 import {
   listCredentials,
   setCredential,
@@ -12,6 +13,8 @@ import {
   deleteCredential,
 } from "../services/systemSettingsService";
 import { PROVIDER_LABELS, type AIProvider, type SystemAICredential, type CredentialStatus } from "../types";
+
+const ALL_PROVIDERS = Object.keys(PROVIDER_LABELS) as AIProvider[];
 
 const STATUS_META: Record<CredentialStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   empty: { label: "Não configurada", variant: "outline" },
@@ -26,6 +29,8 @@ export function CredentialsTab() {
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [novoProvider, setNovoProvider] = useState<AIProvider | "">("");
+  const [novaChave, setNovaChave] = useState("");
 
   const load = async () => {
     try {
@@ -88,9 +93,29 @@ export function CredentialsTab() {
     }
   };
 
+  const handleAdd = async () => {
+    if (!novoProvider) { toast({ title: "Selecione um provedor", variant: "destructive" }); return; }
+    const key = novaChave.trim();
+    if (key.length < 8) { toast({ title: "Chave inválida", description: "Informe uma chave válida.", variant: "destructive" }); return; }
+    setBusy("add");
+    try {
+      await setCredential(novoProvider, key);
+      toast({ title: "Credencial adicionada", description: PROVIDER_LABELS[novoProvider] });
+      setNovoProvider(""); setNovaChave("");
+      await load();
+    } catch (e) {
+      toast({ title: "Erro ao adicionar", description: String(e), variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   if (loading) {
     return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
+
+  const configurados = new Set(credentials.map((c) => c.provider));
+  const disponiveis = ALL_PROVIDERS.filter((p) => !configurados.has(p));
 
   return (
     <div className="space-y-4">
@@ -140,6 +165,26 @@ export function CredentialsTab() {
           </Card>
         );
       })}
+
+      {disponiveis.length > 0 && (
+        <Card className="border-dashed">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2"><Plus className="h-4 w-4" /> Adicionar credencial</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 sm:flex-row">
+            <Select value={novoProvider} onValueChange={(v) => setNovoProvider(v as AIProvider)}>
+              <SelectTrigger className="sm:w-52"><SelectValue placeholder="Provedor" /></SelectTrigger>
+              <SelectContent>
+                {disponiveis.map((p) => <SelectItem key={p} value={p}>{PROVIDER_LABELS[p]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Input type="password" placeholder="Cole a chave da API…" value={novaChave} onChange={(e) => setNovaChave(e.target.value)} autoComplete="off" />
+            <Button onClick={handleAdd} disabled={busy === "add"}>
+              {busy === "add" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Adicionar"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

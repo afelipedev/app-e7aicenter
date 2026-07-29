@@ -1,8 +1,9 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Webhook, Bot, KeyRound } from "lucide-react";
+import { Settings, Webhook, Bot, KeyRound, DollarSign } from "lucide-react";
 import { WebhooksTab } from "../components/WebhooksTab";
 import { LlmModelsTab } from "../components/LlmModelsTab";
 import { CredentialsTab } from "../components/CredentialsTab";
+import { CustosIaTab } from "../components/CustosIaTab";
 
 export default function SystemSettingsPage() {
   return (
@@ -22,10 +23,12 @@ export default function SystemSettingsPage() {
           <TabsTrigger value="webhooks" className="gap-1"><Webhook className="h-4 w-4" /> Webhooks</TabsTrigger>
           <TabsTrigger value="models" className="gap-1"><Bot className="h-4 w-4" /> Modelos LLM</TabsTrigger>
           <TabsTrigger value="credentials" className="gap-1"><KeyRound className="h-4 w-4" /> Credenciais de IA</TabsTrigger>
+          <TabsTrigger value="custos" className="gap-1"><DollarSign className="h-4 w-4" /> Custos de IA</TabsTrigger>
         </TabsList>
         <TabsContent value="webhooks" className="mt-4"><WebhooksTab /></TabsContent>
         <TabsContent value="models" className="mt-4"><LlmModelsTab /></TabsContent>
         <TabsContent value="credentials" className="mt-4"><CredentialsTab /></TabsContent>
+        <TabsContent value="custos" className="mt-4"><CustosIaTab /></TabsContent>
       </Tabs>
     </div>
   );

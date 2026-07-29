@@ -1,10 +1,8 @@
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
-  MessageSquare,
   Scale,
   Building2,
-  Coins,
   Calculator,
   FileText,
   FileSpreadsheet,
@@ -12,7 +10,6 @@ import {
   BarChart3,
   Trello,
   ChevronDown,
-  BookOpen,
   Target,
   Hash,
   ShieldCheck,
@@ -85,16 +82,9 @@ const menuItems: SidebarEntry[] = [
     requiredPermission: "companies",
   },
   {
-    title: "AI Center",
+    title: "AI Center E7",
     icon: Sparkles,
-    items: [
-      { title: "Biblioteca IA", url: "/assistants/library", icon: BookOpen },
-      { title: "Chat Geral", url: "/assistants/chat", icon: MessageSquare },
-      { title: "Jurídico Tributário", url: "/assistants/tax", icon: Scale },
-      { title: "Jurídico Cível", url: "/assistants/civil", icon: Building2 },
-      { title: "Financeiro", url: "/assistants/financial", icon: Coins },
-      { title: "Contábil", url: "/assistants/accounting", icon: Calculator },
-    ],
+    url: "/ai-center-e7",
   },
   {
     title: "Gestão Jurídica",

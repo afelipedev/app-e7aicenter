@@ -33,10 +33,10 @@ const initialStats: DashboardStat[] = STAT_DEFS.map((def) => ({ ...def, value: "
 
 const quickActions = [
   {
-    title: "Biblioteca de IA",
-    description: "Explore a biblioteca de assistentes de IA",
+    title: "AI Center E7",
+    description: "Crie e utilize seus agentes de inteligência artificial",
     icon: MessageSquare,
-    url: "/assistants/library",
+    url: "/ai-center-e7",
   },
   {
     title: "Tutoriais",

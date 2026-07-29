@@ -1,6 +1,6 @@
 // Tipos do módulo de Configurações do Sistema.
 
-export type AIProvider = "openai" | "google" | "anthropic";
+export type AIProvider = "openai" | "google" | "anthropic" | "mistral" | "deepseek" | "perplexity" | "xai";
 
 export interface SystemWebhook {
   id: string;
@@ -44,4 +44,8 @@ export const PROVIDER_LABELS: Record<AIProvider, string> = {
   openai: "OpenAI",
   google: "Google Gemini",
   anthropic: "Anthropic",
+  mistral: "Mistral",
+  deepseek: "DeepSeek",
+  perplexity: "Perplexity",
+  xai: "xAI (Grok)",
 };

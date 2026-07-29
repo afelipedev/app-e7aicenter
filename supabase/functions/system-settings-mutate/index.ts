@@ -13,7 +13,7 @@ const corsHeaders = {
 };
 
 const ADMIN_ROLES = ["administrator", "it", "advogado_adm"];
-const PROVIDERS = ["openai", "google", "anthropic"] as const;
+const PROVIDERS = ["openai", "google", "anthropic", "mistral", "deepseek", "perplexity", "xai"] as const;
 type Provider = (typeof PROVIDERS)[number];
 
 function json(body: unknown, status = 200) {
@@ -78,6 +78,12 @@ async function validateKey(provider: Provider, key: string): Promise<boolean> {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
       return r.ok;
     }
+    if (provider === "mistral") {
+      const r = await fetch("https://api.mistral.ai/v1/models", { headers: { Authorization: `Bearer ${key}` } });
+      return r.ok;
+    }
+    // Demais provedores: sem endpoint de validacao dedicado; considera configurada.
+    return true;
   } catch (_) {
     return false;
   }
@@ -102,9 +108,11 @@ Deno.serve(async (req) => {
 
       await admin.rpc("set_ai_secret", { p_name: secretName(provider), p_secret: apiKey });
       const masked = mask(apiKey);
-      await admin.from("system_ai_credentials").update({
+      // Upsert: cria a linha para provedores novos (ex.: Mistral) ou atualiza.
+      await admin.from("system_ai_credentials").upsert({
+        provider, vault_secret_name: secretName(provider),
         masked_hint: masked, status: "configured", updated_by: actorId, updated_at: new Date().toISOString(),
-      }).eq("provider", provider);
+      }, { onConflict: "provider" });
       await audit(admin, actorId, "credential", "rotate", provider, { masked });
       return json({ provider, masked_hint: masked, status: "configured" });
     }
