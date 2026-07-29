@@ -94,7 +94,7 @@ npm run preview   # Preview production build locally
 | LLM assistants (5 chats) | `src/pages/assistants/` | Edge Function `chat-completion` |
 | AI library (52 agents, 11 themes) | `src/config/aiAgents.ts`, `AgentChat` | N8N webhooks via `n8nAgentService.ts` |
 | Payroll / SPED / reports | `src/pages/documents/`, `src/services/payrollService.ts`, `spedService.ts` | Supabase + N8N for processing |
-| Processes (Judit) | `src/features/processes/` | Edge Functions `judit-*`, adapter pattern in `processProvider.ts` |
+| Processes (DataJud/CNJ) | `src/features/processes/` | Edge Functions `datajud-search`, `datajud-process-agent`; adapter pattern in `adapters/processProvider.ts` |
 | Legal kanban (boards) | `src/features/legal-kanban/` | `legalKanbanService.ts`, boards at `/documents/cases/quadros` |
 | Teams (Slack-like) | `src/features/teams/` | Supabase + Edge Functions `teams-*`, sync via `teams-kanban-bridge` |
 | Leads CRM | `src/features/leads/` | Supabase + N8N messaging |
@@ -102,7 +102,7 @@ npm run preview   # Preview production build locally
 | Admin / companies | `src/pages/admin/`, `Companies.tsx` | RBAC via `AuthContext` |
 | Integrations UI | `src/pages/integrations/` | Power BI, calendar |
 
-**Backend:** Supabase (PostgreSQL, Auth, Realtime, Storage, Edge Functions). **External:** N8N webhooks, Judit (processes/consumption), LLM providers on Edge Functions.
+**Backend:** Supabase (PostgreSQL, Auth, Realtime, Storage, Edge Functions). **External:** N8N webhooks, DataJud/CNJ (public process metadata API), LLM providers on Edge Functions.
 
 ---
 
@@ -149,7 +149,7 @@ shared/types/          # payroll.ts, company.ts, sped.ts
 supabase/
   functions/           # Edge Functions (Deno)
   migrations/          # Schema, RLS, feature evolution (~100+ files)
-docs/                  # Implementation notes, Judit/DataJud/Uazapi API docs
+docs/                  # Implementation notes, DataJud/Uazapi API docs (api-judit-docs/ is historical)
 ```
 
 ### Feature modules (`src/features/`)
@@ -158,10 +158,11 @@ docs/                  # Implementation notes, Judit/DataJud/Uazapi API docs
 |--------|----------------|
 | `leads/` | Leads CRUD, templates, CSV import/export, TipTap, N8N messaging (`n8nLeadMessagingService.ts`) |
 | `legal-kanban/` | Legal boards (multi-board), columns/cards, TipTap editor, filters, attachments, members. Routes: `/documents/cases/quadros`, `/documents/cases/quadros/:boardSlug` |
-| `processes/` | Process dashboard, queries, case details, Judit consumption. Adapter: `processProvider.ts` keeps UI decoupled from Judit API shape |
+| `processes/` | Process dashboard, queries, case details. Adapter: `adapters/processProvider.ts` keeps UI decoupled from the DataJud API shape |
 | `teams/` | Teams & channels (Slack/Teams-like). Posts, 1-level replies, reactions, mentions, favorites, PT-BR full-text search. Sidebar: `TeamsTreeSidebar`. Sync with kanban via `post_kanban_links` + `sync_event_ledger` + `kanbanBridgeService.ts`. Migration: `20260518030000_create_teams_module.sql` |
 | `profile/` | User profile page (`/perfil`), avatar upload, security/password forms. Email edit restricted to `EMAIL_EDIT_ROLES` |
 | `payroll/` | Batch upload form, holerite webhook utils |
+| `reports/` | Reports hub at `/documents/reports` (4 tabs: Folha & SPED, Quadros, Adoção & IA, Processos). All aggregation happens in Supabase RPCs — see `supabase/migrations/20260729121000_reports_rpc_v2.sql`, the source of truth. pt-BR label dictionaries live in `reports/labels.ts`; charts receive raw DB keys and translate only at render |
 | `theme/` | `ThemeProvider` (dark/light), `ThemeToggleButton` |
 
 New features: prefer `components/`, `hooks/`, `pages/`, `services/`, `types.ts`, `utils/`.
@@ -282,7 +283,7 @@ Sync these files:
 | `chat-completion` | Multi-provider chat completions |
 | `download-file` | Secure file download |
 | `admin-create-user`, `admin-update-user-password` | Admin user operations |
-| `judit-processes`, `judit-process-agent`, `judit-consumption-report` | Judit integration |
+| `datajud-search`, `datajud-process-agent` | DataJud/CNJ integration (process search + AI summary) |
 | `teams-admin-mutate` | Team admin mutations |
 | `teams-channel-mutate` | Channel mutations |
 | `teams-message-send` | Post message sending |
@@ -290,11 +291,11 @@ Sync these files:
 | `teams-kanban-bridge` | Bidirectional Teams ↔ Kanban sync |
 | `profile-update-email` | Profile email update |
 
-Judit API: **`docs/api-judit-docs/`**. DataJud (CNJ) reference docs: **`docs/api-datajud-cnj/`** (not yet wired in `src/`).
+DataJud (CNJ) reference docs: **`docs/api-datajud-cnj/`** — this is the **active** provider. `docs/api-judit-docs/` is historical: Judit was replaced in `20260622120000_migrate_processes_to_datajud.sql` and its leftover rows were purged in `20260729120000_purge_judit_legacy_process_data.sql`.
 
 ### Key tables & domains (non-exhaustive, RLS)
 
-`users`, `companies`, `chats`, `chat_messages`, `payroll_files`, `payroll_processing`, `processing_logs`, **leads**, **legal kanban** (boards, columns, cards, comments, attachments…), **Judit/process** tables, **SPED**, **teams** (teams, channels, posts, post_messages, reactions, favorites, notifications), **user_profile_settings**, first-access/audit.
+`users`, `companies`, `chats`, `chat_messages`, `payroll_files`, `payroll_processing`, `processing_logs`, **leads**, **legal kanban** (boards, columns, cards, comments, attachments…), **process** tables (`process_query_requests`, `process_snapshots`, `process_request_results`, `process_user_state`, `process_agent_summaries`), **SPED**, **teams** (teams, channels, posts, post_messages, reactions, favorites, notifications), **user_profile_settings**, first-access/audit.
 
 Schema changes: **always** versioned migrations under `supabase/migrations/` with coherent RLS. For Supabase work, use the Supabase MCP / CLI per project rules.
 
@@ -310,7 +311,7 @@ VITE_SUPABASE_ANON_KEY=...
 VITE_N8N_WEBHOOK_DINAMICO=...  # Dynamic N8N webhook for agents
 ```
 
-**Edge Functions** (Supabase project secrets): `OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, plus integration secrets (e.g. Judit) per function.
+**Edge Functions** (Supabase project secrets): `OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, plus integration secrets (e.g. `DATAJUD_API_KEY`) per function.
 
 ---
 
@@ -321,7 +322,7 @@ VITE_N8N_WEBHOOK_DINAMICO=...  # Dynamic N8N webhook for agents
 - **UI copy and domain language** are primarily **Portuguese (Brazil)**
 - **Dark mode** via `ThemeProvider` in `src/features/theme/` — respect design tokens when styling kanban/teams
 - **TipTap** editors: shared patterns in `legal-kanban` (reused by teams post composer)
-- **Process provider adapter** (`processProvider.ts`): keep Judit-specific mapping out of React components
+- **Process provider adapter** (`adapters/processProvider.ts`): keep DataJud-specific mapping out of React components
 - **Teams ↔ Kanban sync:** use `kanbanBridgeService.ts` and `teams-kanban-bridge` Edge Function; do not duplicate sync logic in UI
 - For deep dives (routes, RBAC, feature history), use **`docs/Documentacao-PRJ.md`**, **`docs/Implementação_Equipes.md`**, and dated notes under **`docs/`**
 - After significant implementations, add a dated doc in `docs/` (project convention)

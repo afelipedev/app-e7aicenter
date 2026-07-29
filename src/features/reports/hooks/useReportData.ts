@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ReportsService } from "../services/reportsService";
-import type { ReportFiltersState } from "../types";
+import type { KanbanDomainFilter, ReportFiltersState } from "../types";
 
 /**
  * Hooks de dados por relatório. A chave inclui os filtros, então trocar
@@ -14,17 +14,17 @@ export function usePayrollSpedReport(filters: ReportFiltersState) {
   });
 }
 
-export function useKanbanReport(filters: ReportFiltersState) {
+export function useKanbanReport(filters: ReportFiltersState, domain: KanbanDomainFilter = "all") {
   return useQuery({
-    queryKey: ["report", "kanban", filters.from, filters.to],
-    queryFn: () => ReportsService.getKanban(filters),
+    queryKey: ["report", "kanban", filters.from, filters.to, domain],
+    queryFn: () => ReportsService.getKanban(filters, domain),
   });
 }
 
-export function useAiAdoptionReport(filters: ReportFiltersState) {
+export function useAiCenterReport(filters: ReportFiltersState) {
   return useQuery({
-    queryKey: ["report", "ai-adoption", filters.from, filters.to],
-    queryFn: () => ReportsService.getAiAdoption(filters),
+    queryKey: ["report", "ai-center", filters.from, filters.to],
+    queryFn: () => ReportsService.getAiCenter(filters),
   });
 }
 

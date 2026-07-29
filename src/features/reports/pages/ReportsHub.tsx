@@ -1,14 +1,14 @@
-import { BarChart3, Gavel, LayoutGrid, Scale } from "lucide-react";
+import { BarChart3, Gavel, LayoutGrid, Sparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PayrollSpedReport } from "./PayrollSpedReport";
-import { KanbanReport } from "./KanbanReport";
-import { AiAdoptionReport } from "./AiAdoptionReport";
+import { QuadrosReport } from "./QuadrosReport";
+import { AiCenterReport } from "./AiCenterReport";
 import { ProcessesReport } from "./ProcessesReport";
 
 const TABS = [
   { value: "payroll-sped", label: "Folha & SPED", icon: BarChart3 },
-  { value: "kanban", label: "Kanban Jurídico", icon: LayoutGrid },
-  { value: "ai-adoption", label: "Adoção & IA", icon: Scale },
+  { value: "kanban", label: "Quadros", icon: LayoutGrid },
+  { value: "ai-adoption", label: "Adoção & IA", icon: Sparkles },
   { value: "processes", label: "Processos", icon: Gavel },
 ];
 
@@ -40,10 +40,10 @@ export function ReportsHub() {
           <PayrollSpedReport />
         </TabsContent>
         <TabsContent value="kanban" className="mt-6">
-          <KanbanReport />
+          <QuadrosReport />
         </TabsContent>
         <TabsContent value="ai-adoption" className="mt-6">
-          <AiAdoptionReport />
+          <AiCenterReport />
         </TabsContent>
         <TabsContent value="processes" className="mt-6">
           <ProcessesReport />

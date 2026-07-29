@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import type {
-  AiAdoptionReport,
+  AiCenterReport,
+  KanbanDomainFilter,
   KanbanReport,
   PayrollSpedReport,
   ProcessesReport,
@@ -24,7 +25,7 @@ function periodArgs(filters: ReportFiltersState) {
 
 /**
  * Camada de acesso às RPCs agregadoras do Supabase (migration
- * `create_reports_rpc_functions`). Cada método faz uma chamada e devolve
+ * `20260729121000_reports_rpc_v2.sql`). Cada método faz uma chamada e devolve
  * o jsonb já tipado.
  */
 export class ReportsService {
@@ -39,20 +40,26 @@ export class ReportsService {
     return data as PayrollSpedReport;
   }
 
-  static async getKanban(filters: ReportFiltersState): Promise<KanbanReport> {
+  static async getKanban(
+    filters: ReportFiltersState,
+    domain: KanbanDomainFilter = "all",
+  ): Promise<KanbanReport> {
     const { data, error } = await withTimeout(
-      supabase.rpc("report_kanban_throughput", periodArgs(filters))
+      supabase.rpc("report_kanban_throughput", {
+        ...periodArgs(filters),
+        p_domain: domain === "all" ? null : domain,
+      })
     );
-    if (error) throw new Error(`Erro ao gerar relatório Kanban: ${error.message}`);
+    if (error) throw new Error(`Erro ao gerar relatório de Quadros: ${error.message}`);
     return data as KanbanReport;
   }
 
-  static async getAiAdoption(filters: ReportFiltersState): Promise<AiAdoptionReport> {
+  static async getAiCenter(filters: ReportFiltersState): Promise<AiCenterReport> {
     const { data, error } = await withTimeout(
-      supabase.rpc("report_ai_adoption", periodArgs(filters))
+      supabase.rpc("report_ai_center_e7", periodArgs(filters))
     );
-    if (error) throw new Error(`Erro ao gerar relatório de Adoção de IA: ${error.message}`);
-    return data as AiAdoptionReport;
+    if (error) throw new Error(`Erro ao gerar relatório do AI Center: ${error.message}`);
+    return data as AiCenterReport;
   }
 
   static async getProcesses(filters: ReportFiltersState): Promise<ProcessesReport> {

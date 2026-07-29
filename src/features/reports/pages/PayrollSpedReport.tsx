@@ -8,7 +8,8 @@ import { TrendAreaChart } from "../components/charts/TrendAreaChart";
 import { CategoryBarChart } from "../components/charts/CategoryBarChart";
 import { DistributionPieChart } from "../components/charts/DistributionPieChart";
 import { usePayrollSpedReport } from "../hooks/useReportData";
-import { formatMonthLabel } from "../components/chartTheme";
+import { formatMonthLabel, SPED_TYPE_COLORS } from "../components/chartTheme";
+import { STATUS_LABELS, translate } from "../labels";
 import type { ReportFiltersState } from "../types";
 import type { XlsxSheet } from "../services/xlsxExport";
 
@@ -30,8 +31,9 @@ export function PayrollSpedReport() {
           { Indicador: "Concluídos", Valor: k?.completed ?? 0 },
           { Indicador: "Erros", Valor: k?.errors ?? 0 },
           { Indicador: "Em andamento", Valor: k?.in_progress ?? 0 },
-          { Indicador: "Taxa de sucesso (%)", Valor: k?.success_rate ?? 0 },
-          { Indicador: "Tempo médio (min)", Valor: k?.avg_minutes ?? 0 },
+          { Indicador: "Taxa de conclusão sem erro (%)", Valor: k?.success_rate ?? 0 },
+          { Indicador: "Tempo médio de processamento (min)", Valor: k?.avg_minutes ?? 0 },
+          { Indicador: "Lotes considerados no tempo médio", Valor: k?.avg_sample ?? 0 },
         ],
       },
       {
@@ -55,7 +57,10 @@ export function PayrollSpedReport() {
       },
       {
         name: "Por status",
-        rows: (data.by_status ?? []).map((r) => ({ Status: r.status, Quantidade: r.count })),
+        rows: (data.by_status ?? []).map((r) => ({
+          Status: translate(STATUS_LABELS, r.status),
+          Quantidade: r.count,
+        })),
       },
       {
         name: "SPED por tipo",
@@ -74,10 +79,38 @@ export function PayrollSpedReport() {
       <ReportKpiCards
         loading={isLoading}
         items={[
-          { label: "Processamentos", value: k?.total ?? 0, icon: FileText, accent: "text-ai-blue" },
-          { label: "Taxa de sucesso", value: k?.success_rate ?? 0, suffix: "%", decimals: 1, icon: CheckCircle2, accent: "text-ai-green" },
-          { label: "Erros", value: k?.errors ?? 0, icon: XCircle, accent: "text-destructive" },
-          { label: "Tempo médio", value: k?.avg_minutes ?? 0, suffix: "min", decimals: 1, icon: Clock, accent: "text-ai-orange" },
+          {
+            label: "Processamentos",
+            value: k?.total ?? 0,
+            icon: FileText,
+            accent: "text-ai-blue",
+            hint: "Lotes de folha de pagamento e SPED criados no período selecionado.",
+          },
+          {
+            label: "Taxa de conclusão sem erro",
+            value: k?.success_rate ?? 0,
+            suffix: "%",
+            decimals: 1,
+            icon: CheckCircle2,
+            accent: "text-ai-green",
+            hint: "Lotes concluídos ÷ (concluídos + com erro) × 100. Lotes ainda pendentes ou em processamento ficam fora do denominador.",
+          },
+          {
+            label: "Erros",
+            value: k?.errors ?? 0,
+            icon: XCircle,
+            accent: "text-destructive",
+            hint: "Lotes que terminaram com status de erro.",
+          },
+          {
+            label: "Tempo médio de processamento",
+            value: k?.avg_minutes ?? 0,
+            suffix: "min",
+            decimals: 1,
+            icon: Clock,
+            accent: "text-ai-orange",
+            hint: `Média de minutos entre o início e a conclusão do processamento. Calculado sobre ${k?.avg_sample ?? 0} lote(s) concluído(s).`,
+          },
         ]}
       />
 
@@ -102,7 +135,12 @@ export function PayrollSpedReport() {
           loading={isLoading}
           empty={!data?.by_status?.length}
         >
-          <DistributionPieChart data={data?.by_status ?? []} nameKey="status" colorByStatus />
+          <DistributionPieChart
+            data={data?.by_status ?? []}
+            nameKey="status"
+            colorByStatus
+            labelMap={STATUS_LABELS}
+          />
         </ChartCard>
 
         <ChartCard
@@ -111,15 +149,26 @@ export function PayrollSpedReport() {
           loading={isLoading}
           empty={!data?.by_company?.length}
         >
-          <CategoryBarChart data={data?.by_company ?? []} categoryKey="company" valueKey="total" layout="horizontal" />
+          <CategoryBarChart
+            data={data?.by_company ?? []}
+            categoryKey="company"
+            valueKey="total"
+            layout="horizontal"
+            valueLabel="Processamentos"
+          />
         </ChartCard>
 
         <ChartCard
           title="SPED por tipo"
+          description="ICMS/IPI vs Contribuições"
           loading={isLoading}
           empty={!data?.sped_by_type?.length}
         >
-          <CategoryBarChart data={data?.sped_by_type ?? []} categoryKey="sped_type" layout="horizontal" />
+          <DistributionPieChart
+            data={data?.sped_by_type ?? []}
+            nameKey="sped_type"
+            colorMap={SPED_TYPE_COLORS}
+          />
         </ChartCard>
       </div>
     </div>

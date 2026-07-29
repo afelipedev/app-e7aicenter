@@ -9,6 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import { colorAt, formatMonthLabel } from "../chartTheme";
+import { compactNumber } from "../../labels";
 
 export interface TrendSeries {
   key: string;
@@ -21,16 +22,25 @@ interface TrendAreaChartProps {
   /** Chave do eixo X (default "month", formatada como mmm/aa). */
   xKey?: string;
   series: TrendSeries[];
+  /** Formatação do valor no tooltip (ex.: moeda). */
+  valueFormatter?: (value: number) => string;
   height?: number;
 }
 
 const axisStyle = { fill: "hsl(var(--muted-foreground))", fontSize: 12 };
 
 /** Gráfico de área para séries temporais mensais, com animação nativa. */
-export function TrendAreaChart({ data, xKey = "month", series, height = 288 }: TrendAreaChartProps) {
+export function TrendAreaChart({
+  data,
+  xKey = "month",
+  series,
+  valueFormatter,
+  height = 288,
+}: TrendAreaChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+      {/* left: 0 + YAxis width fixo evitam que os rótulos do eixo Y fiquem cortados. */}
+      <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         <defs>
           {series.map((s, i) => {
             const color = s.color ?? colorAt(i);
@@ -50,7 +60,14 @@ export function TrendAreaChart({ data, xKey = "month", series, height = 288 }: T
           tickLine={false}
           axisLine={false}
         />
-        <YAxis tick={axisStyle} tickLine={false} axisLine={false} allowDecimals={false} width={40} />
+        <YAxis
+          tick={axisStyle}
+          tickLine={false}
+          axisLine={false}
+          allowDecimals={false}
+          width={56}
+          tickFormatter={valueFormatter ?? compactNumber}
+        />
         <Tooltip
           contentStyle={{
             background: "hsl(var(--popover))",
@@ -59,6 +76,7 @@ export function TrendAreaChart({ data, xKey = "month", series, height = 288 }: T
             color: "hsl(var(--popover-foreground))",
           }}
           labelFormatter={(l) => (xKey === "month" ? formatMonthLabel(String(l)) : String(l))}
+          formatter={(value: number, name) => [valueFormatter ? valueFormatter(value) : value, name]}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         {series.map((s, i) => {

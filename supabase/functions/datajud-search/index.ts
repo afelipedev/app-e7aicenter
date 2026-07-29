@@ -177,6 +177,9 @@ const createProcessQueryRequest = async ({
   searchValue,
   responseType,
   requestPayload,
+  startedAt,
+  status = "completed",
+  errorMessage = null,
 }: {
   admin: AdminClient;
   userId: string;
@@ -185,6 +188,15 @@ const createProcessQueryRequest = async ({
   searchValue: string;
   responseType: string;
   requestPayload: JsonRecord;
+  /**
+   * Instante capturado ANTES do fetch ao DataJud. Sem ele, started_at cairia
+   * no DEFAULT NOW() do insert (que roda depois da resposta) e
+   * `finished_at - started_at` daria duração negativa — foi assim que a
+   * "latência média" do relatório de Processos nasceu quebrada.
+   */
+  startedAt: string;
+  status?: "completed" | "error";
+  errorMessage?: string | null;
 }) => {
   const searchKeyHash = await sha256(`${searchType}:${normalize(searchValue)}`);
   const { data, error } = await admin
@@ -197,9 +209,11 @@ const createProcessQueryRequest = async ({
       search_key_masked: maskSearchKey(searchValue),
       search_value_label: searchValue,
       response_type: responseType,
-      status: "completed",
+      status,
+      error_message: errorMessage,
       request_payload: requestPayload,
       response_payload: {},
+      started_at: startedAt,
       finished_at: new Date().toISOString(),
     })
     .select("*")
@@ -210,6 +224,49 @@ const createProcessQueryRequest = async ({
   }
 
   return data;
+};
+
+interface QueryRequestMeta {
+  requestKind: RequestKind;
+  searchType: string;
+  searchValue: string;
+  responseType: string;
+  requestPayload: JsonRecord;
+}
+
+/**
+ * Executa a busca no DataJud medindo o tempo de resposta e registrando a
+ * falha em `process_query_requests` quando a API não responde. Sem isso a
+ * tabela só continha sucessos e a taxa de sucesso era sempre 100%.
+ */
+const timedDatajudSearch = async (
+  admin: AdminClient,
+  userId: string,
+  alias: string,
+  body: JsonRecord,
+  meta: QueryRequestMeta,
+): Promise<{ response: JsonRecord; startedAt: string }> => {
+  const startedAt = new Date().toISOString();
+  try {
+    const response = await datajudSearch(alias, body);
+    return { response, startedAt };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha desconhecida no DataJud.";
+    // O registro do erro é best-effort: não pode mascarar a exceção original.
+    try {
+      await createProcessQueryRequest({
+        admin,
+        userId,
+        ...meta,
+        startedAt,
+        status: "error",
+        errorMessage: message,
+      });
+    } catch (_) {
+      // ignorado de propósito
+    }
+    throw error;
+  }
 };
 
 const upsertSnapshots = async ({
@@ -483,10 +540,21 @@ const handleSearchCnj = async (admin: AdminClient, userId: string, payload: Json
     throw new Error("Não foi possível identificar o tribunal a partir do número CNJ informado.");
   }
 
-  const response = await datajudSearch(alias, {
-    query: { match: { numeroProcesso: cnjDigits } },
-    size: 1,
-  });
+  const meta = {
+    requestKind: "cnj" as const,
+    searchType: "numeroProcesso",
+    searchValue: cnjDigits,
+    responseType: "lawsuit",
+    requestPayload: { cnj: cnjDigits, alias },
+  };
+
+  const { response, startedAt } = await timedDatajudSearch(
+    admin,
+    userId,
+    alias,
+    { query: { match: { numeroProcesso: cnjDigits } }, size: 1 },
+    meta,
+  );
 
   const hits = safeArray<JsonRecord>((response.hits as JsonRecord | undefined)?.hits);
   const sources = hits.map((hit) => (hit._source ?? {}) as JsonRecord).filter((source) => source.numeroProcesso);
@@ -495,15 +563,7 @@ const handleSearchCnj = async (admin: AdminClient, userId: string, payload: Json
     return { status: "not_found", process: null };
   }
 
-  const requestRow = await createProcessQueryRequest({
-    admin,
-    userId,
-    requestKind: "cnj",
-    searchType: "numeroProcesso",
-    searchValue: cnjDigits,
-    responseType: "lawsuit",
-    requestPayload: { cnj: cnjDigits, alias },
-  });
+  const requestRow = await createProcessQueryRequest({ admin, userId, ...meta, startedAt });
 
   const snapshots = await upsertSnapshots({
     admin,
@@ -572,7 +632,15 @@ const handleAdvancedSearch = async (admin: AdminClient, userId: string, payload:
     throw new Error("Informe ao menos um filtro (classe, assunto, órgão julgador, grau ou período).");
   }
 
-  const response = await datajudSearch(alias, body);
+  const meta = {
+    requestKind: "advanced" as const,
+    searchType: "advanced",
+    searchValue: alias,
+    responseType: "lawsuits",
+    requestPayload: { alias, query: body },
+  };
+
+  const { response, startedAt } = await timedDatajudSearch(admin, userId, alias, body, meta);
   const hits = safeArray<JsonRecord>((response.hits as JsonRecord | undefined)?.hits);
   const sources = hits.map((hit) => (hit._source ?? {}) as JsonRecord).filter((source) => source.numeroProcesso);
   const lastHit = hits[hits.length - 1];
@@ -582,15 +650,7 @@ const handleAdvancedSearch = async (admin: AdminClient, userId: string, payload:
     return { status: "completed", count: 0, nextSearchAfter: [], process: null };
   }
 
-  const requestRow = await createProcessQueryRequest({
-    admin,
-    userId,
-    requestKind: "advanced",
-    searchType: "advanced",
-    searchValue: alias,
-    responseType: "lawsuits",
-    requestPayload: { alias, query: body },
-  });
+  const requestRow = await createProcessQueryRequest({ admin, userId, ...meta, startedAt });
 
   const snapshots = await upsertSnapshots({
     admin,
@@ -622,22 +682,24 @@ const handleGetProcessDetails = async (admin: AdminClient, userId: string, paylo
     const cnjDigits = onlyDigitsCnj(String(metadata.numeroProcessoRaw ?? snapshot.cnj ?? ""));
     const alias = resolveTribunalAlias(cnjDigits);
     if (alias && cnjDigits.length === 20) {
-      const response = await datajudSearch(alias, {
-        query: { match: { numeroProcesso: cnjDigits } },
-        size: 1,
-      });
+      const meta = {
+        requestKind: "detail_refresh" as const,
+        searchType: "numeroProcesso",
+        searchValue: cnjDigits,
+        responseType: "lawsuit",
+        requestPayload: { cnj: cnjDigits, alias },
+      };
+      const { response, startedAt } = await timedDatajudSearch(
+        admin,
+        userId,
+        alias,
+        { query: { match: { numeroProcesso: cnjDigits } }, size: 1 },
+        meta,
+      );
       const hits = safeArray<JsonRecord>((response.hits as JsonRecord | undefined)?.hits);
       const sources = hits.map((hit) => (hit._source ?? {}) as JsonRecord).filter((s) => s.numeroProcesso);
       if (sources.length) {
-        const requestRow = await createProcessQueryRequest({
-          admin,
-          userId,
-          requestKind: "detail_refresh",
-          searchType: "numeroProcesso",
-          searchValue: cnjDigits,
-          responseType: "lawsuit",
-          requestPayload: { cnj: cnjDigits, alias },
-        });
+        const requestRow = await createProcessQueryRequest({ admin, userId, ...meta, startedAt });
         const refreshed = await upsertSnapshots({
           admin,
           requestRowId: String(requestRow.id),

@@ -149,7 +149,7 @@ export const buildSnapshotPayload = (
       "Metadados públicos do DataJud/CNJ. Não incluem partes, advogados, anexos ou valor da causa.",
     last_request_id: requestRowId,
     last_response_id: String(source.id ?? ""),
-    source_kind: sourceKind === "advanced" ? "history" : sourceKind,
+    source_kind: sourceKind,
     completeness: "full",
     raw_response: source,
     metadata: {

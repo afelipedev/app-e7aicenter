@@ -9,6 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import { colorAt, STATUS_COLORS } from "../chartTheme";
+import { compactNumber, translate, truncateLabel } from "../../labels";
 
 interface CategoryBarChartProps {
   data: Array<Record<string, string | number>>;
@@ -20,6 +21,12 @@ interface CategoryBarChartProps {
   layout?: "vertical" | "horizontal";
   /** Colore cada barra por status conhecido (sobrepõe o degradê por volume). */
   colorByStatus?: boolean;
+  /** Tradução pt-BR das categorias (só exibição; a cor continua pela chave crua). */
+  labelMap?: Record<string, string>;
+  /** Formatação do valor no tooltip (ex.: moeda). */
+  valueFormatter?: (value: number) => string;
+  /** Nome da série exibido no tooltip. */
+  valueLabel?: string;
   height?: number;
 }
 
@@ -44,8 +51,13 @@ export function CategoryBarChart({
   valueKey = "count",
   layout = "horizontal",
   colorByStatus = false,
+  labelMap,
+  valueFormatter,
+  valueLabel,
   height = 288,
 }: CategoryBarChartProps) {
+  const label = (value: unknown) => (labelMap ? translate(labelMap, value) : String(value ?? ""));
+
   const tooltip = {
     contentStyle: {
       background: "hsl(var(--popover))",
@@ -53,6 +65,12 @@ export function CategoryBarChart({
       borderRadius: 8,
       color: "hsl(var(--popover-foreground))",
     },
+    // O tooltip mostra o rótulo completo, mesmo quando o eixo trunca.
+    labelFormatter: (value: unknown) => label(value),
+    formatter: (value: number) => [
+      valueFormatter ? valueFormatter(value) : value,
+      valueLabel ?? "Total",
+    ],
   };
 
   const maxValue = Math.max(0, ...data.map((row) => Number(row[valueKey]) || 0));
@@ -67,14 +85,22 @@ export function CategoryBarChart({
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-          <XAxis type="number" tick={axisStyle} tickLine={false} axisLine={false} allowDecimals={false} />
+          <XAxis
+            type="number"
+            tick={axisStyle}
+            tickLine={false}
+            axisLine={false}
+            allowDecimals={false}
+            tickFormatter={compactNumber}
+          />
           <YAxis
             type="category"
             dataKey={categoryKey}
             tick={axisStyle}
             tickLine={false}
             axisLine={false}
-            width={130}
+            width={140}
+            tickFormatter={(value) => truncateLabel(label(value), 20)}
           />
           <Tooltip {...tooltip} cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }} />
           <Bar dataKey={valueKey} radius={[0, 6, 6, 0]} isAnimationActive animationDuration={800}>
@@ -87,12 +113,31 @@ export function CategoryBarChart({
     );
   }
 
+  // Barras verticais: rótulos inclinados e truncados evitam sobreposição
+  // quando as categorias têm nomes longos (ex.: nomes de agentes).
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={data} margin={{ top: 4, right: 8, left: -12, bottom: 4 }}>
+      <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-        <XAxis dataKey={categoryKey} tick={axisStyle} tickLine={false} axisLine={false} />
-        <YAxis tick={axisStyle} tickLine={false} axisLine={false} allowDecimals={false} width={40} />
+        <XAxis
+          dataKey={categoryKey}
+          tick={axisStyle}
+          tickLine={false}
+          axisLine={false}
+          interval={0}
+          angle={-30}
+          textAnchor="end"
+          height={72}
+          tickFormatter={(value) => truncateLabel(label(value), 16)}
+        />
+        <YAxis
+          tick={axisStyle}
+          tickLine={false}
+          axisLine={false}
+          allowDecimals={false}
+          width={52}
+          tickFormatter={compactNumber}
+        />
         <Tooltip {...tooltip} cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }} />
         <Bar dataKey={valueKey} radius={[6, 6, 0, 0]} isAnimationActive animationDuration={800}>
           {data.map((row, i) => (

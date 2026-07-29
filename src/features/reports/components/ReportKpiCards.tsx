@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { Info } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
@@ -15,6 +17,8 @@ export interface KpiItem {
   /** Classe de cor do ícone/realce (ex.: "text-ai-blue"). */
   accent?: string;
   decimals?: number;
+  /** Explicação do cálculo, exibida num tooltip ao lado do rótulo. */
+  hint?: string;
 }
 
 /** Contador animado (count-up) com requestAnimationFrame. */
@@ -77,24 +81,46 @@ export function ReportKpiCards({ items, loading }: { items: KpiItem[]; loading?:
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {items.map((item, i) => {
-        const Icon = item.icon;
-        return (
-          <Card
-            key={i}
-            className="p-5 transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-muted-foreground">{item.label}</p>
-              {Icon ? <Icon className={cn("w-5 h-5", item.accent ?? "text-muted-foreground")} /> : null}
-            </div>
-            <div className={cn("text-3xl font-bold tabular-nums", item.accent)}>
-              <KpiValue item={item} />
-            </div>
-          </Card>
-        );
-      })}
-    </div>
+    <TooltipProvider delayDuration={200}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {items.map((item, i) => {
+          const Icon = item.icon;
+          return (
+            <Card
+              key={i}
+              className="p-5 transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+            >
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className="text-sm text-muted-foreground truncate">{item.label}</p>
+                  {item.hint ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={`Como ${item.label} é calculado`}
+                          className="text-muted-foreground/70 hover:text-foreground transition-colors shrink-0"
+                        >
+                          <Info className="w-3.5 h-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[260px] text-xs leading-relaxed">
+                        {item.hint}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                </div>
+                {Icon ? (
+                  <Icon className={cn("w-5 h-5 shrink-0", item.accent ?? "text-muted-foreground")} />
+                ) : null}
+              </div>
+              <div className={cn("text-3xl font-bold tabular-nums", item.accent)}>
+                <KpiValue item={item} />
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </TooltipProvider>
   );
 }

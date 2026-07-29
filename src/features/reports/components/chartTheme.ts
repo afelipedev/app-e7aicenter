@@ -24,6 +24,12 @@ export const STATUS_COLORS: Record<string, string> = {
   success: "hsl(var(--success))",
 };
 
+/** Cores fixas por tipo de SPED — duas famílias bem distintas no gráfico. */
+export const SPED_TYPE_COLORS: Record<string, string> = {
+  "SPED ICMS IPI": "hsl(var(--ai-blue))",
+  "SPED Contribuições": "hsl(var(--ai-orange))",
+};
+
 export function colorAt(index: number): string {
   return CHART_COLORS[index % CHART_COLORS.length];
 }
