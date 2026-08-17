@@ -3,549 +3,791 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="description" content="Portal de Documentação e Manual do Usuário — E7 AI Center" />
-<title>E7 AI Center — Portal de Documentação</title>
+<meta name="description" content="Documentação e manual do usuário do E7 AI Center — plataforma de IA, documentos e gestão para escritórios de advocacia e contabilidade." />
+<title>E7 AI Center — Documentação e Tutorial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  /* ============================================================
+     E7 AI Center — Portal de documentação
+     Direção: dossiê institucional. Tinta navy sobre papel,
+     acento âmbar de carimbo, tipografia Fraunces + Public Sans.
+     ============================================================ */
+
   :root {
-    --bg: #ffffff;
-    --bg-alt: #f6f8fa;
-    --bg-elev: #ffffff;
-    --text: #1f2328;
-    --text-soft: #57606a;
-    --border: #d0d7de;
-    --primary: #2563eb;
-    --primary-soft: #dbeafe;
-    --accent: #7c3aed;
-    --sidebar-w: 290px;
-    --header-h: 60px;
-    --code-bg: #f6f8fa;
-    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.06);
-    --radius: 12px;
-    --note: #0969da;
-    --warn: #9a6700;
-    --warn-bg: #fff8c5;
-    --danger: #cf222e;
-    --danger-bg: #ffebe9;
-    --ok: #1a7f37;
-    --ok-bg: #dafbe1;
+    color-scheme: light;
+    --paper:      #FCFBF8;
+    --surface:    #FFFFFF;
+    --surface-2:  #F4F2EC;
+    --ink:        #141A24;
+    --ink-soft:   #5A6470;
+    --navy:       #16243F;
+    --navy-soft:  #E4EAF4;
+    --amber:      #9A6410;
+    --amber-soft: #F6EEDC;
+    --rule:       #DFDCD2;
+    --rule-firm:  #C8C4B7;
+    --seal:       #2F6B4F;
+    --seal-soft:  #E4F0E8;
+    --alert:      #A4302A;
+    --alert-soft: #FAEBE9;
+    --code-bg:    #F4F2EC;
+
+    --sidebar-w: 296px;
+    --header-h: 62px;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(20,26,36,.06), 0 12px 32px rgba(20,26,36,.06);
+    --t: 160ms cubic-bezier(.2,.6,.3,1);
+
+    --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+    --font-body: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
   }
-  html[data-theme="dark"] {
-    --bg: #0d1117;
-    --bg-alt: #161b22;
-    --bg-elev: #161b22;
-    --text: #e6edf3;
-    --text-soft: #9198a1;
-    --border: #30363d;
-    --primary: #4493f8;
-    --primary-soft: #0d2847;
-    --accent: #a371f7;
-    --code-bg: #161b22;
-    --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
-    --note: #4493f8;
-    --warn: #d29922;
-    --warn-bg: #2d2607;
-    --danger: #f85149;
-    --danger-bg: #2d0f0f;
-    --ok: #3fb950;
-    --ok-bg: #0f2417;
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --paper:      #0E141C;
+      --surface:    #141C27;
+      --surface-2:  #1A2432;
+      --ink:        #E7EBF0;
+      --ink-soft:   #9AA6B4;
+      --navy:       #A9C4EA;
+      --navy-soft:  #1B2941;
+      --amber:      #DBA645;
+      --amber-soft: #2A2213;
+      --rule:       #26313F;
+      --rule-firm:  #36445A;
+      --seal:       #5FBE8C;
+      --seal-soft:  #12291F;
+      --alert:      #F08078;
+      --alert-soft: #2C1512;
+      --code-bg:    #1A2432;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 32px rgba(0,0,0,.35);
+    }
   }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper:      #0E141C;
+    --surface:    #141C27;
+    --surface-2:  #1A2432;
+    --ink:        #E7EBF0;
+    --ink-soft:   #9AA6B4;
+    --navy:       #A9C4EA;
+    --navy-soft:  #1B2941;
+    --amber:      #DBA645;
+    --amber-soft: #2A2213;
+    --rule:       #26313F;
+    --rule-firm:  #36445A;
+    --seal:       #5FBE8C;
+    --seal-soft:  #12291F;
+    --alert:      #F08078;
+    --alert-soft: #2C1512;
+    --code-bg:    #1A2432;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 32px rgba(0,0,0,.35);
+  }
+
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: var(--bg);
-    color: var(--text);
+    font-family: var(--font-body);
+    background: var(--paper);
+    color: var(--ink);
     line-height: 1.65;
     font-size: 16px;
+    -webkit-font-smoothing: antialiased;
   }
-  a { color: var(--primary); text-decoration: none; }
-  a:hover { text-decoration: underline; }
+  a { color: var(--navy); text-decoration: none; }
+  a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 4px; }
 
-  /* HEADER */
+  .skip {
+    position: absolute; left: 12px; top: -60px; z-index: 300;
+    background: var(--surface); border: 1px solid var(--rule-firm);
+    padding: 10px 16px; border-radius: 8px; font-weight: 600;
+    transition: top var(--t);
+  }
+  .skip:focus { top: 12px; }
+
+  /* ---------- Cabeçalho ---------- */
   header.topbar {
-    position: fixed; top: 0; left: 0; right: 0; height: var(--header-h);
+    position: fixed; inset: 0 0 auto 0; height: var(--header-h);
     display: flex; align-items: center; gap: 14px; padding: 0 18px;
-    background: var(--bg-elev); border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: saturate(180%) blur(10px);
+    border-bottom: 1px solid var(--rule);
     z-index: 100;
   }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; }
-  .brand .logo {
-    width: 34px; height: 34px; border-radius: 9px;
-    background: linear-gradient(135deg, var(--primary), var(--accent));
-    color: #fff; display: grid; place-items: center; font-weight: 800; font-size: .9rem;
+  .brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .brand .mark {
+    font-family: var(--font-display); font-weight: 700; font-size: 1.15rem;
+    letter-spacing: -.02em; color: var(--ink); white-space: nowrap;
   }
-  .brand .ver { font-size: .7rem; color: var(--text-soft); font-weight: 600; background: var(--bg-alt); padding: 2px 8px; border-radius: 20px; border: 1px solid var(--border); }
+  .brand .mark em { font-style: normal; color: var(--amber); }
+  .brand .kicker {
+    font-family: var(--font-mono); font-size: .68rem; text-transform: uppercase;
+    letter-spacing: .12em; color: var(--ink-soft); white-space: nowrap;
+  }
   .spacer { flex: 1; }
-  .search-wrap { position: relative; max-width: 420px; flex: 1; }
+
+  .search-wrap { position: relative; max-width: 400px; flex: 1 1 220px; }
   .search-wrap input {
-    width: 100%; padding: 9px 14px 9px 36px; border-radius: 9px;
-    border: 1px solid var(--border); background: var(--bg-alt); color: var(--text);
-    font-size: .9rem; outline: none;
+    width: 100%; padding: 9px 62px 9px 34px; border-radius: 8px;
+    border: 1px solid var(--rule-firm); background: var(--surface); color: var(--ink);
+    font-family: var(--font-body); font-size: .9rem; outline: none;
+    transition: border-color var(--t), box-shadow var(--t);
   }
-  .search-wrap input:focus { border-color: var(--primary); }
-  .search-wrap svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-soft); }
+  .search-wrap input:focus { border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-soft); }
+  .search-wrap .lens { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-soft); pointer-events: none; }
+  .search-wrap kbd {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    font-family: var(--font-mono); font-size: .66rem; color: var(--ink-soft);
+    border: 1px solid var(--rule); border-radius: 5px; padding: 2px 6px; background: var(--surface-2);
+  }
   .search-results {
-    position: absolute; top: 46px; left: 0; right: 0; background: var(--bg-elev);
-    border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
-    max-height: 60vh; overflow-y: auto; display: none; z-index: 200;
+    position: absolute; top: 46px; left: 0; right: 0; background: var(--surface);
+    border: 1px solid var(--rule-firm); border-radius: 10px; box-shadow: var(--shadow);
+    max-height: 62vh; overflow-y: auto; display: none; z-index: 200;
   }
   .search-results.show { display: block; }
-  .search-results a { display: block; padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
-  .search-results a:hover { background: var(--bg-alt); text-decoration: none; }
-  .search-results a small { display: block; color: var(--text-soft); font-size: .75rem; }
-  .search-results .empty { padding: 14px; color: var(--text-soft); font-size: .85rem; }
-  .icon-btn {
-    width: 38px; height: 38px; border-radius: 9px; border: 1px solid var(--border);
-    background: var(--bg-alt); color: var(--text); cursor: pointer; display: grid; place-items: center;
-    font-size: 1.1rem;
+  .search-results a { display: block; padding: 10px 14px; border-bottom: 1px solid var(--rule); color: var(--ink); font-size: .88rem; }
+  .search-results a:last-child { border-bottom: 0; }
+  .search-results a:hover { background: var(--surface-2); text-decoration: none; }
+  .search-results a small {
+    display: block; font-family: var(--font-mono); font-size: .68rem;
+    text-transform: uppercase; letter-spacing: .08em; color: var(--amber); margin-bottom: 2px;
   }
-  .icon-btn:hover { border-color: var(--primary); }
+  .search-results .empty { padding: 14px; color: var(--ink-soft); font-size: .85rem; }
+  mark.hl { background: var(--amber-soft); color: var(--ink); border-radius: 3px; padding: 0 2px; }
+
+  .icon-btn {
+    width: 38px; height: 38px; flex: none; border-radius: 8px; border: 1px solid var(--rule-firm);
+    background: var(--surface); color: var(--ink); cursor: pointer;
+    display: grid; place-items: center; transition: border-color var(--t), background var(--t);
+  }
+  .icon-btn:hover { border-color: var(--amber); background: var(--surface-2); }
   #menuToggle { display: none; }
 
-  /* LAYOUT */
-  .layout { display: flex; margin-top: var(--header-h); }
+  /* ---------- Layout ---------- */
+  .layout { display: flex; padding-top: var(--header-h); }
   nav.sidebar {
     position: fixed; top: var(--header-h); bottom: 0; left: 0; width: var(--sidebar-w);
-    background: var(--bg-alt); border-right: 1px solid var(--border);
-    overflow-y: auto; padding: 18px 12px 60px; transition: transform .25s ease;
+    background: var(--surface-2); border-right: 1px solid var(--rule);
+    overflow-y: auto; padding: 20px 12px 64px; transition: transform .24s ease;
   }
   nav.sidebar h4 {
-    font-size: .72rem; text-transform: uppercase; letter-spacing: .06em;
-    color: var(--text-soft); margin: 18px 10px 6px;
+    font-family: var(--font-mono); font-size: .66rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: .14em;
+    color: var(--ink-soft); margin: 20px 12px 8px;
+    display: flex; align-items: center; gap: 8px;
   }
+  nav.sidebar h4::after { content: ""; flex: 1; height: 1px; background: var(--rule-firm); }
   nav.sidebar a {
-    display: block; padding: 7px 12px; border-radius: 8px; color: var(--text-soft);
-    font-size: .9rem; margin: 1px 0;
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 6px 12px; border-radius: 7px; color: var(--ink-soft);
+    font-size: .9rem; margin: 1px 0; transition: background var(--t), color var(--t);
   }
-  nav.sidebar a:hover { background: var(--bg); color: var(--text); text-decoration: none; }
-  nav.sidebar a.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
-  main {
-    margin-left: var(--sidebar-w); flex: 1; max-width: 980px; padding: 32px 40px 120px;
+  nav.sidebar a .num {
+    font-family: var(--font-mono); font-size: .72rem; color: var(--rule-firm);
+    min-width: 26px; letter-spacing: -.02em;
   }
-  .overlay { display: none; position: fixed; inset: var(--header-h) 0 0 0; background: rgba(0,0,0,.4); z-index: 90; }
+  nav.sidebar a:hover { background: var(--surface); color: var(--ink); text-decoration: none; }
+  nav.sidebar a.active { background: var(--navy-soft); color: var(--navy); font-weight: 600; }
+  nav.sidebar a.active .num { color: var(--amber); }
 
-  /* CONTENT */
-  section { scroll-margin-top: calc(var(--header-h) + 12px); margin-bottom: 56px; }
-  h1 { font-size: 2rem; margin: .2em 0 .4em; letter-spacing: -.01em; }
-  h2 { font-size: 1.5rem; margin: 1.6em 0 .5em; padding-bottom: .3em; border-bottom: 2px solid var(--border); }
-  h3 { font-size: 1.18rem; margin: 1.4em 0 .4em; }
-  h4 { font-size: 1rem; margin: 1.1em 0 .3em; }
-  p, li { color: var(--text); }
+  main { margin-left: var(--sidebar-w); flex: 1; max-width: 1000px; padding: 40px 44px 140px; }
+  .overlay { display: none; position: fixed; inset: var(--header-h) 0 0 0; background: rgba(14,20,28,.5); z-index: 90; }
+
+  /* ---------- Tipografia de conteúdo ---------- */
+  section { scroll-margin-top: calc(var(--header-h) + 16px); margin-bottom: 64px; }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase;
+    letter-spacing: .16em; color: var(--amber); margin: 0 0 6px;
+  }
+  h1 { font-family: var(--font-display); font-size: clamp(2.1rem, 5vw, 3.1rem); font-weight: 700; letter-spacing: -.025em; line-height: 1.08; margin: 0 0 .3em; }
+  h2 {
+    font-family: var(--font-display); font-size: clamp(1.5rem, 3vw, 1.95rem); font-weight: 600;
+    letter-spacing: -.02em; margin: 0 0 .5em; padding-bottom: .3em;
+    border-bottom: 2px solid var(--ink); display: inline-block;
+  }
+  h3 { font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; letter-spacing: -.01em; margin: 2em 0 .4em; }
+  h4 { font-size: .95rem; font-weight: 700; margin: 1.4em 0 .3em; }
+  p, li { color: var(--ink); }
+  main p { max-width: 74ch; }
+  ul, ol { padding-left: 1.25rem; }
+  li { margin: .25em 0; }
+  strong { font-weight: 700; }
+
   code:not(pre code) {
-    background: var(--code-bg); padding: .15em .4em; border-radius: 5px; font-size: .85em;
-    border: 1px solid var(--border); font-family: "SF Mono", "Consolas", monospace;
+    font-family: var(--font-mono); font-size: .84em;
+    background: var(--code-bg); border: 1px solid var(--rule);
+    padding: .1em .4em; border-radius: 5px; color: var(--ink);
   }
   pre {
-    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
-    padding: 14px 16px; overflow-x: auto; font-size: .84rem; line-height: 1.5;
-    font-family: "SF Mono", "Consolas", monospace;
+    font-family: var(--font-mono); font-size: .82rem; line-height: 1.55;
+    background: var(--code-bg); border: 1px solid var(--rule); border-left: 3px solid var(--amber);
+    border-radius: var(--radius); padding: 14px 16px; overflow-x: auto;
   }
-  table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: .88rem; display: block; overflow-x: auto; }
-  th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
-  th { background: var(--bg-alt); font-weight: 600; }
-  tbody tr:nth-child(even) { background: var(--bg-alt); }
 
-  /* HERO */
-  .hero {
-    background: linear-gradient(135deg, var(--primary), var(--accent));
-    color: #fff; border-radius: 18px; padding: 38px 34px; margin-bottom: 28px;
-    box-shadow: var(--shadow);
+  .table-scroll { overflow-x: auto; margin: 18px 0; border: 1px solid var(--rule); border-radius: var(--radius); }
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th, td { padding: 9px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule); }
+  th {
+    background: var(--surface-2); font-family: var(--font-mono); font-weight: 500;
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-soft);
+    white-space: nowrap;
   }
-  .hero h1 { color: #fff; margin-top: 0; font-size: 2.3rem; }
-  .hero p { color: rgba(255,255,255,.92); font-size: 1.05rem; max-width: 680px; }
-  .hero .meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
-  .hero .meta span { background: rgba(255,255,255,.18); padding: 6px 14px; border-radius: 30px; font-size: .82rem; font-weight: 600; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--surface-2); }
+  td code { white-space: nowrap; }
 
-  /* CARDS */
-  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 16px; margin: 18px 0; }
+  /* ---------- Folha de rosto ---------- */
+  .cover {
+    position: relative; background: var(--surface); border: 1px solid var(--rule-firm);
+    border-radius: 16px; padding: 44px 40px 34px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .cover::before {
+    content: ""; position: absolute; inset: 0 auto 0 0; width: 5px;
+    background: linear-gradient(180deg, var(--amber), var(--navy));
+  }
+  .cover h1 { max-width: 15ch; }
+  .cover .lede { font-size: 1.06rem; color: var(--ink-soft); max-width: 58ch; margin: 0 0 26px; }
+  .docgrid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+    gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden;
+  }
+  .docgrid div { background: var(--surface); padding: 11px 14px; }
+  .docgrid dt {
+    font-family: var(--font-mono); font-size: .64rem; text-transform: uppercase;
+    letter-spacing: .13em; color: var(--ink-soft); margin-bottom: 3px;
+  }
+  .docgrid dd { margin: 0; font-size: .9rem; font-weight: 600; }
+
+  .seal {
+    position: absolute; top: 26px; right: 30px; width: 116px; height: 116px;
+    border: 2px solid var(--amber); border-radius: 50%; color: var(--amber);
+    display: grid; place-content: center; text-align: center; gap: 2px;
+    transform: rotate(-7deg); opacity: .9;
+    animation: seal-in 700ms cubic-bezier(.2,.8,.3,1) both;
+  }
+  .seal::before {
+    content: ""; position: absolute; inset: 6px; border: 1px solid var(--amber);
+    border-radius: 50%; opacity: .55;
+  }
+  .seal span {
+    font-family: var(--font-mono); font-size: .58rem; text-transform: uppercase; letter-spacing: .14em;
+  }
+  .seal b { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; line-height: 1; }
+  @keyframes seal-in { from { opacity: 0; transform: rotate(-24deg) scale(.86); } to { opacity: .9; transform: rotate(-7deg) scale(1); } }
+  @media (max-width: 820px) { .seal { display: none; } }
+
+  /* ---------- Cards ---------- */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); gap: 14px; margin: 20px 0; }
   .card {
-    background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 18px; box-shadow: var(--shadow); transition: transform .15s, border-color .15s;
+    background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius);
+    padding: 16px 18px; transition: border-color var(--t), transform var(--t);
+    display: block; color: inherit;
   }
-  .card:hover { transform: translateY(-3px); border-color: var(--primary); }
-  .card .ic { font-size: 1.6rem; }
-  .card h4 { margin: 8px 0 4px; }
-  .card p { font-size: .85rem; color: var(--text-soft); margin: 0; }
+  a.card:hover { border-color: var(--amber); transform: translateY(-2px); text-decoration: none; }
+  .card .tag {
+    font-family: var(--font-mono); font-size: .64rem; text-transform: uppercase;
+    letter-spacing: .13em; color: var(--amber);
+  }
+  .card h4 { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; margin: 6px 0 4px; }
+  .card p { font-size: .85rem; color: var(--ink-soft); margin: 0; }
 
-  /* ALERTS */
-  .alert { border-radius: 10px; padding: 12px 16px; margin: 16px 0; border: 1px solid; font-size: .9rem; }
-  .alert strong { display: block; margin-bottom: 2px; }
-  .alert.note { background: var(--primary-soft); border-color: var(--note); }
-  .alert.warn { background: var(--warn-bg); border-color: var(--warn); }
-  .alert.danger { background: var(--danger-bg); border-color: var(--danger); }
-  .alert.ok { background: var(--ok-bg); border-color: var(--ok); }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; margin: 20px 0; }
+  .stat { background: var(--surface); padding: 16px 18px; }
+  .stat b { display: block; font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
+  .stat span { font-family: var(--font-mono); font-size: .66rem; text-transform: uppercase; letter-spacing: .11em; color: var(--ink-soft); }
 
-  /* ACCORDION */
-  .accordion { border: 1px solid var(--border); border-radius: 10px; margin: 10px 0; overflow: hidden; background: var(--bg-elev); }
-  .accordion summary {
+  /* ---------- Avisos ---------- */
+  .note {
+    border: 1px solid var(--rule-firm); border-left: 4px solid var(--navy);
+    background: var(--navy-soft); border-radius: 8px; padding: 12px 16px; margin: 18px 0; font-size: .9rem;
+  }
+  .note strong { display: block; margin-bottom: 2px; }
+  .note.warn { border-left-color: var(--amber); background: var(--amber-soft); }
+  .note.ok { border-left-color: var(--seal); background: var(--seal-soft); }
+  .note.stop { border-left-color: var(--alert); background: var(--alert-soft); }
+
+  .chip {
+    display: inline-block; font-family: var(--font-mono); font-size: .68rem;
+    padding: 2px 8px; border-radius: 20px; border: 1px solid currentColor; color: var(--ink-soft);
+  }
+  .chip.admin { color: var(--alert); }
+  .chip.all { color: var(--seal); }
+
+  /* ---------- Acordeão ---------- */
+  details.acc {
+    border: 1px solid var(--rule); border-radius: var(--radius);
+    margin: 10px 0; background: var(--surface); overflow: hidden;
+  }
+  details.acc summary {
     padding: 13px 16px; cursor: pointer; font-weight: 600; list-style: none;
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; gap: 12px; transition: background var(--t);
   }
-  .accordion summary::-webkit-details-marker { display: none; }
-  .accordion summary::after { content: "+"; font-size: 1.3rem; color: var(--text-soft); }
-  .accordion[open] summary::after { content: "−"; }
-  .accordion[open] summary { border-bottom: 1px solid var(--border); }
-  .accordion .body { padding: 14px 16px; }
+  details.acc summary:hover { background: var(--surface-2); }
+  details.acc summary::-webkit-details-marker { display: none; }
+  details.acc summary::after {
+    content: "+"; margin-left: auto; font-family: var(--font-mono);
+    font-size: 1.2rem; color: var(--ink-soft); line-height: 1;
+  }
+  details.acc[open] summary::after { content: "–"; }
+  details.acc[open] summary { border-bottom: 1px solid var(--rule); background: var(--surface-2); }
+  details.acc .step { font-family: var(--font-mono); font-size: .72rem; color: var(--amber); }
+  details.acc .body { padding: 14px 18px; }
+  details.acc .body p { margin: .5em 0; }
+  details.acc .body dt { font-family: var(--font-mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .11em; color: var(--ink-soft); margin-top: 12px; }
+  details.acc .body dd { margin: 2px 0 0; }
 
-  /* MERMAID */
-  .mermaid { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin: 16px 0; text-align: center; overflow-x: auto; }
+  /* ---------- Diagramas ---------- */
+  .mermaid {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius);
+    padding: 18px; margin: 18px 0; text-align: center; overflow-x: auto;
+  }
+  .mermaid pre { text-align: left; border-left-width: 1px; }
 
-  /* BADGES */
-  .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: .72rem; font-weight: 700; }
-  .badge.b-blue { background: var(--primary-soft); color: var(--primary); }
-  .badge.b-warn { background: var(--warn-bg); color: var(--warn); }
-  .badge.b-danger { background: var(--danger-bg); color: var(--danger); }
+  footer.docfoot {
+    border-top: 1px solid var(--rule); padding-top: 22px; margin-top: 48px;
+    color: var(--ink-soft); font-size: .85rem;
+  }
 
-  /* BACK TO TOP */
   #toTop {
-    position: fixed; bottom: 26px; right: 26px; width: 46px; height: 46px; border-radius: 50%;
-    background: var(--primary); color: #fff; border: none; cursor: pointer; font-size: 1.3rem;
+    position: fixed; bottom: 26px; right: 26px; width: 44px; height: 44px; border-radius: 50%;
+    background: var(--navy); color: var(--paper); border: none; cursor: pointer; font-size: 1.15rem;
     box-shadow: var(--shadow); display: none; z-index: 80;
   }
   #toTop.show { display: block; }
+  :root[data-theme="dark"] #toTop, :root:not([data-theme="light"]) #toTop { color: #0E141C; }
 
-  footer.docfoot { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 40px; color: var(--text-soft); font-size: .85rem; }
-
-  .hl { background: #ffe9a8; color: #1f2328; border-radius: 3px; padding: 0 2px; }
-
-  @media print {
-    header.topbar, nav.sidebar, #toTop, .overlay, .search-wrap, .icon-btn { display: none !important; }
-    main { margin: 0; max-width: 100%; padding: 0; }
-    .layout { margin-top: 0; }
-    .accordion { page-break-inside: avoid; }
-    details.accordion[open] summary::after { content: ""; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    html { scroll-behavior: auto; }
   }
 
-  @media (max-width: 900px) {
-    :root { --sidebar-w: 270px; }
+  @media (max-width: 960px) {
+    :root { --sidebar-w: 272px; }
     nav.sidebar { transform: translateX(-100%); z-index: 95; }
     nav.sidebar.open { transform: translateX(0); }
-    main { margin-left: 0; padding: 22px 18px 100px; }
+    main { margin-left: 0; padding: 26px 18px 100px; }
     #menuToggle { display: grid; }
     .overlay.show { display: block; }
-    .search-wrap { max-width: none; }
-    .brand .ver { display: none; }
+    .brand .kicker { display: none; }
+    .cover { padding: 28px 22px 24px; }
+    .search-wrap kbd { display: none; }
+  }
+
+  @media print {
+    header.topbar, nav.sidebar, #toTop, .overlay, .skip { display: none !important; }
+    main { margin: 0; max-width: 100%; padding: 0; }
+    .layout { padding-top: 0; }
+    details.acc { page-break-inside: avoid; }
+    details.acc summary::after { content: ""; }
+    details.acc[open] .body, details.acc .body { display: block !important; }
+    .cover { box-shadow: none; }
+    a { color: inherit; }
   }
 </style>
 </head>
 <body>
 
+<a class="skip" href="#conteudo">Ir para o conteúdo</a>
+
 <header class="topbar">
-  <button class="icon-btn" id="menuToggle" aria-label="Menu">☰</button>
+  <button class="icon-btn" id="menuToggle" aria-label="Abrir menu de navegação" aria-expanded="false">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
   <div class="brand">
-    <div class="logo">E7</div>
-    <span>AI Center</span>
-    <span class="ver">v1.0 · 24/06/2026</span>
+    <span class="mark">E7 <em>AI Center</em></span>
+    <span class="kicker">Documentação · v2.0</span>
   </div>
   <div class="search-wrap">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-    <input type="text" id="search" placeholder="Pesquisar na documentação..." autocomplete="off" />
-    <div class="search-results" id="searchResults"></div>
+    <svg class="lens" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    <input type="search" id="search" placeholder="Pesquisar na documentação" autocomplete="off" aria-label="Pesquisar na documentação" />
+    <kbd>Ctrl K</kbd>
+    <div class="search-results" id="searchResults" role="listbox" aria-label="Resultados da busca"></div>
   </div>
   <div class="spacer"></div>
-  <button class="icon-btn" id="themeToggle" aria-label="Alternar tema">🌙</button>
+  <button class="icon-btn" id="themeToggle" aria-label="Alternar entre tema claro e escuro">
+    <svg id="themeIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+  </button>
 </header>
 
 <div class="overlay" id="overlay"></div>
 
 <div class="layout">
-  <nav class="sidebar" id="sidebar">
-    <h4>Início</h4>
-    <a href="#inicio">🏠 Página inicial</a>
-    <a href="#visao-geral">📋 Visão geral</a>
-    <a href="#perfis">👤 Perfis e permissões</a>
-    <h4>Módulos</h4>
-    <a href="#mod-assistentes">🤖 Assistentes de IA</a>
-    <a href="#mod-biblioteca">📚 Biblioteca de IA</a>
-    <a href="#mod-holerites">📄 Holerites</a>
-    <a href="#mod-sped">🧾 SPED</a>
-    <a href="#mod-processos">⚖️ Processos</a>
-    <a href="#mod-kanban">🗂️ Quadros (Kanban)</a>
-    <a href="#mod-teams">💬 Equipes</a>
-    <a href="#mod-leads">📇 Leads (CRM)</a>
-    <a href="#mod-perfil">⚙️ Perfil & Admin</a>
-    <h4>Tutorial</h4>
-    <a href="#tutorial">📖 Manual passo a passo</a>
-    <h4>Referência</h4>
-    <a href="#fluxos">🔀 Fluxos</a>
-    <a href="#banco">🗄️ Banco de dados</a>
-    <a href="#apis">🔌 APIs e Integrações</a>
-    <a href="#seguranca">🔒 Segurança</a>
-    <a href="#faq">❓ FAQ</a>
-    <a href="#glossario">📘 Glossário</a>
-    <a href="#suporte">🛟 Suporte</a>
+  <nav class="sidebar" id="sidebar" aria-label="Sumário">
+    <h4>Abertura</h4>
+    <a href="#inicio"><span class="num">—</span> Folha de rosto</a>
+    <h4>Documento</h4>
+    <a href="#visao-geral"><span class="num">§1</span> Visão geral</a>
+    <a href="#perfis"><span class="num">§2</span> Perfis e permissões</a>
+    <a href="#modulos"><span class="num">§3</span> Módulos</a>
+    <a href="#tutorial"><span class="num">§4</span> Tutorial passo a passo</a>
+    <a href="#fluxos"><span class="num">§5</span> Fluxos do sistema</a>
+    <h4>Referência técnica</h4>
+    <a href="#banco"><span class="num">§6</span> Banco de dados</a>
+    <a href="#apis"><span class="num">§7</span> APIs e integrações</a>
+    <a href="#seguranca"><span class="num">§8</span> Segurança</a>
+    <h4>Apoio</h4>
+    <a href="#faq"><span class="num">§9</span> Perguntas frequentes</a>
+    <a href="#glossario"><span class="num">§10</span> Glossário</a>
+    <a href="#suporte"><span class="num">§11</span> Suporte</a>
   </nav>
 
-  <main>
-    <!-- INÍCIO -->
+  <main id="conteudo">
+
+    <!-- ========== FOLHA DE ROSTO ========== -->
     <section id="inicio">
-      <div class="hero">
-        <h1>E7 AI Center</h1>
-        <p>Plataforma única para escritórios de advocacia e contabilidade: inteligência artificial, automação de documentos, consulta processual, quadros de trabalho, comunicação em equipe e CRM — tudo em um só lugar.</p>
-        <div class="meta">
-          <span>📦 Versão 1.0</span>
-          <span>📅 24/06/2026</span>
-          <span>⚛️ React + Supabase</span>
-          <span>🤖 52 agentes de IA</span>
+      <div class="cover">
+        <div class="seal" aria-hidden="true">
+          <span>Entrega</span>
+          <b>E7</b>
+          <span>08 · 2026</span>
         </div>
+        <p class="eyebrow">Documentação de entrega</p>
+        <h1>E7 AI Center</h1>
+        <p class="lede">Plataforma única para escritórios de advocacia e contabilidade: agentes de inteligência artificial criados pela própria equipe, automação de documentos, consulta processual, quadros de trabalho, comunicação interna, relatórios e treinamento em vídeo.</p>
+        <dl class="docgrid">
+          <div><dt>Documento</dt><dd>Manual + Referência</dd></div>
+          <div><dt>Versão</dt><dd>2.0</dd></div>
+          <div><dt>Emissão</dt><dd>14/08/2026</dd></div>
+          <div><dt>Destinatário</dt><dd>Cliente final</dd></div>
+          <div><dt>Plataforma</dt><dd>React + Supabase</dd></div>
+        </dl>
       </div>
 
-      <p>Bem-vindo ao <strong>Portal de Documentação e Manual do Usuário</strong> do E7 AI Center. Use o menu lateral, a busca no topo ou os atalhos abaixo para navegar. Este portal consolida a documentação executiva e técnica do sistema.</p>
+      <p>Este portal reúne o <strong>manual do usuário</strong> e a <strong>referência técnica</strong> do sistema. Navegue pelo sumário à esquerda, use a busca no topo (<code>Ctrl</code> + <code>K</code>) ou comece por um dos acessos abaixo.</p>
 
       <div class="card-grid">
-        <a class="card" href="#visao-geral"><div class="ic">📋</div><h4>Visão geral</h4><p>Objetivos, arquitetura e tecnologias.</p></a>
-        <a class="card" href="#tutorial"><div class="ic">📖</div><h4>Tutorial</h4><p>Passo a passo de cada módulo.</p></a>
-        <a class="card" href="#banco"><div class="ic">🗄️</div><h4>Banco de dados</h4><p>Principais tabelas e relações.</p></a>
-        <a class="card" href="#apis"><div class="ic">🔌</div><h4>Integrações</h4><p>IA, n8n, DataJud e Supabase.</p></a>
-        <a class="card" href="#faq"><div class="ic">❓</div><h4>FAQ</h4><p>Perguntas frequentes.</p></a>
-        <a class="card" href="#suporte"><div class="ic">🛟</div><h4>Suporte</h4><p>Como obter ajuda.</p></a>
+        <a class="card" href="#modulos"><span class="tag">§3</span><h4>Módulos</h4><p>O que cada área do sistema faz e quem acessa.</p></a>
+        <a class="card" href="#tutorial"><span class="tag">§4</span><h4>Tutorial</h4><p>Passo a passo das tarefas do dia a dia.</p></a>
+        <a class="card" href="#banco"><span class="tag">§6</span><h4>Banco de dados</h4><p>Estrutura, volumes e domínios de dados.</p></a>
+        <a class="card" href="#apis"><span class="tag">§7</span><h4>Integrações</h4><p>Edge Functions, IA, n8n e DataJud.</p></a>
+        <a class="card" href="#faq"><span class="tag">§9</span><h4>Dúvidas</h4><p>As perguntas mais frequentes da equipe.</p></a>
+        <a class="card" href="#suporte"><span class="tag">§11</span><h4>Suporte</h4><p>Como pedir ajuda e o que informar.</p></a>
       </div>
     </section>
 
-    <!-- VISÃO GERAL -->
+    <!-- ========== §1 VISÃO GERAL ========== -->
     <section id="visao-geral">
+      <p class="eyebrow">§1</p>
       <h2>Visão geral</h2>
-      <h3>Objetivos da aplicação</h3>
+
+      <h3>O que a plataforma resolve</h3>
       <ul>
-        <li>Centralizar as ferramentas do dia a dia do escritório.</li>
-        <li>Acelerar tarefas repetitivas com automação e IA.</li>
-        <li>Padronizar o processamento de holerites e SPED.</li>
-        <li>Dar visibilidade ao andamento de casos, processos e tarefas.</li>
-        <li>Melhorar a comunicação interna com um espaço de equipes.</li>
-        <li>Garantir segurança com controle de acesso por perfil.</li>
+        <li>Coloca a <strong>inteligência artificial nas mãos da equipe</strong>: cada pessoa cria os agentes de que precisa, sem programar.</li>
+        <li>Faz os agentes responderem com base nos <strong>documentos do próprio escritório</strong>.</li>
+        <li>Automatiza o processamento de <strong>holerites e SPED</strong>, em segundo plano.</li>
+        <li>Centraliza <strong>processos, casos e tarefas</strong> em quadros visuais.</li>
+        <li>Integra a <strong>comunicação interna</strong> ao trabalho que está sendo feito.</li>
+        <li>Dá visibilidade por <strong>relatórios</strong>, incluindo o custo de uso da IA.</li>
+        <li>Reduz a curva de aprendizado com <strong>tutoriais em vídeo</strong> dentro da plataforma.</li>
+        <li>Protege tudo com <strong>controle de acesso por perfil</strong>.</li>
       </ul>
 
+      <h3>Números da plataforma</h3>
+      <div class="stat-grid">
+        <div class="stat"><b>11</b><span>Módulos no menu</span></div>
+        <div class="stat"><b>19</b><span>Funções de servidor</span></div>
+        <div class="stat"><b>89</b><span>Tabelas de dados</span></div>
+        <div class="stat"><b>14</b><span>Modelos de IA</span></div>
+        <div class="stat"><b>4</b><span>Provedoras de IA</span></div>
+        <div class="stat"><b>2</b><span>Temas (claro/escuro)</span></div>
+      </div>
+
       <h3>Arquitetura resumida</h3>
-      <p>O sistema é uma aplicação web (SPA) em <strong>React</strong> que se comunica com o <strong>Supabase</strong> (banco de dados, login, arquivos e funções) e com serviços externos de <strong>IA</strong>, automações <strong>n8n</strong> e a base oficial de processos <strong>DataJud/CNJ</strong>.</p>
+      <p>O sistema é uma aplicação web de página única (SPA) em <strong>React</strong>, que conversa com o <strong>Supabase</strong> (banco de dados, login, arquivos e funções de servidor). As chamadas de inteligência artificial e as operações sensíveis passam sempre pelo servidor — nunca pelo navegador.</p>
 
       <div class="mermaid">
 flowchart TB
-    U[Usuário no navegador] --> APP[Aplicação React - E7 AI Center]
-    APP --> SUP[Supabase: dados, login, arquivos, funções]
-    APP --> N8N[Automações n8n]
-    SUP --> IA[IA: OpenAI, Gemini, Anthropic]
-    SUP --> CNJ[DataJud / CNJ]
-    N8N --> AG[52 Agentes de IA]
+    U[Usuario no navegador] --> APP[Aplicacao React - E7 AI Center]
+    APP --> SUP[Supabase: banco, login, arquivos, tempo real]
+    APP --> EF[Edge Functions - regras sensiveis]
+    EF --> VAULT[Vault: chaves de IA protegidas]
+    EF --> IA[OpenAI / Gemini / Anthropic / Mistral]
+    EF --> CNJ[DataJud - CNJ]
+    APP --> N8N[Automacoes n8n]
+    N8N --> DOC[Holerites e SPED]
       </div>
 
       <h3>Tecnologias utilizadas</h3>
       <div class="card-grid">
-        <div class="card"><div class="ic">⚛️</div><h4>React + Vite</h4><p>Interface rápida e responsiva.</p></div>
-        <div class="card"><div class="ic">🟢</div><h4>Supabase</h4><p>Banco, login seguro, arquivos e funções.</p></div>
-        <div class="card"><div class="ic">🎨</div><h4>Tailwind + shadcn/ui</h4><p>Design system moderno e acessível.</p></div>
-        <div class="card"><div class="ic">🤖</div><h4>IA + n8n</h4><p>Assistentes, agentes e automações.</p></div>
-      </div>
-
-      <h3>Fluxo geral do sistema</h3>
-      <div class="mermaid">
-flowchart LR
-    Login[Login seguro] --> Painel[Painel inicial]
-    Painel --> Mods[Escolha do módulo]
-    Mods --> Acao[Executa ação]
-    Acao --> Result[Resultado / acompanhamento]
+        <div class="card"><span class="tag">Interface</span><h4>React + Vite</h4><p>Aplicação rápida, responsiva e com tema claro/escuro.</p></div>
+        <div class="card"><span class="tag">Plataforma</span><h4>Supabase</h4><p>Banco PostgreSQL, login, arquivos, tempo real e funções.</p></div>
+        <div class="card"><span class="tag">Design</span><h4>Tailwind + shadcn/ui</h4><p>Sistema de componentes acessível e consistente.</p></div>
+        <div class="card"><span class="tag">Inteligência</span><h4>LLM + pgvector</h4><p>Agentes com busca semântica nos documentos do escritório.</p></div>
       </div>
     </section>
 
-    <!-- PERFIS -->
+    <!-- ========== §2 PERFIS ========== -->
     <section id="perfis">
+      <p class="eyebrow">§2</p>
       <h2>Perfis de usuários e permissões</h2>
-      <p>Cada usuário tem um <strong>perfil</strong> que define o que pode acessar. Os menus se ajustam automaticamente ao perfil.</p>
-      <table>
-        <thead><tr><th>Perfil</th><th>Permissões principais</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Administrador</strong></td><td>Acesso total: administração, usuários, empresas, equipes, módulos, gestão operacional</td></tr>
-          <tr><td><strong>TI</strong></td><td>Acesso total (igual ao Administrador)</td></tr>
-          <tr><td><strong>Advogado Adm.</strong></td><td>Acesso total (igual ao Administrador)</td></tr>
-          <tr><td><strong>Advogado</strong></td><td>Módulos e visualização de empresas</td></tr>
-          <tr><td><strong>Contábil</strong></td><td>Módulos, visualizar e cadastrar empresas</td></tr>
-          <tr><td><strong>Financeiro</strong></td><td>Módulos</td></tr>
-        </tbody>
-      </table>
-      <div class="alert note"><strong>Regras de acesso</strong>Apenas usuários <em>ativos</em> entram no sistema. No primeiro acesso é obrigatório criar uma nova senha. A sessão encerra após 30 minutos de inatividade.</div>
+      <p>Cada usuário tem um <strong>perfil</strong> que define o que pode acessar. O menu se ajusta automaticamente — o que não aparece é o que o perfil não permite.</p>
+
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Perfil</th><th>Alcance</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Administrador</strong></td><td>Acesso total: administração, usuários, empresas, equipes, tutoriais, configurações, gestão operacional e todos os módulos</td></tr>
+            <tr><td><strong>TI</strong></td><td>Igual ao Administrador</td></tr>
+            <tr><td><strong>Advogado Adm.</strong></td><td>Igual ao Administrador</td></tr>
+            <tr><td><strong>Advogado</strong></td><td>Módulos gerais e visualização de empresas</td></tr>
+            <tr><td><strong>Contábil</strong></td><td>Módulos gerais, visualizar e cadastrar empresas</td></tr>
+            <tr><td><strong>Financeiro</strong></td><td>Módulos gerais</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Mapa do menu lateral</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Item</th><th>Para que serve</th><th>Quem vê</th></tr></thead>
+          <tbody>
+            <tr><td>Dashboard</td><td>Indicadores e atalhos rápidos</td><td><span class="chip all">Todos</span></td></tr>
+            <tr><td>Leads</td><td>CRM de clientes e parceiros</td><td><span class="chip all">Todos</span></td></tr>
+            <tr><td>Gestão Operacional</td><td>Quadros da rotina operacional</td><td><span class="chip admin">Administrativos</span></td></tr>
+            <tr><td>Gestão de Empresas</td><td>Cadastro de empresas clientes</td><td><span class="chip">Adm., Advogado, Contábil</span></td></tr>
+            <tr><td>AI Center E7</td><td>Criação e uso de agentes de IA</td><td><span class="chip all">Todos</span></td></tr>
+            <tr><td>Gestão Jurídica</td><td>Processos: dashboard, quadros e consultas</td><td><span class="chip all">Todos</span></td></tr>
+            <tr><td>Gestão Contábil</td><td>Holerites e SPEDs</td><td><span class="chip all">Todos</span></td></tr>
+            <tr><td>Relatórios</td><td>Indicadores por área, com exportação</td><td><span class="chip all">Todos</span></td></tr>
+            <tr><td>Equipes</td><td>Comunicação interna por canais</td><td><span class="chip all">Todos</span></td></tr>
+            <tr><td>Tutoriais</td><td>Videoteca de treinamento</td><td><span class="chip all">Todos</span></td></tr>
+            <tr><td>Administração</td><td>Usuários, equipes, upload de tutoriais e configurações</td><td><span class="chip admin">Administrativos</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note"><strong>Regras de acesso</strong>Somente usuários com status <em>ativo</em> entram no sistema. No primeiro acesso é obrigatório criar uma nova senha. A sessão encerra após 30 minutos de inatividade.</div>
     </section>
 
-    <!-- MÓDULOS -->
-    <section id="mod-assistentes">
+    <!-- ========== §3 MÓDULOS ========== -->
+    <section id="modulos">
+      <p class="eyebrow">§3</p>
       <h2>Módulos</h2>
-      <h3>🤖 Assistentes de IA</h3>
-      <p><strong>Objetivo:</strong> oferecer chats inteligentes especializados.</p>
-      <ul>
-        <li><strong>Funcionalidades:</strong> chats Geral, Jurídico Tributário, Jurídico Cível, Financeiro e Contábil; histórico salvo; favoritos; seleção de modelo de IA.</li>
-        <li><strong>Como acessar:</strong> menu <em>Assistentes de IA</em>.</li>
-        <li><strong>Observações:</strong> as conversas ficam registradas na sua conta.</li>
-      </ul>
-    </section>
 
-    <section id="mod-biblioteca">
-      <h3>📚 Biblioteca de IA</h3>
-      <p><strong>Objetivo:</strong> disponibilizar agentes especializados para tarefas específicas.</p>
+      <h3>3.1 · AI Center E7 — agentes do escritório</h3>
+      <p><strong>Objetivo:</strong> permitir que qualquer pessoa da equipe crie, publique e use agentes de IA especializados nas rotinas do escritório.</p>
       <ul>
-        <li><strong>Funcionalidades:</strong> 52 agentes em 11 temas (criação/revisão de peças, jurisprudência, estratégia de caso, contratos, marketing jurídico, atendimento, e mais); suporte a anexos.</li>
-        <li><strong>Como acessar:</strong> menu <em>Biblioteca IA</em> → tema → agente.</li>
+        <li><strong>Galeria:</strong> seus agentes e os publicados para o escritório, com busca, favoritos e arquivamento.</li>
+        <li><strong>Criação:</strong> informe objetivo, persona e modelo de IA — ou use <em>Construir com IA</em> e descreva em português o que precisa.</li>
+        <li><strong>Conhecimento (RAG):</strong> envie PDF, DOCX, TXT ou imagens; o sistema lê o conteúdo, inclusive por OCR em documentos digitalizados, e o agente passa a responder com base neles.</li>
+        <li><strong>Conversa:</strong> chat por agente, com histórico e anexo por pergunta.</li>
+        <li><strong>Fluxo (avançado):</strong> editor visual do pipeline — entrada, prompt, contexto, conhecimento, memória, modelo e formato de saída.</li>
+        <li><strong>Governança:</strong> publicação com versionamento e painel de custos em reais por agente.</li>
       </ul>
-    </section>
+      <div class="note ok"><strong>Boa prática</strong>Publique o agente só depois de testar no chat. Enquanto estiver como rascunho, ele fica visível apenas para você.</div>
 
-    <section id="mod-holerites">
-      <h3>📄 Holerites</h3>
-      <p><strong>Objetivo:</strong> processar holerites em lote de forma automatizada.</p>
+      <h3>3.2 · Gestão Contábil — Holerites e SPED</h3>
       <ul>
-        <li><strong>Funcionalidades:</strong> upload de PDFs por empresa, competência (MM/AAAA), acompanhamento em tempo real, histórico pesquisável.</li>
-        <li><strong>Como acessar:</strong> <em>Documentos → Holerites</em>.</li>
+        <li><strong>Holerites:</strong> envio de PDFs em lote por empresa, com competência <code>MM/AAAA</code> por arquivo, andamento em tempo real e histórico pesquisável.</li>
+        <li><strong>SPED:</strong> mesmo modelo, com fluxos distintos para ICMS/IPI e Contribuições.</li>
       </ul>
-      <div class="alert warn"><strong>Atenção</strong>Informe a competência no formato <code>MM/AAAA</code> para cada arquivo antes de processar.</div>
-    </section>
+      <div class="note warn"><strong>Atenção</strong>Informe a competência de cada arquivo antes de processar. O processamento roda no servidor: você pode fechar a tela que o andamento continua.</div>
 
-    <section id="mod-sped">
-      <h3>🧾 SPED</h3>
-      <p><strong>Objetivo:</strong> enviar e processar arquivos SPED.</p>
+      <h3>3.3 · Gestão Jurídica — Processos</h3>
       <ul>
-        <li><strong>Funcionalidades:</strong> upload em lote, validação de competência, histórico filtrável.</li>
-        <li><strong>Como acessar:</strong> <em>Documentos → SPED</em>.</li>
+        <li>Busca por número <strong>CNJ</strong> ou busca avançada por tribunal, classe, assunto, grau e datas.</li>
+        <li>Favoritos, movimentações e <strong>resumo automático por IA</strong>.</li>
       </ul>
-    </section>
+      <div class="note"><strong>Fonte dos dados</strong>A consulta usa a base pública do DataJud (CNJ). O resumo por IA é apoio à leitura — valide sempre na fonte oficial.</div>
 
-    <section id="mod-processos">
-      <h3>⚖️ Processos</h3>
-      <p><strong>Objetivo:</strong> consultar processos judiciais oficiais.</p>
+      <h3>3.4 · Quadros (Kanban)</h3>
       <ul>
-        <li><strong>Funcionalidades:</strong> busca por CNJ, busca avançada (tribunal, classe, assunto, grau, datas), favoritos, resumo por IA, movimentações.</li>
-        <li><strong>Como acessar:</strong> <em>Documentos → Casos</em>.</li>
+        <li><strong>Quadros Jurídicos:</strong> casos e tarefas em colunas e cartões.</li>
+        <li><strong>Gestão Operacional:</strong> a rotina administrativa, com a mesma dinâmica, para perfis autorizados.</li>
+        <li><strong>No cartão:</strong> descrição formatada, responsáveis, etiquetas, prioridade, status (incluindo <em>aguardando aprovação</em>), prazos, checklists, anexos e comentários com menções.</li>
+        <li><strong>Integrações:</strong> cartões podem ser compartilhados entre quadros e conectados a postagens das Equipes.</li>
       </ul>
-      <div class="alert note"><strong>Importante</strong>A consulta usa dados públicos do DataJud (CNJ). O resumo por IA é um apoio — valide sempre na fonte oficial.</div>
-    </section>
 
-    <section id="mod-kanban">
-      <h3>🗂️ Quadros (Kanban)</h3>
-      <p><strong>Objetivo:</strong> organizar casos e tarefas em quadros visuais.</p>
-      <ul>
-        <li><strong>Quadros Jurídicos:</strong> gestão de casos com colunas e cartões.</li>
-        <li><strong>Gestão Operacional:</strong> rotina operacional do escritório (perfis autorizados).</li>
-        <li><strong>Funcionalidades do cartão:</strong> descrição rica, responsáveis, etiquetas, prazos, checklists, anexos e comentários.</li>
-        <li><strong>Integração:</strong> cartões podem ser conectados a postagens das Equipes.</li>
-      </ul>
-    </section>
+      <h3>3.5 · Equipes</h3>
+      <p>Equipes, canais, postagens, comentários, reações, menções, favoritos, anexos, busca em português e notificações em tempo real. Uma conversa pode virar cartão de quadro sem sair do contexto.</p>
 
-    <section id="mod-teams">
-      <h3>💬 Equipes (Teams)</h3>
-      <p><strong>Objetivo:</strong> comunicação interna integrada ao trabalho.</p>
-      <ul>
-        <li><strong>Funcionalidades:</strong> equipes, canais, postagens, comentários, reações, menções, favoritos, anexos, busca e notificações em tempo real.</li>
-        <li><strong>Como acessar:</strong> menu <em>Equipes</em>.</li>
-      </ul>
-    </section>
+      <h3>3.6 · Relatórios</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Aba</th><th>O que mostra</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Folha &amp; SPED</strong></td><td>Volume processado, tempo médio de processamento, taxa de conclusão sem erro, distribuição por status e por empresa</td></tr>
+            <tr><td><strong>Quadros</strong></td><td>Cards por status, prioridade, quadro e responsável; lead time médio; filtro Jurídico / Gestão Operacional</td></tr>
+            <tr><td><strong>Adoção &amp; IA</strong></td><td>Custo em reais, execuções, tokens, agentes ativos, usuários, taxa de erro e evolução mensal do AI Center E7</td></tr>
+            <tr><td><strong>Processos</strong></td><td>Consultas, taxa de sucesso, tempo de resposta, processos por tribunal, grau, classe e órgão julgador</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Todas as abas aceitam filtro de período e <strong>exportação em Excel</strong>. Cada indicador traz um ícone de informação explicando como é calculado.</p>
 
-    <section id="mod-leads">
-      <h3>📇 Leads (CRM)</h3>
-      <p><strong>Objetivo:</strong> gerenciar a base de leads (clientes e parceiros).</p>
-      <ul>
-        <li><strong>Funcionalidades:</strong> cadastro com múltiplos contatos, importação e exportação CSV, ativação/desativação.</li>
-        <li><strong>Como acessar:</strong> menu <em>Leads</em>.</li>
-      </ul>
-    </section>
+      <h3>3.7 · Tutoriais</h3>
+      <p>Videoteca interna com catálogo por módulo e categoria, busca, favoritos, <strong>trilha de progresso por módulo</strong> e retomada automática do ponto onde você parou. Administradores publicam vídeos em <em>Administração → Upload Tutoriais</em>, com upload que pode ser pausado e retomado.</p>
 
-    <section id="mod-perfil">
-      <h3>⚙️ Perfil &amp; Administração</h3>
+      <h3>3.8 · Leads (CRM)</h3>
+      <p>Cadastro de leads (clientes e parceiros) com múltiplos telefones e e-mails, importação e exportação em planilha e ativação/desativação.</p>
+
+      <h3>3.9 · Perfil e Administração</h3>
       <ul>
-        <li><strong>Perfil:</strong> dados pessoais, foto e troca de senha (<em>menu Perfil</em>).</li>
-        <li><strong>Usuários:</strong> criar, editar, ativar/desativar (perfis administrativos).</li>
+        <li><strong>Perfil:</strong> dados pessoais, foto e troca de senha.</li>
+        <li><strong>Usuários:</strong> criar, editar, ativar e desativar.</li>
+        <li><strong>Gestão de Equipes:</strong> equipes, canais e membros.</li>
+        <li><strong>Configurações:</strong> webhooks de automação, parâmetros dos modelos de IA e credenciais das provedoras — sempre mascaradas na tela.</li>
         <li><strong>Empresas:</strong> cadastro com validação de CNPJ.</li>
-        <li><strong>Painel:</strong> indicadores do escritório na tela inicial.</li>
       </ul>
     </section>
 
-    <!-- TUTORIAL -->
+    <!-- ========== §4 TUTORIAL ========== -->
     <section id="tutorial">
-      <h2>Tutorial do sistema</h2>
-      <p>Guias rápidos por funcionalidade. Clique para expandir.</p>
+      <p class="eyebrow">§4</p>
+      <h2>Tutorial passo a passo</h2>
+      <p>Guias curtos por tarefa. Clique para expandir — todos abrem juntos ao imprimir esta página.</p>
 
-      <details class="accordion" open>
-        <summary>🔐 Entrar no sistema</summary>
+      <details class="acc" open>
+        <summary><span class="step">01</span> Entrar no sistema</summary>
         <div class="body">
-          <p><strong>O que faz:</strong> autentica o usuário com segurança.</p>
-          <p><strong>Como utilizar:</strong> informe e-mail e senha. No primeiro acesso, crie uma nova senha forte.</p>
-          <p><strong>Resultado esperado:</strong> acesso ao painel inicial.</p>
-          <p><strong>Mensagens possíveis:</strong> "usuário inativo" (procure o administrador); "senha incorreta".</p>
-          <p><strong>Dica:</strong> a sessão expira após 30 min de inatividade.</p>
+          <dl>
+            <dt>Como fazer</dt><dd>Informe e-mail e senha. No primeiro acesso, crie uma senha forte seguindo os requisitos exibidos.</dd>
+            <dt>Resultado</dt><dd>Você chega ao Dashboard, com indicadores e atalhos.</dd>
+            <dt>Mensagens possíveis</dt><dd>"Usuário inativo" — procure o administrador. "Senha incorreta" — tente novamente ou peça redefinição.</dd>
+            <dt>Dica</dt><dd>A sessão expira após 30 minutos sem uso.</dd>
+          </dl>
         </div>
       </details>
 
-      <details class="accordion">
-        <summary>🤖 Conversar com um assistente de IA</summary>
+      <details class="acc">
+        <summary><span class="step">02</span> Criar um agente no AI Center E7</summary>
         <div class="body">
-          <p><strong>Como acessar:</strong> menu <em>Assistentes de IA</em> → escolha o assistente.</p>
-          <p><strong>Como utilizar:</strong> digite a pergunta e envie.</p>
-          <p><strong>Resultado esperado:</strong> resposta na tela, conversa salva.</p>
-          <p><strong>Dica:</strong> marque conversas importantes como favoritas.</p>
+          <dl>
+            <dt>Onde</dt><dd>Menu <em>AI Center E7</em>.</dd>
+            <dt>Como fazer</dt><dd>Clique em <strong>Novo agente</strong> — ou em <strong>Construir com IA</strong> e descreva em português o que ele deve fazer. Preencha nome, objetivo e persona, escolha o modelo de IA e salve.</dd>
+            <dt>Resultado</dt><dd>O agente aparece na galeria como rascunho privado, pronto para teste.</dd>
+            <dt>Próximo passo</dt><dd>Converse com ele; quando estiver bom, clique em <strong>Publicar</strong> para liberar ao escritório.</dd>
+          </dl>
         </div>
       </details>
 
-      <details class="accordion">
-        <summary>📚 Usar um agente da Biblioteca de IA</summary>
+      <details class="acc">
+        <summary><span class="step">03</span> Ensinar o agente com documentos do escritório</summary>
         <div class="body">
-          <p><strong>Como acessar:</strong> <em>Biblioteca IA</em> → tema → agente.</p>
-          <p><strong>Como utilizar:</strong> descreva a solicitação e, se preciso, anexe um arquivo.</p>
-          <p><strong>Resultado esperado:</strong> conteúdo gerado pelo agente.</p>
+          <dl>
+            <dt>Onde</dt><dd><em>AI Center E7 → Conhecimento</em>.</dd>
+            <dt>Como fazer</dt><dd>Crie uma base (ex.: "Modelos de contrato"), envie os arquivos e aguarde o status mudar para <strong>concluído</strong>. Depois, no agente, aba <em>Conhecimento</em>, vincule a base.</dd>
+            <dt>Formatos aceitos</dt><dd>PDF, DOCX, TXT e imagens. Documentos digitalizados passam por leitura automática (OCR).</dd>
+            <dt>Resultado</dt><dd>As respostas do agente passam a considerar esses documentos.</dd>
+          </dl>
         </div>
       </details>
 
-      <details class="accordion">
-        <summary>📄 Processar holerites</summary>
+      <details class="acc">
+        <summary><span class="step">04</span> Processar holerites</summary>
         <div class="body">
-          <p><strong>Como acessar:</strong> <em>Documentos → Holerites</em>.</p>
-          <p><strong>Como utilizar:</strong> selecione a empresa, adicione os PDFs e informe a competência (MM/AAAA) de cada um; clique em Processar.</p>
-          <p><strong>Resultado esperado:</strong> andamento em tempo real e arquivos disponíveis ao concluir.</p>
-          <p><strong>Mensagens possíveis:</strong> "competência inválida"; "selecione uma empresa".</p>
+          <dl>
+            <dt>Onde</dt><dd><em>Gestão Contábil → Gestão de Holerites</em>.</dd>
+            <dt>Como fazer</dt><dd>Selecione a empresa, adicione os PDFs, informe a competência (MM/AAAA) de cada um e clique em <strong>Processar</strong>.</dd>
+            <dt>Resultado</dt><dd>Andamento em tempo real e arquivos disponíveis ao concluir. Você pode sair da tela.</dd>
+            <dt>Mensagens possíveis</dt><dd>"Competência inválida"; "Selecione uma empresa".</dd>
+          </dl>
         </div>
       </details>
 
-      <details class="accordion">
-        <summary>⚖️ Consultar um processo</summary>
+      <details class="acc">
+        <summary><span class="step">05</span> Consultar um processo</summary>
         <div class="body">
-          <p><strong>Como acessar:</strong> <em>Documentos → Casos</em>.</p>
-          <p><strong>Como utilizar:</strong> informe o CNJ ou use a busca avançada; abra o processo para ver detalhes, movimentações e resumo por IA.</p>
-          <p><strong>Resultado esperado:</strong> dados do processo e resumo de apoio.</p>
+          <dl>
+            <dt>Onde</dt><dd><em>Gestão Jurídica → Processos → Consultas Processuais</em>.</dd>
+            <dt>Como fazer</dt><dd>Informe o número CNJ ou use a busca avançada. Abra o processo para ver detalhes, movimentações e o resumo por IA.</dd>
+            <dt>Resultado</dt><dd>Dados públicos do processo e um resumo de apoio à leitura.</dd>
+          </dl>
         </div>
       </details>
 
-      <details class="accordion">
-        <summary>🗂️ Trabalhar com quadros (Kanban)</summary>
+      <details class="acc">
+        <summary><span class="step">06</span> Trabalhar com quadros (Kanban)</summary>
         <div class="body">
-          <p><strong>Como acessar:</strong> <em>Quadros Jurídicos</em> ou <em>Gestão Operacional</em>.</p>
-          <p><strong>Como utilizar:</strong> crie cartões nas colunas, arraste conforme o andamento e detalhe responsáveis, prazos, anexos e comentários.</p>
-          <p><strong>Dica:</strong> use etiquetas e checklists para organizar prioridades.</p>
+          <dl>
+            <dt>Onde</dt><dd><em>Quadros Jurídicos</em> ou <em>Gestão Operacional</em>.</dd>
+            <dt>Como fazer</dt><dd>Crie cartões nas colunas e arraste conforme o andamento. No cartão, defina responsáveis, etiquetas, prazos, checklists, anexos e comentários.</dd>
+            <dt>Dica</dt><dd>Use etiquetas e o status <em>aguardando aprovação</em> para separar o que depende de terceiros. Cartões concluídos podem ser arquivados.</dd>
+          </dl>
         </div>
       </details>
 
-      <details class="accordion">
-        <summary>💬 Comunicar-se em Equipes</summary>
+      <details class="acc">
+        <summary><span class="step">07</span> Comunicar-se em Equipes</summary>
         <div class="body">
-          <p><strong>Como acessar:</strong> menu <em>Equipes</em> → canal.</p>
-          <p><strong>Como utilizar:</strong> crie postagens e interaja por comentários, reações e menções.</p>
-          <p><strong>Resultado esperado:</strong> mensagens em tempo real e notificações para os mencionados.</p>
+          <dl>
+            <dt>Onde</dt><dd>Menu <em>Equipes</em> → canal.</dd>
+            <dt>Como fazer</dt><dd>Crie uma postagem e interaja por comentários, reações e menções.</dd>
+            <dt>Resultado</dt><dd>Mensagens em tempo real e notificação para quem foi mencionado.</dd>
+            <dt>Dica</dt><dd>Se a conversa virar tarefa, vincule a postagem a um cartão do quadro.</dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="acc">
+        <summary><span class="step">08</span> Acompanhar indicadores nos Relatórios</summary>
+        <div class="body">
+          <dl>
+            <dt>Onde</dt><dd>Menu <em>Relatórios</em>.</dd>
+            <dt>Como fazer</dt><dd>Escolha a aba, ajuste o período e, se precisar, exporte em Excel.</dd>
+            <dt>Dica</dt><dd>Passe o mouse no ícone de informação de cada indicador para ver como ele é calculado e qual a amostra considerada.</dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="acc">
+        <summary><span class="step">09</span> Aprender pelos Tutoriais</summary>
+        <div class="body">
+          <dl>
+            <dt>Onde</dt><dd>Menu <em>Tutoriais</em>.</dd>
+            <dt>Como fazer</dt><dd>Filtre pelo módulo que quer aprender ou use a busca. Assista — o sistema guarda o ponto onde você parou.</dd>
+            <dt>Resultado</dt><dd>A trilha de módulos mostra quantos vídeos de cada área você já concluiu.</dd>
+          </dl>
         </div>
       </details>
     </section>
 
-    <!-- FLUXOS -->
+    <!-- ========== §5 FLUXOS ========== -->
     <section id="fluxos">
-      <h2>Fluxos</h2>
-      <h3>Login</h3>
+      <p class="eyebrow">§5</p>
+      <h2>Fluxos do sistema</h2>
+
+      <h3>Entrada no sistema</h3>
       <div class="mermaid">
 flowchart LR
-    A[Acessar sistema] --> B[E-mail e senha]
+    A[Acessar o sistema] --> B[E-mail e senha]
     B --> C{Primeiro acesso?}
     C -- Sim --> D[Criar nova senha]
     C -- Nao --> E[Painel inicial]
     D --> E
       </div>
-      <h3>Navegação</h3>
+
+      <h3>Conversa com um agente de IA</h3>
+      <div class="mermaid">
+sequenceDiagram
+    participant U as Usuario
+    participant S as Sistema
+    participant B as Base de conhecimento
+    participant I as Modelo de IA
+    U->>S: Pergunta (com anexo opcional)
+    S->>B: Busca trechos relevantes
+    B-->>S: Trechos encontrados
+    S->>I: Pergunta + contexto + memoria
+    I-->>S: Resposta
+    S-->>U: Resposta + registro de custo
+      </div>
+
+      <h3>Preparação de uma base de conhecimento</h3>
       <div class="mermaid">
 flowchart LR
-    P[Painel] --> M[Menu lateral]
-    M --> Mod[Modulo escolhido]
-    Mod --> T[Tela do modulo]
+    Up[Envio do arquivo] --> Ex[Leitura do texto - OCR se preciso]
+    Ex --> Fr[Divisao em trechos]
+    Fr --> Em[Indexacao semantica]
+    Em --> Ok[Base pronta para uso]
       </div>
+
       <h3>Processamento de documentos</h3>
       <div class="mermaid">
 sequenceDiagram
@@ -554,261 +796,388 @@ sequenceDiagram
     participant N as Automacao n8n
     U->>S: Envia PDFs + competencia
     S->>N: Encaminha para processamento
-    N-->>S: Retorna resultado
+    Note over U,S: O usuario pode sair da tela
+    N-->>S: Retorna o resultado
     S-->>U: Andamento em tempo real e download
       </div>
+
       <h3>Consulta de processo</h3>
       <div class="mermaid">
 sequenceDiagram
     participant U as Usuario
     participant S as Sistema
-    participant C as DataJud / CNJ
-    U->>S: Informa CNJ
+    participant C as DataJud - CNJ
+    U->>S: Informa o numero CNJ
     S->>C: Consulta oficial
     C-->>S: Dados do processo
-    S-->>U: Detalhes + resumo por IA
+    S-->>U: Detalhes, movimentacoes e resumo por IA
       </div>
     </section>
 
-    <!-- BANCO -->
+    <!-- ========== §6 BANCO ========== -->
     <section id="banco">
+      <p class="eyebrow">§6</p>
       <h2>Banco de dados</h2>
-      <p>O sistema armazena os dados de forma organizada e protegida (com segurança a nível de linha — RLS — em praticamente todas as tabelas). Abaixo, uma visão simplificada das principais entidades.</p>
-      <table>
-        <thead><tr><th>Entidade</th><th>Objetivo</th></tr></thead>
-        <tbody>
-          <tr><td>Usuários &amp; Empresas</td><td>Pessoas que usam o sistema e empresas clientes</td></tr>
-          <tr><td>Chats &amp; Mensagens</td><td>Conversas com os assistentes de IA</td></tr>
-          <tr><td>Holerites &amp; SPED</td><td>Arquivos e controle de processamento</td></tr>
-          <tr><td>Processos</td><td>Consultas, dados e resumos de processos</td></tr>
-          <tr><td>Quadros Kanban</td><td>Quadros, colunas, cartões, comentários e anexos</td></tr>
-          <tr><td>Equipes</td><td>Times, canais, postagens, comentários e notificações</td></tr>
-          <tr><td>Leads</td><td>Leads e seus contatos</td></tr>
-          <tr><td>Auditoria</td><td>Registro de eventos de login e segurança</td></tr>
-        </tbody>
-      </table>
+      <p>Os dados ficam em um banco PostgreSQL gerenciado, com <strong>segurança em nível de linha (RLS)</strong> — cada usuário só enxerga o que o seu perfil permite, garantido pelo próprio banco e não apenas pela tela.</p>
+
+      <div class="stat-grid">
+        <div class="stat"><b>89</b><span>Tabelas</span></div>
+        <div class="stat"><b>88</b><span>Com RLS ativa</span></div>
+        <div class="stat"><b>109</b><span>Funções</span></div>
+        <div class="stat"><b>84</b><span>Gatilhos</span></div>
+        <div class="stat"><b>11</b><span>Áreas de arquivos</span></div>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Domínio</th><th>Guarda</th></tr></thead>
+          <tbody>
+            <tr><td>Usuários &amp; Empresas</td><td>Pessoas que usam o sistema, empresas clientes e trilha de auditoria</td></tr>
+            <tr><td>AI Center E7</td><td>Agentes, versões, bases de conhecimento, documentos vetorizados, conversas, execuções e custos</td></tr>
+            <tr><td>Holerites &amp; SPED</td><td>Arquivos, lotes, controle de processamento e logs</td></tr>
+            <tr><td>Processos</td><td>Consultas, dados dos processos e resumos por IA</td></tr>
+            <tr><td>Quadros</td><td>Quadros, colunas, cartões, etiquetas, checklists, comentários e anexos</td></tr>
+            <tr><td>Equipes</td><td>Times, canais, postagens, comentários, reações e notificações</td></tr>
+            <tr><td>Tutoriais</td><td>Vídeos, categorias, progresso, visualizações e favoritos</td></tr>
+            <tr><td>Configurações</td><td>Webhooks, parâmetros de IA, credenciais mascaradas e auditoria</td></tr>
+            <tr><td>Leads</td><td>Leads e seus contatos</td></tr>
+          </tbody>
+        </table>
+      </div>
+
       <div class="mermaid">
 erDiagram
-    USUARIO ||--o{ CHAT : possui
-    CHAT ||--o{ MENSAGEM : contem
+    USUARIO ||--o{ AGENTE : cria
+    AGENTE ||--o{ CONVERSA : atende
+    AGENTE ||--o{ BASE_CONHECIMENTO : consulta
+    BASE_CONHECIMENTO ||--o{ DOCUMENTO : agrupa
     EMPRESA ||--o{ HOLERITE : tem
     QUADRO ||--o{ COLUNA : organiza
     COLUNA ||--o{ CARTAO : contem
     EQUIPE ||--o{ CANAL : agrupa
     CANAL ||--o{ POSTAGEM : contem
+    POSTAGEM ||--o{ CARTAO : vincula
     LEAD ||--o{ CONTATO : tem
       </div>
-      <div class="alert note"><strong>Detalhe técnico</strong>O banco possui 64 tabelas, ~76 funções e diversos gatilhos (triggers) de automação. Consulte a <em>Documentação Técnica</em> para o modelo completo.</div>
-    </section>
 
-    <!-- APIS -->
-    <section id="apis">
-      <h2>APIs e Integrações</h2>
-      <div class="mermaid">
-flowchart TB
-    APP[E7 AI Center] --> EF[Edge Functions Supabase]
-    EF --> IA[OpenAI / Gemini / Anthropic]
-    EF --> CNJ[DataJud / CNJ]
-    APP --> N8N[Webhooks n8n]
-    N8N --> AG[52 Agentes de IA]
-    N8N --> DOC[Processamento de documentos]
-    APP --> ST[Storage de arquivos]
-      </div>
-      <table>
-        <thead><tr><th>Integração</th><th>Para que serve</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Edge Functions (Supabase)</strong></td><td>13 funções de back-end: chat de IA, administração de usuários, busca processual, equipes, pontes Kanban e download seguro</td></tr>
-          <tr><td><strong>IA (OpenAI/Gemini/Anthropic)</strong></td><td>Respostas dos assistentes e resumos de processos</td></tr>
-          <tr><td><strong>n8n</strong></td><td>Agentes da biblioteca e processamento de holerites/SPED</td></tr>
-          <tr><td><strong>DataJud (CNJ)</strong></td><td>Consulta oficial de processos (dados públicos)</td></tr>
-          <tr><td><strong>Supabase</strong></td><td>Banco de dados, login, arquivos e tempo real</td></tr>
-        </tbody>
-      </table>
-      <details class="accordion">
-        <summary>Ver lista de Edge Functions (técnico)</summary>
+      <details class="acc">
+        <summary>Detalhe técnico — áreas de arquivos (buckets)</summary>
         <div class="body">
-          <p><code>chat-completion</code>, <code>datajud-search</code>, <code>datajud-process-agent</code>, <code>admin-create-user</code>, <code>admin-update-user-password</code>, <code>profile-update-email</code>, <code>download-file</code>, <code>teams-admin-mutate</code>, <code>teams-channel-mutate</code>, <code>teams-message-send</code>, <code>teams-search</code>, <code>teams-kanban-bridge</code>, <code>kanban-card-bridge</code>.</p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Área</th><th>Acesso</th><th>Limite</th></tr></thead>
+              <tbody>
+                <tr><td><code>agentes-conhecimento</code></td><td>Privado</td><td>50 MB</td></tr>
+                <tr><td><code>tutorials</code></td><td>Privado (link temporário de 2h)</td><td>2 GB</td></tr>
+                <tr><td><code>tutorial-thumbnails</code></td><td>Público</td><td>5 MB</td></tr>
+                <tr><td><code>e7pdf-holerite</code></td><td>Privado</td><td>—</td></tr>
+                <tr><td><code>legal-kanban-attachments</code></td><td>Privado</td><td>50 MB</td></tr>
+                <tr><td><code>teams-attachments</code></td><td>Privado</td><td>25 MB</td></tr>
+                <tr><td><code>user-avatars</code></td><td>Público</td><td>5 MB</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Complementam a lista as áreas públicas de imagens embutidas e capas: <code>legal-kanban-board-covers</code>, <code>legal-kanban-inline-images</code>, <code>teams-inline-images</code> e <code>teams-team-icons</code>.</p>
         </div>
       </details>
     </section>
 
-    <!-- SEGURANÇA -->
+    <!-- ========== §7 APIS ========== -->
+    <section id="apis">
+      <p class="eyebrow">§7</p>
+      <h2>APIs e integrações</h2>
+
+      <div class="mermaid">
+flowchart TB
+    APP[E7 AI Center] --> EF[19 Edge Functions]
+    EF --> VA[Vault - chaves protegidas]
+    EF --> IA[OpenAI / Gemini / Anthropic / Mistral]
+    EF --> CNJ[DataJud - CNJ]
+    APP --> N8N[Webhooks n8n]
+    N8N --> DOC[Holerites e SPED]
+    N8N --> CB[Callback de conclusao]
+    APP --> ST[Arquivos e tempo real]
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Integração</th><th>Para que serve</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Edge Functions (Supabase)</strong></td><td>19 funções de servidor: agentes de IA, ingestão de conhecimento, busca processual, administração de usuários, equipes, pontes entre quadros e download seguro</td></tr>
+            <tr><td><strong>IA (OpenAI, Gemini, Anthropic)</strong></td><td>Respostas dos agentes, geração de agentes e resumos de processos</td></tr>
+            <tr><td><strong>Mistral</strong></td><td>Leitura de documentos digitalizados e imagens (OCR)</td></tr>
+            <tr><td><strong>n8n</strong></td><td>Processamento de holerites e SPED, com retorno por callback autenticado</td></tr>
+            <tr><td><strong>DataJud (CNJ)</strong></td><td>Consulta oficial de processos (dados públicos)</td></tr>
+            <tr><td><strong>Supabase</strong></td><td>Banco de dados, login, arquivos, tempo real e cofre de segredos</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <details class="acc">
+        <summary>Ver as 19 Edge Functions (técnico)</summary>
+        <div class="body">
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Grupo</th><th>Funções</th></tr></thead>
+              <tbody>
+                <tr><td>AI Center E7</td><td><code>agente-executar</code>, <code>agente-gerar</code>, <code>conhecimento-ingerir</code>, <code>extrair-texto</code></td></tr>
+                <tr><td>Processos</td><td><code>datajud-search</code>, <code>datajud-process-agent</code></td></tr>
+                <tr><td>Equipes</td><td><code>teams-admin-mutate</code>, <code>teams-channel-mutate</code>, <code>teams-message-send</code>, <code>teams-search</code>, <code>teams-kanban-bridge</code></td></tr>
+                <tr><td>Quadros</td><td><code>kanban-card-bridge</code></td></tr>
+                <tr><td>Administração</td><td><code>admin-create-user</code>, <code>admin-update-user-password</code>, <code>profile-update-email</code>, <code>system-settings-mutate</code></td></tr>
+                <tr><td>Documentos</td><td><code>payroll-processing-callback</code>, <code>download-file</code></td></tr>
+                <tr><td>Assistentes legados</td><td><code>chat-completion</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Todas exigem sessão autenticada, exceto <code>payroll-processing-callback</code>, chamada pelo n8n e protegida por segredo compartilhado.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ========== §8 SEGURANÇA ========== -->
     <section id="seguranca">
+      <p class="eyebrow">§8</p>
       <h2>Segurança</h2>
+
       <div class="card-grid">
-        <div class="card"><div class="ic">🔑</div><h4>Login protegido</h4><p>Fluxo PKCE e tokens com renovação automática.</p></div>
-        <div class="card"><div class="ic">👮</div><h4>Controle por perfil</h4><p>Permissões por papel (RBAC) na tela, na rota e no banco.</p></div>
-        <div class="card"><div class="ic">⏱️</div><h4>Sessão segura</h4><p>Encerramento após 30 min de inatividade.</p></div>
-        <div class="card"><div class="ic">📝</div><h4>Auditoria</h4><p>Registro de eventos de autenticação.</p></div>
+        <div class="card"><span class="tag">Acesso</span><h4>Login protegido</h4><p>Fluxo PKCE, tokens renovados automaticamente e senha com complexidade mínima.</p></div>
+        <div class="card"><span class="tag">Permissões</span><h4>Controle por perfil</h4><p>Verificado em três camadas: menu, rota e banco de dados.</p></div>
+        <div class="card"><span class="tag">Sessão</span><h4>Encerramento automático</h4><p>Logout após 30 minutos de inatividade.</p></div>
+        <div class="card"><span class="tag">Segredos</span><h4>Cofre de chaves</h4><p>Credenciais de IA ficam no Vault; a tela mostra apenas os últimos dígitos.</p></div>
+        <div class="card"><span class="tag">Registro</span><h4>Auditoria</h4><p>Eventos de login, alterações de configuração e mudanças sensíveis de usuário.</p></div>
+        <div class="card"><span class="tag">Dados</span><h4>RLS no banco</h4><p>88 das 89 tabelas com segurança em nível de linha.</p></div>
       </div>
-      <div class="alert ok"><strong>Boas práticas</strong>Senhas exigem complexidade mínima; o primeiro acesso obriga a redefinição; chaves administrativas nunca trafegam no navegador.</div>
+
+      <div class="note ok"><strong>Boas práticas adotadas</strong>Chaves administrativas nunca trafegam pelo navegador; o primeiro acesso obriga a redefinição de senha; anexos ficam em áreas privadas com link temporário; o texto formatado é sanitizado antes de ser salvo.</div>
+
+      <div class="note warn"><strong>Ponto aberto para a equipe técnica</strong>A tabela interna de sincronização <code>sync_event_ledger</code> ainda está sem RLS, e as chaves de IA no formato <code>VITE_*</code> devem ser removidas do frontend. Ambos estão detalhados na <em>Documentação Técnica</em>, seção 13.</div>
     </section>
 
-    <!-- FAQ -->
+    <!-- ========== §9 FAQ ========== -->
     <section id="faq">
-      <h2>Perguntas frequentes (FAQ)</h2>
-      <details class="accordion"><summary>Esqueci minha senha. O que faço?</summary><div class="body">Solicite a redefinição ao administrador do sistema.</div></details>
-      <details class="accordion"><summary>Por que fui desconectado sozinho?</summary><div class="body">Por segurança, a sessão encerra após 30 minutos de inatividade. Basta entrar novamente.</div></details>
-      <details class="accordion"><summary>Não vejo alguns menus. É erro?</summary><div class="body">Não. Os menus aparecem conforme o seu perfil de acesso. Fale com o administrador se precisar de mais permissões.</div></details>
-      <details class="accordion"><summary>As conversas com a IA ficam salvas?</summary><div class="body">Sim, ficam registradas na sua conta e podem ser favoritadas.</div></details>
-      <details class="accordion"><summary>O resumo de processo por IA é oficial?</summary><div class="body">Não. É um apoio gerado a partir de dados públicos do DataJud (CNJ). Sempre valide na fonte oficial.</div></details>
-      <details class="accordion"><summary>Quais arquivos posso enviar para holerites/SPED?</summary><div class="body">Arquivos PDF, informando a competência (mês/ano). O sistema valida antes de processar.</div></details>
-      <details class="accordion"><summary>Posso usar pelo celular?</summary><div class="body">Sim. O sistema é responsivo e funciona em celulares e tablets.</div></details>
-      <details class="accordion"><summary>Quem pode cadastrar usuários e empresas?</summary><div class="body">Perfis administrativos. O perfil Contábil também pode cadastrar empresas.</div></details>
+      <p class="eyebrow">§9</p>
+      <h2>Perguntas frequentes</h2>
+      <details class="acc"><summary>Esqueci minha senha. O que faço?</summary><div class="body"><p>Solicite a redefinição ao administrador do sistema.</p></div></details>
+      <details class="acc"><summary>Por que fui desconectado sozinho?</summary><div class="body"><p>Por segurança, a sessão encerra após 30 minutos de inatividade. Basta entrar novamente.</p></div></details>
+      <details class="acc"><summary>Não vejo alguns menus. É erro?</summary><div class="body"><p>Não. Os menus aparecem conforme o seu perfil de acesso. Fale com o administrador se precisar de mais permissões.</p></div></details>
+      <details class="acc"><summary>Preciso saber programar para criar um agente?</summary><div class="body"><p>Não. Basta descrever o objetivo e como o agente deve responder. O editor visual de fluxo existe para quem quiser detalhar mais, mas é opcional.</p></div></details>
+      <details class="acc"><summary>Que arquivos posso enviar para a base de conhecimento?</summary><div class="body"><p>PDF, DOCX, TXT e imagens. Documentos digitalizados passam por leitura automática (OCR).</p></div></details>
+      <details class="acc"><summary>Meu agente fica visível para os outros?</summary><div class="body"><p>Só depois que você publicar. Antes disso, é um rascunho privado.</p></div></details>
+      <details class="acc"><summary>O resumo de processo por IA é oficial?</summary><div class="body"><p>Não. É apoio gerado a partir de dados públicos do DataJud (CNJ). Valide sempre na fonte oficial.</p></div></details>
+      <details class="acc"><summary>Posso fechar a tela durante o processamento de holerites?</summary><div class="body"><p>Sim. O processamento roda no servidor; ao voltar, o andamento estará atualizado.</p></div></details>
+      <details class="acc"><summary>Posso usar pelo celular?</summary><div class="body"><p>Sim. O sistema é responsivo e funciona em celulares e tablets, com tema claro e escuro.</p></div></details>
+      <details class="acc"><summary>Quem pode cadastrar usuários e empresas?</summary><div class="body"><p>Perfis administrativos. O perfil Contábil também pode cadastrar empresas.</p></div></details>
+      <details class="acc"><summary>Quem controla as chaves de IA e os webhooks?</summary><div class="body"><p>Somente perfis administrativos, em <em>Administração → Configurações</em>. As chaves nunca aparecem na tela — apenas os últimos dígitos.</p></div></details>
+      <details class="acc"><summary>Onde vejo quanto a IA está custando?</summary><div class="body"><p>Em <em>Relatórios → Adoção &amp; IA</em>, com custo em reais por período, agente, modelo e usuário. Cada agente também tem sua aba de custos no construtor.</p></div></details>
     </section>
 
-    <!-- GLOSSÁRIO -->
+    <!-- ========== §10 GLOSSÁRIO ========== -->
     <section id="glossario">
+      <p class="eyebrow">§10</p>
       <h2>Glossário</h2>
-      <table>
-        <thead><tr><th>Termo</th><th>Significado</th></tr></thead>
-        <tbody>
-          <tr><td><strong>SPA</strong></td><td>Aplicação web que roda em uma única página, sem recarregar a tela a cada ação.</td></tr>
-          <tr><td><strong>IA / LLM</strong></td><td>Inteligência Artificial / Modelos de linguagem que geram texto (OpenAI, Gemini, Anthropic).</td></tr>
-          <tr><td><strong>Agente</strong></td><td>Assistente de IA configurado para uma tarefa específica.</td></tr>
-          <tr><td><strong>n8n</strong></td><td>Ferramenta de automação que conecta o sistema a outros serviços.</td></tr>
-          <tr><td><strong>DataJud / CNJ</strong></td><td>Base oficial e pública de processos judiciais do Conselho Nacional de Justiça.</td></tr>
-          <tr><td><strong>CNJ (número)</strong></td><td>Número único do processo no padrão nacional.</td></tr>
-          <tr><td><strong>Kanban</strong></td><td>Quadro visual com colunas e cartões para organizar tarefas.</td></tr>
-          <tr><td><strong>CRM</strong></td><td>Gestão de relacionamento com clientes/leads.</td></tr>
-          <tr><td><strong>SPED</strong></td><td>Sistema Público de Escrituração Digital (arquivos fiscais).</td></tr>
-          <tr><td><strong>Competência</strong></td><td>Mês/ano de referência de um documento (MM/AAAA).</td></tr>
-          <tr><td><strong>RBAC</strong></td><td>Controle de acesso baseado em papéis/perfis.</td></tr>
-          <tr><td><strong>RLS</strong></td><td>Segurança a nível de linha: cada usuário vê apenas o que tem permissão.</td></tr>
-          <tr><td><strong>Supabase</strong></td><td>Plataforma de back-end (banco, login, arquivos e funções).</td></tr>
-          <tr><td><strong>Edge Function</strong></td><td>Função de servidor que executa operações sensíveis com segurança.</td></tr>
-        </tbody>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Termo</th><th>Significado</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Agente</strong></td><td>Assistente de IA configurado para uma tarefa específica do escritório.</td></tr>
+            <tr><td><strong>Base de conhecimento</strong></td><td>Conjunto de documentos que o agente consulta para responder.</td></tr>
+            <tr><td><strong>RAG</strong></td><td>Técnica em que a IA busca trechos dos seus documentos antes de responder.</td></tr>
+            <tr><td><strong>OCR</strong></td><td>Leitura automática de texto em imagens e documentos digitalizados.</td></tr>
+            <tr><td><strong>Token</strong></td><td>Unidade de texto usada para medir e cobrar o consumo dos modelos de IA.</td></tr>
+            <tr><td><strong>LLM</strong></td><td>Modelo de linguagem que gera texto (OpenAI, Gemini, Anthropic, Mistral).</td></tr>
+            <tr><td><strong>SPA</strong></td><td>Aplicação web que roda em uma única página, sem recarregar a tela a cada ação.</td></tr>
+            <tr><td><strong>n8n</strong></td><td>Ferramenta de automação que conecta o sistema a outros serviços.</td></tr>
+            <tr><td><strong>DataJud / CNJ</strong></td><td>Base oficial e pública de processos judiciais do Conselho Nacional de Justiça.</td></tr>
+            <tr><td><strong>CNJ (número)</strong></td><td>Número único do processo no padrão nacional.</td></tr>
+            <tr><td><strong>Kanban</strong></td><td>Quadro visual com colunas e cartões para organizar tarefas.</td></tr>
+            <tr><td><strong>Lead time</strong></td><td>Tempo entre a criação e a conclusão de um cartão.</td></tr>
+            <tr><td><strong>CRM</strong></td><td>Gestão de relacionamento com clientes e leads.</td></tr>
+            <tr><td><strong>SPED</strong></td><td>Sistema Público de Escrituração Digital (arquivos fiscais).</td></tr>
+            <tr><td><strong>Competência</strong></td><td>Mês/ano de referência de um documento (MM/AAAA).</td></tr>
+            <tr><td><strong>RBAC</strong></td><td>Controle de acesso baseado em papéis/perfis.</td></tr>
+            <tr><td><strong>RLS</strong></td><td>Segurança em nível de linha: cada usuário vê apenas o que tem permissão.</td></tr>
+            <tr><td><strong>Vault</strong></td><td>Cofre onde ficam guardadas as chaves das provedoras de IA.</td></tr>
+            <tr><td><strong>Edge Function</strong></td><td>Função de servidor que executa operações sensíveis com segurança.</td></tr>
+            <tr><td><strong>Webhook</strong></td><td>Endereço que recebe ou dispara automações entre sistemas.</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
-    <!-- SUPORTE -->
+    <!-- ========== §11 SUPORTE ========== -->
     <section id="suporte">
-      <h2>Contato / Suporte</h2>
+      <p class="eyebrow">§11</p>
+      <h2>Suporte</h2>
+
       <div class="card-grid">
-        <div class="card"><div class="ic">🛟</div><h4>Suporte técnico</h4><p>Preencha: <em>[e-mail de suporte]</em></p></div>
-        <div class="card"><div class="ic">📞</div><h4>Telefone</h4><p><em>[telefone / WhatsApp]</em></p></div>
-        <div class="card"><div class="ic">⏰</div><h4>Horário</h4><p><em>[horário de atendimento]</em></p></div>
-        <div class="card"><div class="ic">👤</div><h4>Administrador</h4><p>Permissões e redefinição de senha com o administrador interno.</p></div>
+        <div class="card"><span class="tag">Canal</span><h4>Suporte técnico</h4><p><em>[e-mail de suporte]</em></p></div>
+        <div class="card"><span class="tag">Canal</span><h4>Telefone / WhatsApp</h4><p><em>[telefone]</em></p></div>
+        <div class="card"><span class="tag">Atendimento</span><h4>Horário</h4><p><em>[horário de atendimento]</em></p></div>
+        <div class="card"><span class="tag">Interno</span><h4>Administrador</h4><p>Permissões e redefinição de senha são resolvidas pelo administrador do escritório.</p></div>
       </div>
-      <div class="alert note"><strong>Antes de abrir um chamado</strong>Anote o que estava fazendo, a mensagem de erro exibida e, se possível, um print da tela. Isso agiliza o atendimento.</div>
+
+      <div class="note"><strong>Antes de abrir um chamado</strong>Anote o que estava fazendo, a mensagem de erro exibida e, se possível, uma captura de tela. Isso resolve o atendimento na primeira resposta.</div>
 
       <footer class="docfoot">
-        <p>E7 AI Center — Portal de Documentação · Versão 1.0 · Gerado em 24/06/2026.</p>
-        <p>Documentação complementar: <a href="Documentacao_Final_Cliente.md">Manual do Cliente</a> · <a href="Documentacao_Final_Tecnica.md">Documentação Técnica</a>.</p>
+        <p><strong>E7 AI Center</strong> — Documentação e Tutorial · Versão 2.0 · Emitida em 14/08/2026.</p>
+        <p>Documentação complementar: <a href="Documentacao_Final_Cliente.md">Manual do Cliente</a> · <a href="Documentacao_Final_Tecnica.md">Documentação Técnica</a> · <a href="Documentacao-PRJ.md">Documentação do Projeto</a>.</p>
       </footer>
     </section>
+
   </main>
 </div>
 
 <button id="toTop" aria-label="Voltar ao topo">↑</button>
 
-<!-- Mermaid (opcional, com fallback se offline) -->
 <script>
 (function () {
-  // ---------- Tema ----------
   var root = document.documentElement;
+
+  // ---------- Tema ----------
+  var SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+  var MOON = '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>';
   var saved = localStorage.getItem("e7-docs-theme");
-  if (saved) root.setAttribute("data-theme", saved);
-  else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) root.setAttribute("data-theme", "dark");
+  if (saved === "dark" || saved === "light") root.setAttribute("data-theme", saved);
+
+  function isDark() {
+    var attr = root.getAttribute("data-theme");
+    if (attr) return attr === "dark";
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
   function syncThemeIcon() {
-    document.getElementById("themeToggle").textContent = root.getAttribute("data-theme") === "dark" ? "☀️" : "🌙";
+    document.getElementById("themeIcon").innerHTML = isDark() ? SUN : MOON;
   }
   syncThemeIcon();
   document.getElementById("themeToggle").addEventListener("click", function () {
-    var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    var next = isDark() ? "light" : "dark";
     root.setAttribute("data-theme", next);
     localStorage.setItem("e7-docs-theme", next);
     syncThemeIcon();
     if (window.__renderMermaid) window.__renderMermaid();
   });
 
-  // ---------- Menu mobile ----------
+  // ---------- Menu (mobile) ----------
   var sidebar = document.getElementById("sidebar");
   var overlay = document.getElementById("overlay");
-  function closeMenu() { sidebar.classList.remove("open"); overlay.classList.remove("show"); }
-  document.getElementById("menuToggle").addEventListener("click", function () {
-    sidebar.classList.toggle("open"); overlay.classList.toggle("show");
-  });
-  overlay.addEventListener("click", closeMenu);
+  var menuToggle = document.getElementById("menuToggle");
+  function setMenu(open) {
+    sidebar.classList.toggle("open", open);
+    overlay.classList.toggle("show", open);
+    menuToggle.setAttribute("aria-expanded", String(open));
+  }
+  menuToggle.addEventListener("click", function () { setMenu(!sidebar.classList.contains("open")); });
+  overlay.addEventListener("click", function () { setMenu(false); });
   sidebar.querySelectorAll("a").forEach(function (a) {
-    a.addEventListener("click", function () { if (window.innerWidth <= 900) closeMenu(); });
+    a.addEventListener("click", function () { if (window.innerWidth <= 960) setMenu(false); });
   });
 
   // ---------- Voltar ao topo ----------
   var toTop = document.getElementById("toTop");
-  window.addEventListener("scroll", function () {
-    toTop.classList.toggle("show", window.scrollY > 400);
-  });
   toTop.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
 
-  // ---------- Scroll spy ----------
+  // ---------- Seção ativa ----------
   var links = Array.prototype.slice.call(sidebar.querySelectorAll("a"));
   var sections = links.map(function (l) { return document.querySelector(l.getAttribute("href")); }).filter(Boolean);
-  function spy() {
-    var pos = window.scrollY + 120, current = null;
-    sections.forEach(function (s) { if (s.offsetTop <= pos) current = s.id; });
-    links.forEach(function (l) { l.classList.toggle("active", l.getAttribute("href") === "#" + current); });
+  var ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function () {
+      var pos = window.scrollY + 140, current = null;
+      sections.forEach(function (s) { if (s.offsetTop <= pos) current = s.id; });
+      links.forEach(function (l) { l.classList.toggle("active", l.getAttribute("href") === "#" + current); });
+      toTop.classList.toggle("show", window.scrollY > 500);
+      ticking = false;
+    });
   }
-  window.addEventListener("scroll", spy); spy();
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
 
-  // ---------- Busca instantânea ----------
+  // ---------- Busca ----------
   var index = [];
   document.querySelectorAll("main section").forEach(function (sec) {
-    var id = sec.id;
-    var heading = sec.querySelector("h1,h2,h3");
-    var title = heading ? heading.textContent.trim() : id;
-    sec.querySelectorAll("h2,h3,h4,p,li,summary,td,th").forEach(function (el) {
-      var txt = el.textContent.trim();
-      if (txt.length > 8) index.push({ id: id, title: title, text: txt });
+    var heading = sec.querySelector("h1,h2");
+    var title = heading ? heading.textContent.trim() : sec.id;
+    sec.querySelectorAll("h3,h4,p,li,summary,dd,td,th").forEach(function (el) {
+      var txt = el.textContent.replace(/\s+/g, " ").trim();
+      if (txt.length > 12) index.push({ id: sec.id, title: title, text: txt });
     });
   });
+
   var searchInput = document.getElementById("search");
   var results = document.getElementById("searchResults");
-  function escapeHtml(s){return s.replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+  function escapeHtml(s) {
+    return s.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
+  }
   function doSearch() {
     var q = searchInput.value.trim().toLowerCase();
     if (q.length < 2) { results.classList.remove("show"); results.innerHTML = ""; return; }
     var seen = {}, hits = [];
     for (var i = 0; i < index.length && hits.length < 12; i++) {
       var item = index[i];
-      if (item.text.toLowerCase().indexOf(q) !== -1) {
-        var key = item.id + "|" + item.text.slice(0, 40);
-        if (seen[key]) continue; seen[key] = 1;
-        hits.push(item);
-      }
+      if (item.text.toLowerCase().indexOf(q) === -1) continue;
+      var key = item.id + "|" + item.text.slice(0, 44);
+      if (seen[key]) continue;
+      seen[key] = 1;
+      hits.push(item);
     }
-    if (!hits.length) { results.innerHTML = '<div class="empty">Nenhum resultado para "' + escapeHtml(q) + '"</div>'; results.classList.add("show"); return; }
+    if (!hits.length) {
+      results.innerHTML = '<div class="empty">Nenhum resultado para "' + escapeHtml(q) + '". Tente outro termo.</div>';
+      results.classList.add("show");
+      return;
+    }
+    var re = new RegExp("(" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig");
     results.innerHTML = hits.map(function (h) {
-      var t = h.text; if (t.length > 110) t = t.slice(0, 110) + "…";
-      var re = new RegExp("(" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig");
-      t = escapeHtml(t).replace(re, '<span class="hl">$1</span>');
-      return '<a href="#' + h.id + '"><small>' + escapeHtml(h.title) + "</small>" + t + "</a>";
+      var t = h.text.length > 116 ? h.text.slice(0, 116) + "…" : h.text;
+      return '<a href="#' + h.id + '"><small>' + escapeHtml(h.title) + "</small>" +
+             escapeHtml(t).replace(re, '<mark class="hl">$1</mark>') + "</a>";
     }).join("");
     results.classList.add("show");
   }
   searchInput.addEventListener("input", doSearch);
   searchInput.addEventListener("focus", doSearch);
-  results.addEventListener("click", function (e) { if (e.target.closest("a")) { results.classList.remove("show"); searchInput.value = ""; } });
-  document.addEventListener("click", function (e) { if (!e.target.closest(".search-wrap")) results.classList.remove("show"); });
+  results.addEventListener("click", function (e) {
+    if (e.target.closest("a")) { results.classList.remove("show"); searchInput.value = ""; }
+  });
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".search-wrap")) results.classList.remove("show");
+  });
   document.addEventListener("keydown", function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === "k") { e.preventDefault(); searchInput.focus(); }
-    if (e.key === "Escape") { results.classList.remove("show"); searchInput.blur(); }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); searchInput.focus(); searchInput.select(); }
+    if (e.key === "Escape") { results.classList.remove("show"); searchInput.blur(); setMenu(false); }
   });
 
-  // ---------- Mermaid (carregamento opcional) ----------
+  // ---------- Impressão: abre todos os acordeões ----------
+  window.addEventListener("beforeprint", function () {
+    document.querySelectorAll("details.acc").forEach(function (d) { d.dataset.wasOpen = d.open ? "1" : "0"; d.open = true; });
+  });
+  window.addEventListener("afterprint", function () {
+    document.querySelectorAll("details.acc").forEach(function (d) { d.open = d.dataset.wasOpen === "1"; });
+  });
+
+  // ---------- Diagramas (Mermaid, com fallback offline) ----------
   function loadMermaid() {
     var s = document.createElement("script");
     s.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
     s.onload = function () {
-      // Guarda o código-fonte original para re-render ao trocar de tema
       document.querySelectorAll(".mermaid").forEach(function (el) {
         if (!el.getAttribute("data-src")) el.setAttribute("data-src", el.textContent.trim());
       });
       window.__renderMermaid = function () {
-        var dark = root.getAttribute("data-theme") === "dark";
-        window.mermaid.initialize({ startOnLoad: false, theme: dark ? "dark" : "default", securityLevel: "loose" });
+        var dark = isDark();
+        window.mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "loose",
+          theme: "base",
+          fontFamily: '"Public Sans", system-ui, sans-serif',
+          themeVariables: dark
+            ? { background: "#141C27", primaryColor: "#1B2941", primaryTextColor: "#E7EBF0", primaryBorderColor: "#36445A", lineColor: "#DBA645", secondaryColor: "#1A2432", tertiaryColor: "#0E141C" }
+            : { background: "#FFFFFF", primaryColor: "#E4EAF4", primaryTextColor: "#141A24", primaryBorderColor: "#16243F", lineColor: "#9A6410", secondaryColor: "#F4F2EC", tertiaryColor: "#FCFBF8" }
+        });
         document.querySelectorAll(".mermaid").forEach(function (el, i) {
-          var src = el.getAttribute("data-src"); if (!src) return;
+          var src = el.getAttribute("data-src");
+          if (!src) return;
           el.removeAttribute("data-processed");
           try {
             window.mermaid.render("mmd-" + i + "-" + Date.now(), src).then(function (r) { el.innerHTML = r.svg; });
@@ -818,9 +1187,12 @@ flowchart TB
       window.__renderMermaid();
     };
     s.onerror = function () {
-      // Offline: mostra o código como bloco de texto legível
+      // Sem internet: mostra o diagrama como bloco de texto legível.
       document.querySelectorAll(".mermaid").forEach(function (el) {
-        var pre = document.createElement("pre"); pre.textContent = el.textContent.trim(); el.replaceWith(pre);
+        var pre = document.createElement("pre");
+        pre.textContent = el.textContent.trim();
+        el.innerHTML = "";
+        el.appendChild(pre);
       });
     };
     document.body.appendChild(s);

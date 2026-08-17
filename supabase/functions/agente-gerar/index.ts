@@ -14,9 +14,12 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeaders, jsonResponse, chamarLLM, estimarCustoReais } from "../_shared/llm.ts";
 
 // Registra o custo de uma geracao em agente_execucoes (origem = gerador_*).
-async function registrarCusto(admin: any, origem: string, userId: string | null, r: { modelo: string; tokensEntrada: number; tokensSaida: number }) {
+// `modeloInterno` e o id do catalogo (ex.: "gpt-4o") usado na chamada a chamarLLM,
+// nao o id bruto devolvido pelo provedor (r.modelo, ex.: "gpt-4o-2024-08-06") --
+// e o que precos_modelos.modelo espera para o match em estimarCustoReais.
+async function registrarCusto(admin: any, origem: string, userId: string | null, modeloInterno: string, r: { modelo: string; tokensEntrada: number; tokensSaida: number }) {
   try {
-    const custo = await estimarCustoReais(admin, r.modelo, r.tokensEntrada, r.tokensSaida);
+    const custo = await estimarCustoReais(admin, modeloInterno, r.tokensEntrada, r.tokensSaida);
     await admin.from("agente_execucoes").insert({
       agente_id: null, origem, user_id: userId, status: "sucesso", modelo: r.modelo,
       tokens_entrada: r.tokensEntrada, tokens_saida: r.tokensSaida, custo_reais: custo,
@@ -105,7 +108,7 @@ Deno.serve(async (req) => {
       const sys = await carregarPrompt(admin, "gerador_prompt", SYS_PROMPT);
       const nomeLinha = body.nome ? `\nNome: ${body.nome}` : "";
       const r = await chamarLLM(admin, [{ role: "user", content: `Objetivo do agente: ${objetivo}${nomeLinha}` }], sys, "gpt-4o", { temperature: 0.4, maxTokens: 3000 });
-      await registrarCusto(admin, "gerador_prompt", userId, r);
+      await registrarCusto(admin, "gerador_prompt", userId, "gpt-4o", r);
       // A filosofia exige saida EXCLUSIVAMENTE em Markdown (sem JSON).
       const persona = r.content.replace(/^```(?:markdown)?/i, "").replace(/```$/i, "").trim();
       return jsonResponse({ persona });
@@ -115,7 +118,7 @@ Deno.serve(async (req) => {
     if (!descricao) return jsonResponse({ error: "Descreva o agente que voce quer criar." }, 400);
     const sysAgente = await carregarPrompt(admin, "gerador_agente", SYS_AGENTE);
     const r = await chamarLLM(admin, [{ role: "user", content: descricao }], sysAgente, "gpt-4o", { temperature: 0.5, maxTokens: 4000 });
-    await registrarCusto(admin, "gerador_agente", userId, r);
+    await registrarCusto(admin, "gerador_agente", userId, "gpt-4o", r);
     const spec = extrairJson(r.content);
 
     const modelo_llm = MODELOS_VALIDOS.has(spec.modelo_llm) ? spec.modelo_llm : "gpt-4o";
