@@ -46,6 +46,11 @@ export interface DocumentoInfo {
   criado_em: string;
 }
 
+export interface ListaDocumentos {
+  data: DocumentoInfo[];
+  total: number;
+}
+
 /** Servico de bases de conhecimento (RAG) do AI Center E7. */
 export const conhecimentoService = {
   async listarBases(): Promise<BaseConhecimento[]> {
@@ -68,18 +73,41 @@ export const conhecimentoService = {
     return data as BaseConhecimento;
   },
 
+  async atualizarBase(id: string, dados: { nome?: string; descricao?: string | null; tipo?: BaseConhecimento["tipo"] }): Promise<BaseConhecimento> {
+    const { data, error } = await withTimeout(
+      supabase.from("bases_conhecimento").update({
+        nome: dados.nome, descricao: dados.descricao ?? null, tipo: dados.tipo,
+      }).eq("id", id).select("*").single(),
+    );
+    if (error) throw error;
+    return data as BaseConhecimento;
+  },
+
   async excluirBase(id: string): Promise<void> {
+    const { data: docs } = await withTimeout(
+      supabase.from("documentos").select("caminho_storage").eq("base_id", id),
+    );
+    const caminhos = (docs ?? []).map((d: { caminho_storage: string }) => d.caminho_storage).filter(Boolean);
+    if (caminhos.length) await supabase.storage.from(BUCKET).remove(caminhos);
+
     const { error } = await withTimeout(supabase.from("bases_conhecimento").delete().eq("id", id));
     if (error) throw error;
   },
 
-  async listarDocumentos(baseId: string): Promise<DocumentoInfo[]> {
-    const { data, error } = await withTimeout(
-      supabase.from("documentos").select("id, base_id, nome_arquivo, mime, tamanho, paginas, ocr_aplicado, status, erro, criado_em")
-        .eq("base_id", baseId).order("criado_em", { ascending: false }),
-    );
+  async listarDocumentos(baseId: string, opts?: { page?: number; pageSize?: number; search?: string }): Promise<ListaDocumentos> {
+    const page = opts?.page ?? 1;
+    const pageSize = opts?.pageSize ?? 10;
+    const offset = (page - 1) * pageSize;
+
+    let query = supabase.from("documentos")
+      .select("id, base_id, nome_arquivo, mime, tamanho, paginas, ocr_aplicado, status, erro, criado_em", { count: "exact" })
+      .eq("base_id", baseId);
+    if (opts?.search) query = query.ilike("nome_arquivo", `%${opts.search}%`);
+    query = query.order("criado_em", { ascending: false }).range(offset, offset + pageSize - 1);
+
+    const { data, error, count } = await withTimeout(query);
     if (error) throw error;
-    return (data ?? []) as DocumentoInfo[];
+    return { data: (data ?? []) as DocumentoInfo[], total: count ?? 0 };
   },
 
   /** Faz upload do arquivo, cria o registro do documento e dispara a ingestao. */
@@ -109,6 +137,11 @@ export const conhecimentoService = {
   },
 
   async excluirDocumento(id: string): Promise<void> {
+    const { data: doc } = await withTimeout(
+      supabase.from("documentos").select("caminho_storage").eq("id", id).single(),
+    );
+    if (doc?.caminho_storage) await supabase.storage.from(BUCKET).remove([doc.caminho_storage]);
+
     const { error } = await withTimeout(supabase.from("documentos").delete().eq("id", id));
     if (error) throw error;
   },

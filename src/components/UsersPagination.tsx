@@ -7,6 +7,7 @@ interface UsersPaginationProps {
   onPageChange: (page: number) => void;
   totalItems: number;
   itemsPerPage: number;
+  itemLabel?: string;
 }
 
 export function UsersPagination({
@@ -14,7 +15,8 @@ export function UsersPagination({
   totalPages,
   onPageChange,
   totalItems,
-  itemsPerPage
+  itemsPerPage,
+  itemLabel = "usuários"
 }: UsersPaginationProps) {
   // Calcular range de páginas a mostrar
   const getPageNumbers = () => {
@@ -57,7 +59,7 @@ export function UsersPagination({
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
       {/* Informações de range */}
       <div className="text-sm text-muted-foreground">
-        Mostrando {startItem}-{endItem} de {totalItems} usuários
+        Mostrando {startItem}-{endItem} de {totalItems} {itemLabel}
       </div>
 
       {/* Controles de navegação */}

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Boxes, Plus, Loader2, Upload, FileText, Trash2, CheckCircle2, AlertCircle, Clock,
+  ArrowLeft, Boxes, Plus, Loader2, Upload, FileText, Trash2, Pencil, Search,
+  CheckCircle2, AlertCircle, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogFooter,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import { UsersPagination } from "@/components/UsersPagination";
 import { toast } from "sonner";
 import { conhecimentoService, type DocumentoInfo } from "../services/conhecimentoService";
 import type { BaseConhecimento } from "../types";
@@ -21,13 +27,14 @@ const TIPOS: Array<{ v: BaseConhecimento["tipo"]; label: string }> = [
   { v: "contabil", label: "Contabil" },
 ];
 
+const DOCUMENTOS_POR_PAGINA = 10;
+
 export default function ConhecimentoPage() {
   const navigate = useNavigate();
   const [bases, setBases] = useState<BaseConhecimento[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [selecionada, setSelecionada] = useState<BaseConhecimento | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { carregarBases(); }, []);
 
   async function carregarBases() {
@@ -35,11 +42,21 @@ export default function ConhecimentoPage() {
     try {
       const b = await conhecimentoService.listarBases();
       setBases(b);
-      if (b.length && !selecionada) setSelecionada(b[0]);
+      setSelecionada((atual) => atual ? (b.find((x) => x.id === atual.id) ?? b[0] ?? null) : (b[0] ?? null));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao carregar bases");
     } finally {
       setCarregando(false);
+    }
+  }
+
+  async function excluirBase(base: BaseConhecimento) {
+    try {
+      await conhecimentoService.excluirBase(base.id);
+      toast.success("Base excluida");
+      await carregarBases();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao excluir base");
     }
   }
 
@@ -51,7 +68,7 @@ export default function ConhecimentoPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><Boxes className="w-6 h-6 text-primary" /> Bases de Conhecimento</h1>
           <p className="text-muted-foreground text-sm mt-1">Envie documentos para alimentar o RAG dos seus agentes.</p>
         </div>
-        <NovaBaseDialog onCriada={carregarBases} />
+        <BaseFormDialog onSalva={carregarBases} />
       </header>
 
       {carregando ? (
@@ -61,14 +78,40 @@ export default function ConhecimentoPage() {
           <div className="space-y-2 lg:col-span-1">
             {bases.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma base ainda.</p>}
             {bases.map((b) => (
-              <button key={b.id} onClick={() => setSelecionada(b)}
-                className={`w-full text-left p-3 rounded-lg border transition-colors ${selecionada?.id === b.id ? "border-primary bg-primary/5" : "hover:border-primary/40"}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium truncate">{b.nome}</span>
-                  <Badge variant="secondary" className="text-xs shrink-0">{b.tipo}</Badge>
+              <div key={b.id}
+                className={`group w-full text-left p-3 rounded-lg border transition-colors ${selecionada?.id === b.id ? "border-primary bg-primary/5" : "hover:border-primary/40"}`}>
+                <button onClick={() => setSelecionada(b)} className="w-full text-left">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium truncate">{b.nome}</span>
+                    <Badge variant="secondary" className="text-xs shrink-0">{b.tipo}</Badge>
+                  </div>
+                  {b.descricao && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{b.descricao}</p>}
+                </button>
+                <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  <BaseFormDialog base={b} onSalva={carregarBases} trigger={
+                    <Button variant="ghost" size="icon" className="h-7 w-7"><Pencil className="w-3.5 h-3.5" /></Button>
+                  } />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir base "{b.nome}"?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta acao remove a base e todos os documentos e fragmentos vinculados a ela, incluindo os arquivos enviados. Nao pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => excluirBase(b)}>
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
-                {b.descricao && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{b.descricao}</p>}
-              </button>
+              </div>
             ))}
           </div>
           <div className="lg:col-span-2">
@@ -82,33 +125,45 @@ export default function ConhecimentoPage() {
   );
 }
 
-function NovaBaseDialog({ onCriada }: { onCriada: () => void }) {
+function BaseFormDialog({ base, onSalva, trigger }: { base?: BaseConhecimento; onSalva: () => void; trigger?: React.ReactNode }) {
   const [aberto, setAberto] = useState(false);
-  const [nome, setNome] = useState("");
-  const [descricao, setDescricao] = useState("");
-  const [tipo, setTipo] = useState<BaseConhecimento["tipo"]>("geral");
+  const [nome, setNome] = useState(base?.nome ?? "");
+  const [descricao, setDescricao] = useState(base?.descricao ?? "");
+  const [tipo, setTipo] = useState<BaseConhecimento["tipo"]>(base?.tipo ?? "geral");
   const [salvando, setSalvando] = useState(false);
+  const editando = !!base;
+
+  function onOpenChange(v: boolean) {
+    setAberto(v);
+    if (v) { setNome(base?.nome ?? ""); setDescricao(base?.descricao ?? ""); setTipo(base?.tipo ?? "geral"); }
+  }
 
   async function salvar() {
     if (!nome.trim()) { toast.error("Informe um nome"); return; }
     setSalvando(true);
     try {
-      await conhecimentoService.criarBase({ nome, descricao, tipo });
-      toast.success("Base criada");
-      setAberto(false); setNome(""); setDescricao(""); setTipo("geral");
-      onCriada();
+      if (editando) {
+        await conhecimentoService.atualizarBase(base.id, { nome, descricao, tipo });
+        toast.success("Base atualizada");
+      } else {
+        await conhecimentoService.criarBase({ nome, descricao, tipo });
+        toast.success("Base criada");
+      }
+      setAberto(false);
+      if (!editando) { setNome(""); setDescricao(""); setTipo("geral"); }
+      onSalva();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao criar base");
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar base");
     } finally {
       setSalvando(false);
     }
   }
 
   return (
-    <Dialog open={aberto} onOpenChange={setAberto}>
-      <DialogTrigger asChild><Button><Plus className="w-4 h-4 mr-1" /> Nova base</Button></DialogTrigger>
+    <Dialog open={aberto} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>{trigger ?? <Button><Plus className="w-4 h-4 mr-1" /> Nova base</Button>}</DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Nova base de conhecimento</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{editando ? "Editar base de conhecimento" : "Nova base de conhecimento"}</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5"><Label>Nome *</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Base Tributaria" /></div>
           <div className="space-y-1.5"><Label>Descricao</Label><Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} /></div>
@@ -121,7 +176,7 @@ function NovaBaseDialog({ onCriada }: { onCriada: () => void }) {
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={salvar} disabled={salvando}>{salvando ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} Criar</Button>
+          <Button onClick={salvar} disabled={salvando}>{salvando ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null} {editando ? "Salvar" : "Criar"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -130,27 +185,57 @@ function NovaBaseDialog({ onCriada }: { onCriada: () => void }) {
 
 function PainelDocumentos({ base }: { base: BaseConhecimento }) {
   const [docs, setDocs] = useState<DocumentoInfo[]>([]);
+  const [total, setTotal] = useState(0);
+  const [pagina, setPagina] = useState(1);
+  const [busca, setBusca] = useState("");
+  const [buscaAplicada, setBuscaAplicada] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function carregar() {
+  async function carregar(paginaAlvo = pagina, searchAlvo = buscaAplicada) {
     setCarregando(true);
-    try { setDocs(await conhecimentoService.listarDocumentos(base.id)); }
-    catch (e) { toast.error(e instanceof Error ? e.message : "Erro ao carregar documentos"); }
-    finally { setCarregando(false); }
+    try {
+      const { data, total: t } = await conhecimentoService.listarDocumentos(base.id, {
+        page: paginaAlvo, pageSize: DOCUMENTOS_POR_PAGINA, search: searchAlvo || undefined,
+      });
+      setDocs(data);
+      setTotal(t);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao carregar documentos");
+    } finally {
+      setCarregando(false);
+    }
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { carregar(); }, [base.id]);
+  // Troca de base: reseta busca/paginacao e recarrega.
+  useEffect(() => {
+    setBusca(""); setBuscaAplicada(""); setPagina(1);
+    carregar(1, "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base.id]);
 
-  // Polling leve enquanto houver documento processando.
+  // Debounce da busca antes de disparar a query.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (busca !== buscaAplicada) { setPagina(1); setBuscaAplicada(busca); carregar(1, busca); }
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busca]);
+
+  // Polling leve enquanto houver documento processando (mantem a pagina atual).
   useEffect(() => {
     if (!docs.some((d) => d.status === "pendente" || d.status === "processando")) return;
-    const t = setInterval(carregar, 4000);
+    const t = setInterval(() => carregar(pagina, buscaAplicada), 4000);
     return () => clearInterval(t);
-    // eslint-disable-next-line
-  }, [docs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docs, pagina, buscaAplicada]);
+
+  function mudarPagina(p: number) {
+    setPagina(p);
+    carregar(p, buscaAplicada);
+  }
 
   async function onArquivo(e: React.ChangeEvent<HTMLInputElement>) {
     const arquivos = Array.from(e.target.files ?? []);
@@ -169,15 +254,25 @@ function PainelDocumentos({ base }: { base: BaseConhecimento }) {
     }
     if (ok) toast.success(`${ok} documento(s) enviado(s). Processando…`);
     if (erros.length) toast.error(erros.join(" | "));
-    carregar();
+    carregar(1, buscaAplicada);
+    setPagina(1);
     setEnviando(false);
     if (inputRef.current) inputRef.current.value = "";
   }
 
   async function excluir(id: string) {
-    try { await conhecimentoService.excluirDocumento(id); setDocs((d) => d.filter((x) => x.id !== id)); }
-    catch (e) { toast.error(e instanceof Error ? e.message : "Erro ao excluir"); }
+    try {
+      await conhecimentoService.excluirDocumento(id);
+      toast.success("Documento excluido");
+      const proximaPagina = docs.length === 1 && pagina > 1 ? pagina - 1 : pagina;
+      setPagina(proximaPagina);
+      carregar(proximaPagina, buscaAplicada);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao excluir");
+    }
   }
+
+  const totalPaginas = Math.max(1, Math.ceil(total / DOCUMENTOS_POR_PAGINA));
 
   return (
     <Card>
@@ -190,11 +285,18 @@ function PainelDocumentos({ base }: { base: BaseConhecimento }) {
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar documento por nome…" className="pl-9" />
+        </div>
+
         {carregando ? (
           <div className="py-8 text-center text-muted-foreground text-sm"><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Carregando…</div>
         ) : docs.length === 0 ? (
-          <p className="py-8 text-center text-muted-foreground text-sm">Nenhum documento. Envie PDF, DOCX, TXT ou imagem (OCR).</p>
+          <p className="py-8 text-center text-muted-foreground text-sm">
+            {buscaAplicada ? "Nenhum documento encontrado para essa busca." : "Nenhum documento. Envie PDF, DOCX, TXT ou imagem (OCR)."}
+          </p>
         ) : (
           <ul className="divide-y">
             {docs.map((d) => (
@@ -207,10 +309,39 @@ function PainelDocumentos({ base }: { base: BaseConhecimento }) {
                   </p>
                 </div>
                 <StatusDoc status={d.status} />
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => excluir(d.id)}><Trash2 className="w-4 h-4" /></Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8"><Trash2 className="w-4 h-4" /></Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir documento?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        "{d.nome_arquivo}" sera removido da base e do armazenamento. Esta acao nao pode ser desfeita.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => excluir(d.id)}>
+                        Excluir
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </li>
             ))}
           </ul>
+        )}
+
+        {!carregando && total > DOCUMENTOS_POR_PAGINA && (
+          <UsersPagination
+            currentPage={pagina}
+            totalPages={totalPaginas}
+            onPageChange={mudarPagina}
+            totalItems={total}
+            itemsPerPage={DOCUMENTOS_POR_PAGINA}
+            itemLabel="documentos"
+          />
         )}
       </CardContent>
     </Card>
