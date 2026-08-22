@@ -141,7 +141,7 @@ export function PayrollBatchUploadForm({
       <CardHeader>
         <CardTitle>Upload de Holerites em Lote</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Até {maxFiles} PDFs por envio — um XLSX consolidado com todas as competências
+          Até 3 PDFs por envio — um XLSX consolidado com todas as competências
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -179,7 +179,7 @@ export function PayrollBatchUploadForm({
           <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-sm font-medium mb-1">Arraste PDFs aqui ou selecione arquivos</p>
           <p className="text-xs text-muted-foreground mb-3">
-            {filledRows.length}/{maxFiles} arquivos • máx. {formatFileSize(MAX_FILE_SIZE)} cada
+            {filledRows.length}/3 arquivos • máx. {formatFileSize(MAX_FILE_SIZE)} cada
           </p>
           <Button
             type="button"

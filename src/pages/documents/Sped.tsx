@@ -639,7 +639,7 @@ export default function Sped() {
               Selecionar Arquivos
             </Button>
             <p className="text-xs text-muted-foreground mt-2">
-              Máximo {MAX_FILES} arquivos • {formatFileSize(MAX_FILE_SIZE)} por arquivo
+              Máximo 3 arquivos • {formatFileSize(MAX_FILE_SIZE)} por arquivo
             </p>
           </div>
 
