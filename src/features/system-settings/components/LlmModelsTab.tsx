@@ -17,10 +17,9 @@ type Draft = {
   temperature: string;
   max_tokens: string;
   timeout_ms: string;
-  context_window: string;
 };
 
-const emptyDraft = (): Draft => ({ default_model: "", temperature: "0.7", max_tokens: "2000", timeout_ms: "30000", context_window: "" });
+const emptyDraft = (): Draft => ({ default_model: "", temperature: "0.7", max_tokens: "2000", timeout_ms: "30000" });
 
 export function LlmModelsTab() {
   const { toast } = useToast();
@@ -38,7 +37,6 @@ export function LlmModelsTab() {
           temperature: String(r.temperature ?? "0.7"),
           max_tokens: String(r.max_tokens ?? "2000"),
           timeout_ms: String(r.timeout_ms ?? "30000"),
-          context_window: r.context_window != null ? String(r.context_window) : "",
         };
       }
       setDrafts(map);
@@ -63,7 +61,6 @@ export function LlmModelsTab() {
         temperature: d.temperature === "" ? null : Number(d.temperature),
         max_tokens: d.max_tokens === "" ? null : Number(d.max_tokens),
         timeout_ms: d.timeout_ms === "" ? null : Number(d.timeout_ms),
-        context_window: d.context_window === "" ? null : Number(d.context_window),
       });
       toast({ title: "Configuração salva", description: PROVIDER_LABELS[provider] });
     } catch (e) {
@@ -81,8 +78,7 @@ export function LlmModelsTab() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Parâmetros padrão por provedor. Os modelos disponíveis vêm da biblioteca central
-        (<code>src/config/llmModels.ts</code>).
+        Parâmetros padrão por provedor. A lista de modelos disponíveis é mantida centralmente pela plataforma.
       </p>
       {PROVIDERS.map((provider) => {
         const d = drafts[provider];
@@ -113,10 +109,6 @@ export function LlmModelsTab() {
                 <div className="space-y-1">
                   <Label>Timeout (ms)</Label>
                   <Input type="number" min="1000" value={d.timeout_ms} onChange={(e) => set(provider, "timeout_ms", e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Janela de contexto (opcional)</Label>
-                  <Input type="number" min="0" value={d.context_window} onChange={(e) => set(provider, "context_window", e.target.value)} />
                 </div>
               </div>
               <Button onClick={() => save(provider)} disabled={busy === provider}>

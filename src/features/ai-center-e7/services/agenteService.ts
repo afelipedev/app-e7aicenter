@@ -3,6 +3,14 @@ import type {
   Agente, DadosAgente, ConversaAgente, MensagemAgente, RespostaExecucao, ProjetoAgente,
 } from "../types";
 import { formParaGrafo, compilarConfig } from "../utils/grafoCanonico";
+import { LLM_MODEL_IDS, DEFAULT_LLM_MODEL_ID } from "@/config/llmModels";
+
+// Garante que apenas ids do catalogo (nunca um id "cru" devolvido pelo provedor,
+// ex. gpt-4o-2024-08-06) sejam persistidos em agentes.modelo_llm -- isso quebraria
+// o lookup de preco em precos_modelos e faria o custo aparecer como R$ 0,00.
+function validarModeloLlm(modeloLlm: string | undefined | null): string {
+  return modeloLlm && (LLM_MODEL_IDS as readonly string[]).includes(modeloLlm) ? modeloLlm : DEFAULT_LLM_MODEL_ID;
+}
 
 export interface ExecucaoResumo {
   id: string; status: "sucesso" | "erro"; modelo: string | null;
@@ -62,7 +70,7 @@ export const agenteService = {
         objetivo: dados.objetivo ?? null,
         persona: dados.persona ?? null,
         icone: dados.icone ?? null,
-        modelo_llm: dados.modelo_llm ?? "gpt-4o",
+        modelo_llm: validarModeloLlm(dados.modelo_llm),
         temperatura: dados.temperatura ?? 0.7,
         max_tokens: dados.max_tokens ?? 2000,
         escopo: dados.escopo ?? "privado",
@@ -85,7 +93,7 @@ export const agenteService = {
         objetivo: dados.objetivo ?? null,
         persona: dados.persona ?? null,
         icone: dados.icone ?? null,
-        modelo_llm: dados.modelo_llm ?? "gpt-4o",
+        modelo_llm: validarModeloLlm(dados.modelo_llm),
         temperatura: dados.temperatura ?? 0.7,
         max_tokens: dados.max_tokens ?? 2000,
         escopo: dados.escopo ?? "privado",

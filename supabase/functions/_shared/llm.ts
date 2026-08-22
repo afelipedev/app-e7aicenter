@@ -40,16 +40,32 @@ type ProviderInfo = {
 
 // Catalogo espelhado de src/config/llmModels.ts e da precos_modelos. MANTER SYNC.
 export const MODEL_PROVIDER_MAP: Record<string, ProviderInfo> = {
+  "gpt-5.6-sol": { provider: "openai", providerModelId: "gpt-5.6-sol", temperature: false, maxTokensParam: "max_completion_tokens" },
+  "gpt-5.6-terra": { provider: "openai", providerModelId: "gpt-5.6-terra", temperature: false, maxTokensParam: "max_completion_tokens" },
+  "gpt-5.6-luna": { provider: "openai", providerModelId: "gpt-5.6-luna", temperature: false, maxTokensParam: "max_completion_tokens" },
   "gpt-5.2": { provider: "openai", providerModelId: "gpt-5.2", temperature: false, maxTokensParam: "max_completion_tokens" },
+  "gpt-5.1": { provider: "openai", providerModelId: "gpt-5.1", temperature: false, maxTokensParam: "max_completion_tokens" },
+  "gpt-5": { provider: "openai", providerModelId: "gpt-5", temperature: false, maxTokensParam: "max_completion_tokens" },
+  "gpt-5-mini": { provider: "openai", providerModelId: "gpt-5-mini", temperature: false, maxTokensParam: "max_completion_tokens" },
+  "gpt-5-nano": { provider: "openai", providerModelId: "gpt-5-nano", temperature: false, maxTokensParam: "max_completion_tokens" },
+  "gpt-4.1": { provider: "openai", providerModelId: "gpt-4.1", temperature: true, maxTokensParam: "max_tokens" },
+  "gpt-4.1-mini": { provider: "openai", providerModelId: "gpt-4.1-mini", temperature: true, maxTokensParam: "max_tokens" },
   "gpt-4o": { provider: "openai", providerModelId: "gpt-4o", temperature: true, maxTokensParam: "max_tokens" },
   "gpt-4o-mini": { provider: "openai", providerModelId: "gpt-4o-mini", temperature: true, maxTokensParam: "max_tokens" },
   "gpt-4-turbo": { provider: "openai", providerModelId: "gpt-4-turbo-preview", temperature: true, maxTokensParam: "max_tokens" },
   "gpt-4": { provider: "openai", providerModelId: "gpt-4", temperature: true, maxTokensParam: "max_tokens" },
+  "gemini-3.1-pro-preview": { provider: "google", providerModelId: "gemini-3.1-pro-preview", temperature: true, maxTokensParam: "max_tokens" },
   "gemini-3-pro": { provider: "google", providerModelId: "gemini-3-pro", temperature: true, maxTokensParam: "max_tokens" },
   "gemini-3.5-flash": { provider: "google", providerModelId: "gemini-3.5-flash", temperature: true, maxTokensParam: "max_tokens" },
+  "gemini-3-flash-preview": { provider: "google", providerModelId: "gemini-3-flash-preview", temperature: true, maxTokensParam: "max_tokens" },
+  "gemini-3.1-flash-lite": { provider: "google", providerModelId: "gemini-3.1-flash-lite", temperature: true, maxTokensParam: "max_tokens" },
   "gemini-2.5-flash": { provider: "google", providerModelId: "gemini-2.5-flash", temperature: true, maxTokensParam: "max_tokens" },
   "gemini-2.5-pro": { provider: "google", providerModelId: "gemini-2.5-pro", temperature: true, maxTokensParam: "max_tokens" },
+  "claude-opus-5": { provider: "anthropic", providerModelId: "claude-opus-5", temperature: true, maxTokensParam: "max_tokens" },
+  "claude-sonnet-5": { provider: "anthropic", providerModelId: "claude-sonnet-5", temperature: true, maxTokensParam: "max_tokens" },
   "claude-opus-4.8": { provider: "anthropic", providerModelId: "claude-opus-4-8", temperature: true, maxTokensParam: "max_tokens" },
+  "claude-opus-4.7": { provider: "anthropic", providerModelId: "claude-opus-4-7", temperature: true, maxTokensParam: "max_tokens" },
+  "claude-opus-4.6": { provider: "anthropic", providerModelId: "claude-opus-4-6", temperature: true, maxTokensParam: "max_tokens" },
   "claude-sonnet-4.6": { provider: "anthropic", providerModelId: "claude-sonnet-4-6", temperature: true, maxTokensParam: "max_tokens" },
   "claude-haiku-4.5": { provider: "anthropic", providerModelId: "claude-haiku-4-5", temperature: true, maxTokensParam: "max_tokens" },
   "claude-sonnet-4.5": { provider: "anthropic", providerModelId: "claude-sonnet-4-5-20250929", temperature: true, maxTokensParam: "max_tokens" },
@@ -96,13 +112,14 @@ export async function resolveModelCfg(admin: any, model: string, overrides?: Par
 async function callOpenAI(messages: MensagemLLM[], systemPrompt: string, model: string, cfg: ModelCfg): Promise<RespostaLLM> {
   if (!cfg.apiKey) throw new Error("OpenAI API key nao configurada");
   const info = resolveProvider(model);
-  const openaiModel = info?.providerModelId ?? "gpt-4o";
+  if (!info) throw new Error(`Modelo OpenAI desconhecido no catalogo: "${model}"`);
+  const openaiModel = info.providerModelId;
   const body: Record<string, unknown> = {
     model: openaiModel,
     messages: [{ role: "system", content: systemPrompt }, ...messages.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }))],
   };
-  body[info?.maxTokensParam ?? "max_tokens"] = cfg.maxTokens;
-  if (info?.temperature !== false) body.temperature = cfg.temperature;
+  body[info.maxTokensParam] = cfg.maxTokens;
+  if (info.temperature !== false) body.temperature = cfg.temperature;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -130,7 +147,9 @@ async function callGemini(messages: MensagemLLM[], systemPrompt: string, model: 
     return { role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] };
   });
   if (contents.length === 0) contents.push({ role: "user", parts: [{ text: systemPrompt }] });
-  const modelName = resolveProvider(model)?.providerModelId ?? "gemini-2.5-flash";
+  const info = resolveProvider(model);
+  if (!info) throw new Error(`Modelo Gemini desconhecido no catalogo: "${model}"`);
+  const modelName = info.providerModelId;
 
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${cfg.apiKey}`, {
     method: "POST",
@@ -153,7 +172,9 @@ async function callGemini(messages: MensagemLLM[], systemPrompt: string, model: 
 
 async function callClaude(messages: MensagemLLM[], systemPrompt: string, model: string, cfg: ModelCfg): Promise<RespostaLLM> {
   if (!cfg.apiKey) throw new Error("Anthropic API key nao configurada");
-  const modelName = resolveProvider(model)?.providerModelId ?? "claude-sonnet-4-6";
+  const info = resolveProvider(model);
+  if (!info) throw new Error(`Modelo Anthropic desconhecido no catalogo: "${model}"`);
+  const modelName = info.providerModelId;
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": cfg.apiKey, "anthropic-version": "2023-06-01" },
@@ -256,14 +277,21 @@ export async function ocrMistral(admin: any, base64: string, mime: string, ehPdf
 
 // -----------------------------------------------------------------------------
 // Custo estimado (~R$) a partir de precos_modelos.
+// Observacao: tarifas escalonadas por volume (Gemini/OpenAI acima de 200K
+// tokens de contexto usado) nao sao representadas aqui -- usa-se sempre a
+// tarifa base/menor cadastrada em precos_modelos (schema de taxa unica).
 // -----------------------------------------------------------------------------
 export async function estimarCustoReais(admin: any, modelo: string, tokensEntrada: number, tokensSaida: number): Promise<number> {
   try {
     const { data } = await admin.from("precos_modelos").select("preco_entrada_1k, preco_saida_1k, cambio_usd_brl").eq("modelo", modelo).maybeSingle();
-    if (!data) return 0;
+    if (!data) {
+      console.warn(`estimarCustoReais: sem preco cadastrado para modelo "${modelo}" -- custo registrado como 0.`);
+      return 0;
+    }
     const usd = (tokensEntrada / 1000) * Number(data.preco_entrada_1k) + (tokensSaida / 1000) * Number(data.preco_saida_1k);
     return Number((usd * Number(data.cambio_usd_brl)).toFixed(6));
-  } catch (_) {
+  } catch (e) {
+    console.warn(`estimarCustoReais: falha ao calcular custo p/ "${modelo}":`, e instanceof Error ? e.message : e);
     return 0;
   }
 }

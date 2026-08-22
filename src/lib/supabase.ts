@@ -1,5 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 
+// Ids aceitos pelo CHECK constraint chats_llm_model_check (ver migration
+// add_new_llm_models_2026_generation). Mantido em sincronia com
+// src/config/llmModels.ts (fonte da verdade do catálogo).
+type LLMModelId =
+  | 'gpt-4' | 'gpt-4-turbo' | 'gpt-4o' | 'gpt-4o-mini' | 'gpt-4.1' | 'gpt-4.1-mini'
+  | 'gpt-5.2' | 'gpt-5.1' | 'gpt-5' | 'gpt-5-mini' | 'gpt-5-nano'
+  | 'gpt-5.6-sol' | 'gpt-5.6-terra' | 'gpt-5.6-luna'
+  | 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'gemini-3-pro' | 'gemini-3.5-flash'
+  | 'gemini-3.1-flash-lite' | 'gemini-3.1-pro-preview' | 'gemini-3-flash-preview'
+  | 'claude-opus-4.8' | 'claude-opus-4.7' | 'claude-opus-4.6' | 'claude-sonnet-4.6'
+  | 'claude-haiku-4.5' | 'claude-sonnet-4.5' | 'claude-opus-5' | 'claude-sonnet-5'
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
@@ -139,7 +151,7 @@ export interface Database {
           user_id: string
           assistant_type: string // Aceita tipos fixos e agentIds dos agentes da biblioteca
           title: string
-          llm_model: 'gpt-4' | 'gpt-4-turbo' | 'gemini-2.5-flash' | 'claude-sonnet-4.5'
+          llm_model: LLMModelId
           is_favorite: boolean
           created_at: string
           updated_at: string
@@ -149,7 +161,7 @@ export interface Database {
           user_id: string
           assistant_type: string // Aceita tipos fixos e agentIds dos agentes da biblioteca
           title: string
-          llm_model?: 'gpt-4' | 'gpt-4-turbo' | 'gemini-2.5-flash' | 'claude-sonnet-4.5'
+          llm_model?: LLMModelId
           is_favorite?: boolean
           created_at?: string
           updated_at?: string
@@ -159,7 +171,7 @@ export interface Database {
           user_id?: string
           assistant_type?: string // Aceita tipos fixos e agentIds dos agentes da biblioteca
           title?: string
-          llm_model?: 'gpt-4' | 'gpt-4-turbo' | 'gemini-2.5-flash' | 'claude-sonnet-4.5'
+          llm_model?: LLMModelId
           is_favorite?: boolean
           created_at?: string
           updated_at?: string

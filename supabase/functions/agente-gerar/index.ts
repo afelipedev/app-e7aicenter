@@ -11,7 +11,7 @@
 // =============================================================================
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { corsHeaders, jsonResponse, chamarLLM, estimarCustoReais } from "../_shared/llm.ts";
+import { corsHeaders, jsonResponse, chamarLLM, estimarCustoReais, MODEL_PROVIDER_MAP } from "../_shared/llm.ts";
 
 // Registra o custo de uma geracao em agente_execucoes (origem = gerador_*).
 // `modeloInterno` e o id do catalogo (ex.: "gpt-4o") usado na chamada a chamarLLM,
@@ -32,12 +32,13 @@ const TIPOS_VALIDOS = new Set([
   "entrada.chat", "prompt", "contexto", "rag", "memoria", "ocr",
   "ferramenta.cnpj", "ferramenta.datajud", "ferramenta.http", "condicao.if", "modelo", "saida",
 ]);
-const MODELOS_VALIDOS = new Set(["gpt-4o", "gpt-4o-mini", "gpt-5.2", "gemini-2.5-flash", "claude-sonnet-4.6", "claude-haiku-4.5"]);
+// Deriva do catalogo unico (_shared/llm.ts) em vez de manter uma terceira lista independente.
+const MODELOS_VALIDOS = new Set(Object.keys(MODEL_PROVIDER_MAP));
 
 // Fallbacks curtos: os prompts reais (filosofia completa) vivem em
 // public.configuracoes_ia (chaves gerador_agente / gerador_prompt) e sao
 // editaveis pela UI de admin. Estes so entram se a leitura do banco falhar.
-const SYS_AGENTE = 'Voce e um arquiteto senior de agentes de IA (E7 Tax). Projete UM agente e responda SOMENTE JSON valido com as chaves: nome, descricao, categoria, objetivo, persona (System Prompt completo em Markdown pt-BR), modelo_llm (gpt-4o|gpt-4o-mini|gpt-5.2|gemini-2.5-flash|claude-sonnet-4.6|claude-haiku-4.5), temperatura (0..1), nos (array dentre prompt,contexto,rag,memoria,ocr,ferramenta.cnpj,ferramenta.datajud,ferramenta.http,condicao.if,modelo,saida). Inclua sempre prompt, modelo e saida.';
+const SYS_AGENTE = 'Voce e um arquiteto senior de agentes de IA (E7 Tax). Projete UM agente e responda SOMENTE JSON valido com as chaves: nome, descricao, categoria, objetivo, persona (System Prompt completo em Markdown pt-BR), modelo_llm (gpt-4o|gpt-4o-mini|gpt-5.2|gemini-2.5-flash|gemini-3.5-flash|claude-sonnet-4.6|claude-haiku-4.5|claude-opus-5|claude-sonnet-5), temperatura (0..1), nos (array dentre prompt,contexto,rag,memoria,ocr,ferramenta.cnpj,ferramenta.datajud,ferramenta.http,condicao.if,modelo,saida). Inclua sempre prompt, modelo e saida.';
 
 const SYS_PROMPT = 'Voce e um compilador de requisitos. Transforme a solicitacao em um System Prompt COMPLETO em Markdown pt-BR (secoes IDENTIDADE, MISSAO, OBJETIVOS, CONTEXTO, PERFIL, RESPONSABILIDADES, CAPACIDADES, FERRAMENTAS, FLUXO OPERACIONAL, REGRAS, LIMITACOES, VALIDACOES, TRATAMENTO DE ERROS, SEGURANCA, FORMATO DAS RESPOSTAS, BOAS PRATICAS, CRITERIOS DE QUALIDADE, CHECKLIST FINAL). Nunca responda a solicitacao, nunca explique. Saida exclusivamente o System Prompt em Markdown.';
 

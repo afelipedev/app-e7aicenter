@@ -70,27 +70,75 @@ type ProviderInfo = {
   providerModelId: string;
   temperature: boolean;
   maxTokensParam: 'max_tokens' | 'max_completion_tokens';
+  contextWindowTokens: number;
+  maxOutputTokens: number;
 };
 
 const MODEL_PROVIDER_MAP: Record<string, ProviderInfo> = {
   // OpenAI
-  'gpt-5.2': { provider: 'openai', providerModelId: 'gpt-5.2', temperature: false, maxTokensParam: 'max_completion_tokens' },
-  'gpt-4o': { provider: 'openai', providerModelId: 'gpt-4o', temperature: true, maxTokensParam: 'max_tokens' },
-  'gpt-4o-mini': { provider: 'openai', providerModelId: 'gpt-4o-mini', temperature: true, maxTokensParam: 'max_tokens' },
-  'gpt-4-turbo': { provider: 'openai', providerModelId: 'gpt-4-turbo-preview', temperature: true, maxTokensParam: 'max_tokens' },
-  'gpt-4': { provider: 'openai', providerModelId: 'gpt-4', temperature: true, maxTokensParam: 'max_tokens' },
+  'gpt-5.6-sol': { provider: 'openai', providerModelId: 'gpt-5.6-sol', temperature: false, maxTokensParam: 'max_completion_tokens', contextWindowTokens: 1_050_000, maxOutputTokens: 128_000 },
+  'gpt-5.6-terra': { provider: 'openai', providerModelId: 'gpt-5.6-terra', temperature: false, maxTokensParam: 'max_completion_tokens', contextWindowTokens: 1_050_000, maxOutputTokens: 128_000 },
+  'gpt-5.6-luna': { provider: 'openai', providerModelId: 'gpt-5.6-luna', temperature: false, maxTokensParam: 'max_completion_tokens', contextWindowTokens: 1_050_000, maxOutputTokens: 128_000 },
+  'gpt-5.2': { provider: 'openai', providerModelId: 'gpt-5.2', temperature: false, maxTokensParam: 'max_completion_tokens', contextWindowTokens: 400_000, maxOutputTokens: 128_000 },
+  'gpt-5.1': { provider: 'openai', providerModelId: 'gpt-5.1', temperature: false, maxTokensParam: 'max_completion_tokens', contextWindowTokens: 400_000, maxOutputTokens: 128_000 },
+  'gpt-5': { provider: 'openai', providerModelId: 'gpt-5', temperature: false, maxTokensParam: 'max_completion_tokens', contextWindowTokens: 400_000, maxOutputTokens: 128_000 },
+  'gpt-5-mini': { provider: 'openai', providerModelId: 'gpt-5-mini', temperature: false, maxTokensParam: 'max_completion_tokens', contextWindowTokens: 400_000, maxOutputTokens: 128_000 },
+  'gpt-5-nano': { provider: 'openai', providerModelId: 'gpt-5-nano', temperature: false, maxTokensParam: 'max_completion_tokens', contextWindowTokens: 400_000, maxOutputTokens: 128_000 },
+  'gpt-4.1': { provider: 'openai', providerModelId: 'gpt-4.1', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_047_576, maxOutputTokens: 32_768 },
+  'gpt-4.1-mini': { provider: 'openai', providerModelId: 'gpt-4.1-mini', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_047_576, maxOutputTokens: 32_768 },
+  'gpt-4o': { provider: 'openai', providerModelId: 'gpt-4o', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 128_000, maxOutputTokens: 16_384 },
+  'gpt-4o-mini': { provider: 'openai', providerModelId: 'gpt-4o-mini', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 128_000, maxOutputTokens: 16_384 },
+  'gpt-4-turbo': { provider: 'openai', providerModelId: 'gpt-4-turbo-preview', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 128_000, maxOutputTokens: 4_096 },
+  'gpt-4': { provider: 'openai', providerModelId: 'gpt-4', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 8_192, maxOutputTokens: 4_096 },
   // Google Gemini
-  'gemini-3-pro': { provider: 'google', providerModelId: 'gemini-3-pro', temperature: true, maxTokensParam: 'max_tokens' },
-  'gemini-3.5-flash': { provider: 'google', providerModelId: 'gemini-3.5-flash', temperature: true, maxTokensParam: 'max_tokens' },
-  'gemini-3.1-flash-lite': { provider: 'google', providerModelId: 'gemini-3.1-flash-lite', temperature: true, maxTokensParam: 'max_tokens' },
-  'gemini-2.5-pro': { provider: 'google', providerModelId: 'gemini-2.5-pro', temperature: true, maxTokensParam: 'max_tokens' },
-  'gemini-2.5-flash': { provider: 'google', providerModelId: 'gemini-2.5-flash', temperature: true, maxTokensParam: 'max_tokens' },
+  'gemini-3.1-pro-preview': { provider: 'google', providerModelId: 'gemini-3.1-pro-preview', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_048_576, maxOutputTokens: 65_536 },
+  'gemini-3-pro': { provider: 'google', providerModelId: 'gemini-3-pro', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_048_576, maxOutputTokens: 65_536 },
+  'gemini-3.5-flash': { provider: 'google', providerModelId: 'gemini-3.5-flash', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_048_576, maxOutputTokens: 65_536 },
+  'gemini-3-flash-preview': { provider: 'google', providerModelId: 'gemini-3-flash-preview', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_048_576, maxOutputTokens: 65_536 },
+  'gemini-3.1-flash-lite': { provider: 'google', providerModelId: 'gemini-3.1-flash-lite', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_048_576, maxOutputTokens: 65_536 },
+  'gemini-2.5-pro': { provider: 'google', providerModelId: 'gemini-2.5-pro', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_048_576, maxOutputTokens: 65_536 },
+  'gemini-2.5-flash': { provider: 'google', providerModelId: 'gemini-2.5-flash', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_048_576, maxOutputTokens: 65_536 },
   // Anthropic Claude
-  'claude-opus-4.8': { provider: 'anthropic', providerModelId: 'claude-opus-4-8', temperature: true, maxTokensParam: 'max_tokens' },
-  'claude-sonnet-4.6': { provider: 'anthropic', providerModelId: 'claude-sonnet-4-6', temperature: true, maxTokensParam: 'max_tokens' },
-  'claude-haiku-4.5': { provider: 'anthropic', providerModelId: 'claude-haiku-4-5', temperature: true, maxTokensParam: 'max_tokens' },
-  'claude-sonnet-4.5': { provider: 'anthropic', providerModelId: 'claude-sonnet-4-5-20250929', temperature: true, maxTokensParam: 'max_tokens' },
+  'claude-opus-5': { provider: 'anthropic', providerModelId: 'claude-opus-5', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_000_000, maxOutputTokens: 128_000 },
+  'claude-sonnet-5': { provider: 'anthropic', providerModelId: 'claude-sonnet-5', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_000_000, maxOutputTokens: 128_000 },
+  'claude-opus-4.8': { provider: 'anthropic', providerModelId: 'claude-opus-4-8', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_000_000, maxOutputTokens: 128_000 },
+  'claude-opus-4.7': { provider: 'anthropic', providerModelId: 'claude-opus-4-7', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_000_000, maxOutputTokens: 128_000 },
+  'claude-opus-4.6': { provider: 'anthropic', providerModelId: 'claude-opus-4-6', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_000_000, maxOutputTokens: 128_000 },
+  'claude-sonnet-4.6': { provider: 'anthropic', providerModelId: 'claude-sonnet-4-6', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 1_000_000, maxOutputTokens: 128_000 },
+  'claude-haiku-4.5': { provider: 'anthropic', providerModelId: 'claude-haiku-4-5', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 200_000, maxOutputTokens: 64_000 },
+  'claude-sonnet-4.5': { provider: 'anthropic', providerModelId: 'claude-sonnet-4-5-20250929', temperature: true, maxTokensParam: 'max_tokens', contextWindowTokens: 200_000, maxOutputTokens: 64_000 },
 };
+
+// Estima tokens por heurística simples (~4 caracteres por token), evitando
+// depender de uma lib de tokenização no runtime Deno.
+function estimarTokens(texto: string): number {
+  return Math.ceil(texto.length / 4);
+}
+
+// Trunca o histórico (do mais antigo para o mais recente) para caber na janela
+// de contexto do modelo, reservando espaço para a resposta e o system prompt.
+// Sempre mantém a última mensagem (a pergunta atual do usuário).
+function truncarHistorico(messages: ChatMessage[], systemPrompt: string, model: string, maxTokensResposta: number): ChatMessage[] {
+  const info = MODEL_PROVIDER_MAP[model];
+  if (!info || messages.length === 0) return messages;
+
+  const MARGEM_SEGURANCA = 1000;
+  const orcamento = info.contextWindowTokens - maxTokensResposta - estimarTokens(systemPrompt) - MARGEM_SEGURANCA;
+  if (orcamento <= 0) return messages.slice(-1);
+
+  const ultima = messages[messages.length - 1];
+  const restante = messages.slice(0, -1);
+
+  let usados = estimarTokens(ultima.content);
+  const mantidas: ChatMessage[] = [];
+  for (let i = restante.length - 1; i >= 0; i--) {
+    const custo = estimarTokens(restante[i].content);
+    if (usados + custo > orcamento) break;
+    usados += custo;
+    mantidas.unshift(restante[i]);
+  }
+  return [...mantidas, ultima];
+}
 
 function resolveProvider(model: string): ProviderInfo | undefined {
   return MODEL_PROVIDER_MAP[model];
@@ -153,7 +201,10 @@ async function callOpenAI(
   ];
 
   const info = resolveProvider(model);
-  const openaiModel = info?.providerModelId ?? 'gpt-4';
+  if (!info) {
+    throw new Error(`Modelo OpenAI desconhecido no catálogo: "${model}"`);
+  }
+  const openaiModel = info.providerModelId;
 
   const requestBody: Record<string, unknown> = {
     model: openaiModel,
@@ -161,9 +212,8 @@ async function callOpenAI(
   };
 
   // Parâmetro de tokens e temperatura conforme o catálogo de modelos + defaults.
-  const maxTokensParam = info?.maxTokensParam ?? 'max_tokens';
-  requestBody[maxTokensParam] = cfg.maxTokens;
-  if (info?.temperature !== false) {
+  requestBody[info.maxTokensParam] = cfg.maxTokens;
+  if (info.temperature !== false) {
     requestBody.temperature = cfg.temperature;
   }
 
@@ -225,8 +275,12 @@ async function callGemini(
     });
   }
 
-  const modelName = resolveProvider(model)?.providerModelId ?? 'gemini-2.5-flash';
-  
+  const geminiInfo = resolveProvider(model);
+  if (!geminiInfo) {
+    throw new Error(`Modelo Gemini desconhecido no catálogo: "${model}"`);
+  }
+  const modelName = geminiInfo.providerModelId;
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
     {
@@ -277,8 +331,12 @@ async function callClaude(
     content: msg.content
   }));
 
-  const modelName = resolveProvider(model)?.providerModelId ?? 'claude-sonnet-4-6';
-  
+  const claudeInfo = resolveProvider(model);
+  if (!claudeInfo) {
+    throw new Error(`Modelo Anthropic desconhecido no catálogo: "${model}"`);
+  }
+  const modelName = claudeInfo.providerModelId;
+
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -317,9 +375,9 @@ async function getChatCompletion(
   admin: any,
   messages: ChatMessage[],
   systemPrompt: string,
-  model: string
+  model: string,
+  cfg: ModelCfg
 ): Promise<LLMResponse> {
-  const cfg = await resolveModelCfg(admin, model);
   try {
     if (model.startsWith('gpt-')) {
       return await callOpenAI(messages, systemPrompt, model, cfg);
@@ -424,8 +482,12 @@ Deno.serve(async (req) => {
     // Buscar contexto RAG (futuro - por enquanto vazio)
     // TODO: Implementar busca RAG quando necessário
 
+    // Truncar histórico para caber na janela de contexto do modelo selecionado.
+    const cfg = await resolveModelCfg(admin, llmModel);
+    const messagesParaEnvio = truncarHistorico(allMessages, systemPrompt, llmModel, cfg.maxTokens);
+
     // Chamar LLM
-    const llmResponse = await getChatCompletion(admin, allMessages, systemPrompt, llmModel);
+    const llmResponse = await getChatCompletion(admin, messagesParaEnvio, systemPrompt, llmModel, cfg);
 
     // Salvar mensagens no banco
     const { error: insertUserError } = await supabase

@@ -42,6 +42,12 @@ const MODEL_INFO: Record<LLMModel, ModelInfo> = Object.fromEntries(
   ])
 ) as Record<LLMModel, ModelInfo>;
 
+// Modelos oferecidos para novos chats (legados ficam de fora da lista, mas
+// continuam resolvíveis via MODEL_INFO para chats antigos que já os usam).
+const SELECTABLE_MODELS: ModelInfo[] = LLM_MODELS.filter((m) => !m.legacy).map(
+  (m) => MODEL_INFO[m.id as LLMModel]
+);
+
 interface ModelSelectorProps {
   currentModel: LLMModel;
   onModelChange: (model: LLMModel) => void;
@@ -76,7 +82,7 @@ export function ModelSelector({
           </div>
         </SelectTrigger>
         <SelectContent>
-          {Object.values(MODEL_INFO).map((model) => (
+          {SELECTABLE_MODELS.map((model) => (
             <SelectItem key={model.name} value={model.name}>
               <div className="flex items-center gap-2">
                 {model.icon}
