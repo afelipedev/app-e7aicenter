@@ -2258,9 +2258,10 @@ export function LegalKanbanCardDetailsSheet({
       multiple
       className="hidden"
       onChange={(event) => {
-        const files = event.target.files;
+        // FileList é live: limpar o input esvazia a lista. Copiar para array antes.
+        const files = Array.from(event.target.files ?? []);
         event.target.value = "";
-        if (files?.length) void processUploadFiles(files);
+        if (files.length) void processUploadFiles(files);
       }}
     />
     {cardId ? (

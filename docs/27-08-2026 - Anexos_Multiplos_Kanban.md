@@ -39,6 +39,7 @@ Aplicado no projeto remoto via MCP.
 - Envio sequencial; toasts de sucesso parcial se alguns falharem.
 - Limite de 20 arquivos por seleção (`LEGAL_KANBAN_ATTACHMENT_MAX_FILES`).
 - Botões: "Escolher arquivos" / "Adicionar".
+- Os arquivos são copiados para um array **antes** de resetar o input. `FileList` é uma coleção live: `input.value = ""` esvaziava a lista e o upload saía sem toast.
 
 ## Como validar
 
