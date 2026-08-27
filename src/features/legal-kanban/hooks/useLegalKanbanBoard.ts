@@ -6,6 +6,7 @@ import type {
   CreateLegalKanbanColumnInput,
   CreateLegalKanbanCustomFieldInput,
   CreateLegalKanbanLabelInput,
+  LegalKanbanAttachment,
   LegalKanbanCard,
   LegalKanbanCardBase,
   LegalKanbanCardDetails,
@@ -502,7 +503,21 @@ export function useUploadLegalKanbanAttachment(cardId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (file: File) => legalKanbanService.uploadAttachment(cardId, file),
+    mutationFn: async (files: File[]) => {
+      const uploaded: LegalKanbanAttachment[] = [];
+      const failed: { name: string; message: string }[] = [];
+      for (const file of files) {
+        try {
+          uploaded.push(await legalKanbanService.uploadAttachment(cardId, file));
+        } catch (error) {
+          failed.push({
+            name: file.name,
+            message: error instanceof Error ? error.message : "Erro ao enviar o arquivo.",
+          });
+        }
+      }
+      return { uploaded, failed };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: kanbanKeys.boardPrefix() });
       queryClient.invalidateQueries({ queryKey: kanbanKeys.card(cardId) });

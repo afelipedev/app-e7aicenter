@@ -7,6 +7,7 @@ export const LEGAL_KANBAN_BOARD_COVER_BUCKET = "legal-kanban-board-covers";
 
 // Limite alinhado ao file_size_limit do bucket de anexos (50 MB).
 export const LEGAL_KANBAN_ATTACHMENT_MAX_BYTES = 50 * 1024 * 1024;
+export const LEGAL_KANBAN_ATTACHMENT_MAX_FILES = 20;
 
 // Extensões aceitas no seletor de arquivos (alinhadas ao allowed_mime_types do bucket).
 export const LEGAL_KANBAN_ATTACHMENT_ACCEPT = [

@@ -1797,17 +1797,26 @@ export const legalKanbanService = {
 
   async uploadAttachment(cardId: string, file: File) {
     const actor = await getCurrentPublicUser();
-    const fileExt = file.name.split(".").pop();
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-    const filePath = `${cardId}/${Date.now()}-${safeName}${fileExt ? "" : ""}`;
+    const safeName =
+      file.name.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "arquivo";
+    const uniqueId =
+      globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const filePath = `${cardId}/${uniqueId}-${safeName}`;
+    const mimeType = file.type || "application/octet-stream";
+    const fileSize = Number.isFinite(file.size) ? Math.trunc(file.size) : null;
 
     const uploadResponse = await supabase.storage
       .from(LEGAL_KANBAN_STORAGE_BUCKET)
-      .upload(filePath, file, { upsert: false });
+      .upload(filePath, file, {
+        upsert: false,
+        contentType: mimeType,
+      });
 
     if (uploadResponse.error) {
       throw new Error(uploadResponse.error.message);
     }
+
+    const storedPath = uploadResponse.data.path;
 
     const response = await db
       .from("legal_kanban_attachments")
@@ -1816,12 +1825,17 @@ export const legalKanbanService = {
         created_by_user_id: actor.id,
         attachment_type: "file",
         name: file.name,
-        file_path: uploadResponse.data.path,
-        mime_type: file.type,
-        file_size: file.size,
+        file_path: storedPath,
+        mime_type: mimeType,
+        file_size: fileSize,
       })
       .select("*")
       .single();
+
+    if (response.error) {
+      await supabase.storage.from(LEGAL_KANBAN_STORAGE_BUCKET).remove([storedPath]);
+      throw new Error(response.error.message || "Não foi possível registrar o anexo.");
+    }
 
     await logActivity(cardId, actor.id, "attachment_added", `Enviou o arquivo "${file.name}".`);
     return mapAttachment(ensureData(response, "Não foi possível registrar o anexo."));

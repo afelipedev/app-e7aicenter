@@ -83,6 +83,7 @@ import { createEmptyRichTextDoc } from "@/features/legal-kanban/components/edito
 import {
   LEGAL_KANBAN_ATTACHMENT_ACCEPT,
   LEGAL_KANBAN_ATTACHMENT_MAX_BYTES,
+  LEGAL_KANBAN_ATTACHMENT_MAX_FILES,
   LEGAL_KANBAN_COLOR_PRESETS,
   LEGAL_KANBAN_PRIORITY_META,
   LEGAL_KANBAN_STATUS_META,
@@ -768,18 +769,49 @@ export function LegalKanbanCardDetailsSheet({
     }
   }
 
-  async function processUploadFile(file: File) {
-    if (file.size > LEGAL_KANBAN_ATTACHMENT_MAX_BYTES) {
-      const maxMb = Math.round(LEGAL_KANBAN_ATTACHMENT_MAX_BYTES / (1024 * 1024));
-      toast.error(`Arquivo muito grande. O tamanho máximo é ${maxMb} MB.`);
+  async function processUploadFiles(fileList: FileList | File[]) {
+    const maxMb = Math.round(LEGAL_KANBAN_ATTACHMENT_MAX_BYTES / (1024 * 1024));
+    const selected = Array.from(fileList);
+    if (selected.length === 0) return;
+
+    if (selected.length > LEGAL_KANBAN_ATTACHMENT_MAX_FILES) {
+      toast.error(`Selecione no máximo ${LEGAL_KANBAN_ATTACHMENT_MAX_FILES} arquivos por vez.`);
       return;
     }
 
+    const accepted: File[] = [];
+    for (const file of selected) {
+      if (file.size > LEGAL_KANBAN_ATTACHMENT_MAX_BYTES) {
+        toast.error(`"${file.name}" excede ${maxMb} MB.`);
+        continue;
+      }
+      accepted.push(file);
+    }
+
+    if (accepted.length === 0) return;
+
     try {
-      await uploadAttachment.mutateAsync(file);
-      toast.success("Arquivo anexado.");
+      const { uploaded, failed } = await uploadAttachment.mutateAsync(accepted);
+      if (uploaded.length === 1 && failed.length === 0) {
+        toast.success("Arquivo anexado.");
+      } else if (uploaded.length > 1 && failed.length === 0) {
+        toast.success(`${uploaded.length} arquivos anexados.`);
+      } else if (uploaded.length > 0 && failed.length > 0) {
+        toast.success(`${uploaded.length} arquivo(s) anexado(s).`);
+        toast.error(
+          failed.length === 1
+            ? describeUploadError(new Error(failed[0].message), failed[0].name)
+            : `${failed.length} arquivos não foram anexados. ${describeUploadError(new Error(failed[0].message), failed[0].name)}`,
+        );
+      } else {
+        toast.error(
+          failed[0]
+            ? describeUploadError(new Error(failed[0].message), failed[0].name)
+            : "Erro ao enviar os arquivos.",
+        );
+      }
     } catch (error) {
-      toast.error(describeUploadError(error, file.name));
+      toast.error(error instanceof Error ? error.message : "Erro ao enviar os arquivos.");
     }
   }
 
@@ -1608,7 +1640,7 @@ export function LegalKanbanCardDetailsSheet({
                             </Button>
                           </div>
                           <div className="space-y-1.5">
-                            <Label>Arquivo</Label>
+                            <Label>Arquivos</Label>
                             <Button
                               type="button"
                               variant="outline"
@@ -1617,7 +1649,7 @@ export function LegalKanbanCardDetailsSheet({
                               onClick={handlePickAndUpload}
                             >
                               <Paperclip className="mr-2 h-4 w-4" />
-                              {uploadAttachment.isPending ? "Enviando…" : "Escolher arquivo"}
+                              {uploadAttachment.isPending ? "Enviando…" : "Escolher arquivos"}
                             </Button>
                           </div>
                         </TopPanelBlock>
@@ -1656,7 +1688,7 @@ export function LegalKanbanCardDetailsSheet({
                         className="h-8 shrink-0 text-xs"
                         disabled={uploadAttachment.isPending || !cardId}
                         onClick={handlePickAndUpload}
-                        title="Escolher arquivo para anexar"
+                        title="Escolher arquivos para anexar"
                       >
                         {uploadAttachment.isPending ? "Enviando…" : "Adicionar"}
                       </Button>
@@ -2223,11 +2255,12 @@ export function LegalKanbanCardDetailsSheet({
       ref={attachmentFileInputRef}
       type="file"
       accept={LEGAL_KANBAN_ATTACHMENT_ACCEPT}
+      multiple
       className="hidden"
       onChange={(event) => {
-        const file = event.target.files?.[0];
+        const files = event.target.files;
         event.target.value = "";
-        if (file) void processUploadFile(file);
+        if (files?.length) void processUploadFiles(files);
       }}
     />
     {cardId ? (
@@ -2518,6 +2551,9 @@ function describeUploadError(error: unknown, fileName: string): string {
   }
   if (lower.includes("duplicate") || lower.includes("already exists") || lower.includes("conflict")) {
     return "Este arquivo já está anexado a este card.";
+  }
+  if (lower.includes("invalid input syntax") && (lower.includes("integer") || lower.includes("bigint"))) {
+    return `Não foi possível anexar "${fileName}". Tente novamente.`;
   }
   return message || "Erro ao enviar o arquivo.";
 }
