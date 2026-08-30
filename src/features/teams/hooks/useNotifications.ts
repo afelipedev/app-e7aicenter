@@ -8,9 +8,10 @@ import type { NotificationRow } from "../types";
 export function useNotifications() {
   const qc = useQueryClient();
   const { data: profileId } = useCurrentProfileId();
+  const notifKey = teamsKeys.notifications(profileId);
 
   const query = useQuery<NotificationRow[]>({
-    queryKey: teamsKeys.notifications(),
+    queryKey: notifKey,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notifications").select("*")
@@ -28,11 +29,11 @@ export function useNotifications() {
       .channel(`notifications:${profileId}`)
       .on("postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${profileId}` },
-        () => qc.invalidateQueries({ queryKey: teamsKeys.notifications() }),
+        () => qc.invalidateQueries({ queryKey: notifKey }),
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [profileId, qc]);
+  }, [profileId, qc, notifKey]);
 
   const markAllRead = useMutation({
     mutationFn: async () => {
@@ -42,18 +43,18 @@ export function useNotifications() {
       if (error) throw new Error(error.message);
     },
     onMutate: async () => {
-      await qc.cancelQueries({ queryKey: teamsKeys.notifications() });
-      const prev = qc.getQueryData<NotificationRow[]>(teamsKeys.notifications());
+      await qc.cancelQueries({ queryKey: notifKey });
+      const prev = qc.getQueryData<NotificationRow[]>(notifKey);
       const stamp = new Date().toISOString();
-      qc.setQueryData<NotificationRow[]>(teamsKeys.notifications(), (old) =>
+      qc.setQueryData<NotificationRow[]>(notifKey, (old) =>
         (old ?? []).map((n) => (n.read_at ? n : { ...n, read_at: stamp })),
       );
       return { prev };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(teamsKeys.notifications(), ctx.prev);
+      if (ctx?.prev) qc.setQueryData(notifKey, ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: teamsKeys.notifications() }),
+    onSettled: () => qc.invalidateQueries({ queryKey: notifKey }),
   });
 
   const markRead = useMutation({
@@ -63,18 +64,18 @@ export function useNotifications() {
       if (error) throw new Error(error.message);
     },
     onMutate: async (notificationId) => {
-      await qc.cancelQueries({ queryKey: teamsKeys.notifications() });
-      const prev = qc.getQueryData<NotificationRow[]>(teamsKeys.notifications());
+      await qc.cancelQueries({ queryKey: notifKey });
+      const prev = qc.getQueryData<NotificationRow[]>(notifKey);
       const stamp = new Date().toISOString();
-      qc.setQueryData<NotificationRow[]>(teamsKeys.notifications(), (old) =>
+      qc.setQueryData<NotificationRow[]>(notifKey, (old) =>
         (old ?? []).map((n) => (n.id === notificationId ? { ...n, read_at: stamp } : n)),
       );
       return { prev };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(teamsKeys.notifications(), ctx.prev);
+      if (ctx?.prev) qc.setQueryData(notifKey, ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: teamsKeys.notifications() }),
+    onSettled: () => qc.invalidateQueries({ queryKey: notifKey }),
   });
 
   const unread = (query.data ?? []).filter((n) => !n.read_at);

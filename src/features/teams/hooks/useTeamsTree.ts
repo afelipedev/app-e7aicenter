@@ -12,7 +12,8 @@ export const teamsKeys = {
   posts: (channelId: string) => [...teamsKeys.all, "posts", channelId] as const,
   post: (postId: string) => [...teamsKeys.all, "post", postId] as const,
   messages: (postId: string) => [...teamsKeys.all, "messages", postId] as const,
-  notifications: () => [...teamsKeys.all, "notifications"] as const,
+  notifications: (profileId?: string | null) =>
+    [...teamsKeys.all, "notifications", profileId ?? "anon"] as const,
   favorites: () => [...teamsKeys.all, "favorites"] as const,
 };
 

@@ -24,6 +24,8 @@ interface TrendAreaChartProps {
   series: TrendSeries[];
   /** Formatação do valor no tooltip (ex.: moeda). */
   valueFormatter?: (value: number) => string;
+  /** Formatação do rótulo do eixo X. Sobrepõe o formatador de mês. */
+  tickFormatter?: (value: string) => string;
   height?: number;
 }
 
@@ -35,8 +37,10 @@ export function TrendAreaChart({
   xKey = "month",
   series,
   valueFormatter,
+  tickFormatter,
   height = 288,
 }: TrendAreaChartProps) {
+  const formatTick = tickFormatter ?? (xKey === "month" ? formatMonthLabel : undefined);
   return (
     <ResponsiveContainer width="100%" height={height}>
       {/* left: 0 + YAxis width fixo evitam que os rótulos do eixo Y fiquem cortados. */}
@@ -55,7 +59,7 @@ export function TrendAreaChart({
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
         <XAxis
           dataKey={xKey}
-          tickFormatter={xKey === "month" ? formatMonthLabel : undefined}
+          tickFormatter={formatTick}
           tick={axisStyle}
           tickLine={false}
           axisLine={false}
@@ -75,7 +79,7 @@ export function TrendAreaChart({
             borderRadius: 8,
             color: "hsl(var(--popover-foreground))",
           }}
-          labelFormatter={(l) => (xKey === "month" ? formatMonthLabel(String(l)) : String(l))}
+          labelFormatter={(l) => (formatTick ? formatTick(String(l)) : String(l))}
           formatter={(value: number, name) => [valueFormatter ? valueFormatter(value) : value, name]}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />

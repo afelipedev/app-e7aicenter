@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Suspense, lazy } from "react";
 import { AppLayout } from "./components/layout/AppLayout";
 import { AuthProvider } from "./contexts/AuthContext";
+import { ClearQueryCacheOnAuthChange } from "./components/ClearQueryCacheOnAuthChange";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import ChatGeneral from "./pages/assistants/ChatGeneral";
@@ -94,6 +95,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <ClearQueryCacheOnAuthChange />
             <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
